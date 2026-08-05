@@ -13,11 +13,13 @@
 # of the sanitizer build: Python has no address sanitizer, and `-X dev` with
 # warnings promoted to errors is the equivalent that can actually fail.
 
+# CI is manual. Automatic push/pull_request runs were removed because the
+# three-OS matrix cost hours of runner time per push. Start a run from the
+# Actions tab or with `gh workflow run`.
+
 name: CI
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -30,8 +32,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: macos-arm64
-            runs-on: macos-14
           - target: linux-x86-64
             runs-on: ubuntu-latest
           - target: windows-x86-64
