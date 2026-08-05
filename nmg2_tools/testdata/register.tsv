@@ -24,3 +24,9 @@ NMG2_128_OS.bin	private
 CODE_30000400.bin	private
 SRAM_20000800.bin	private
 FINDINGS.md	private
+# Operator-granted exception, 2026-08-05. Nine `.pch2` files inherited from
+# upstream `chrispurusha/G2-Edit`. Authorship is UNESTABLISHED: the filenames
+# suggest the upstream author's own test patches rather than Clavia factory
+# patches, and that is a suggestion and not a finding. Revisit with upstream
+# commit provenance, or a comparison against a Clavia factory bank.
+PatchTestFiles/	public pch2-exception

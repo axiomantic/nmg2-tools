@@ -10,7 +10,9 @@ the same meaning it has in ``credential_lint.py``, and enforces these
 independent conditions, each with its own failure name:
 
 1. PAYLOAD-PCH2-LOCATION: a ``*.pch2`` file anywhere in a public repository
-   outside ``nmg2_tools/testdata/pch2_synth/`` fails.
+   outside ``nmg2_tools/testdata/pch2_synth/`` fails, unless the register
+   holds a ``public pch2-exception`` row covering the path, in which case
+   this clause passes.
 2. PAYLOAD-UNREGISTERED: any committed file under a ``fixtures/`` path with
    no register row fails, at any size, in either visibility. ``.gitkeep``
    files are exempt everywhere: they are directory markers, not fixtures,
@@ -39,6 +41,11 @@ directory and covers every path beneath it. ``visibility`` is one of:
   applies).
 - ``private``               -- the path is only for a private repository.
 - ``public allow-listed``   -- the path may exceed the size ceiling.
+- ``public pch2-exception`` -- the path is exempt from clause 1 ONLY. It is
+  an operator-granted exception for a ``.pch2`` file whose provenance is
+  unestablished. It grants NO size exemption: clause 3 still applies, so
+  use ``public allow-listed`` for that and never assume one implies the
+  other.
 
 Blank lines and lines starting with ``#`` are ignored.
 """
@@ -81,6 +88,10 @@ class RegisterEntry:
     @property
     def allow_listed(self) -> bool:
         return self.visibility == "public allow-listed"
+
+    @property
+    def pch2_excepted(self) -> bool:
+        return self.visibility == "public pch2-exception"
 
 
 def load_register(register_path: Path) -> list[RegisterEntry]:
@@ -139,16 +150,18 @@ def lint_committed_files(
         if posix_path.endswith(".gitkeep"):
             continue
 
+        path_parts = posix_path.split("/")
+        is_fixture = "fixtures" in path_parts[:-1]
+        entry = _find_register_entry(posix_path, entries)
+
         if posix_path.endswith(".pch2"):
-            if not posix_path.startswith(PCH2_ALLOWED_DIR):
+            if not posix_path.startswith(PCH2_ALLOWED_DIR) and not (
+                entry is not None and entry.pch2_excepted
+            ):
                 failures.append(
                     f"PAYLOAD-PCH2-LOCATION: {posix_path}: .pch2 file outside "
                     f"{PCH2_ALLOWED_DIR}"
                 )
-
-        path_parts = posix_path.split("/")
-        is_fixture = "fixtures" in path_parts[:-1]
-        entry = _find_register_entry(posix_path, entries)
 
         if is_fixture and entry is None:
             failures.append(
