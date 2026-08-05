@@ -1,0 +1,11 @@
+on: workflow_call
+jobs:
+  oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        with:
+          path: |
+            corpus/pch2
+            build/obj
+          key: corpus-v1
