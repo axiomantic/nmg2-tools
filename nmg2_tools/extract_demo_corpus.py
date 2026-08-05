@@ -6,7 +6,7 @@ against a real installer image by accident.
 
 For every file under ``--source`` whose name ends in ``.pch2``, it writes
 the file UNCHANGED into ``<dest>/corpus/pch2/`` and records, in
-``<dest>/corpus/MANIFEST.txt``, the file's path relative to the source
+``<dest>/corpus/pch2/MANIFEST.txt``, the file's path relative to the source
 tree, its size in bytes and its SHA-256 digest. The manifest's first line
 holds the total count of files it records.
 
@@ -58,7 +58,7 @@ def extract(source: Path, dest: Path) -> Path:
         sha = _sha256(src_file)
         manifest_lines.append(f"{rel_path.as_posix()}\t{size}\t{sha}")
 
-    manifest_path = corpus_dir / "MANIFEST.txt"
+    manifest_path = pch2_dir / "MANIFEST.txt"
     with manifest_path.open("w") as fh:
         fh.write(f"{len(pch2_files)}\n")
         for line in manifest_lines:

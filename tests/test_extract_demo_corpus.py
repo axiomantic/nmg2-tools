@@ -1,3 +1,5 @@
+import hashlib
+
 from nmg2_tools.extract_demo_corpus import extract, find_pch2_files
 
 
@@ -33,5 +35,39 @@ def test_manifest_first_line_agrees_with_count(tmp_path):
     assert len(lines) == 1 + 3
 
     pch2_dir = dest / "corpus" / "pch2"
-    copied = sorted(p.name for p in pch2_dir.iterdir())
+    copied = sorted(p.name for p in pch2_dir.iterdir() if p.name != "MANIFEST.txt")
     assert copied == ["alpha.pch2", "beta.pch2", "gamma.pch2"]
+
+
+def test_manifest_is_written_beside_the_copied_patches(tmp_path):
+    """`REGISTER.md` and `register.tsv` both name `corpus/pch2/MANIFEST.txt`."""
+    source = _make_source_tree(tmp_path)
+    dest = tmp_path / "out"
+
+    manifest_path = extract(source, dest)
+
+    assert manifest_path == dest / "corpus" / "pch2" / "MANIFEST.txt"
+    assert manifest_path.is_file()
+    # The old location must not be written as well, or the register row for
+    # `corpus/pch2/MANIFEST.txt` would leave a second, unregistered manifest.
+    assert not (dest / "corpus" / "MANIFEST.txt").exists()
+
+
+def test_manifest_records_relative_path_size_and_digest_for_every_file(tmp_path):
+    source = _make_source_tree(tmp_path)
+    dest = tmp_path / "out"
+
+    manifest_path = extract(source, dest)
+
+    def row(rel: str, payload: bytes) -> str:
+        return f"{rel}\t{len(payload)}\t{hashlib.sha256(payload).hexdigest()}"
+
+    assert manifest_path.read_text() == (
+        "3\n"
+        + row("gamma.pch2", b"gamma-placeholder")
+        + "\n"
+        + row("patches/alpha.pch2", b"alpha-placeholder")
+        + "\n"
+        + row("patches/beta.pch2", b"beta-placeholder")
+        + "\n"
+    )
