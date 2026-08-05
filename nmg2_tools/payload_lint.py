@@ -154,7 +154,7 @@ def lint_committed_files(
         is_fixture = "fixtures" in path_parts[:-1]
         entry = _find_register_entry(posix_path, entries)
 
-        if posix_path.endswith(".pch2"):
+        if visibility == "public" and posix_path.endswith(".pch2"):
             if not posix_path.startswith(PCH2_ALLOWED_DIR) and not (
                 entry is not None and entry.pch2_excepted
             ):

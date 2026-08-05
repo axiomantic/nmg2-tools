@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from nmg2_tools.payload_lint import RegisterEntry, lint_committed_files, load_register
+from nmg2_tools.payload_lint import (
+    PCH2_ALLOWED_DIR,
+    RegisterEntry,
+    lint_committed_files,
+    load_register,
+)
 
 REGISTER = [
     RegisterEntry("nmg2_tools/testdata/pch2_synth/", "public"),
@@ -9,6 +14,8 @@ REGISTER = [
     RegisterEntry("golden/", "private"),
     RegisterEntry("PatchTestFiles/", "public pch2-exception"),
     RegisterEntry("testdata/PatchTestFiles/", "public pch2-exception"),
+    # Mirrors the row `nmg2-artifacts` carries for its demo corpus.
+    RegisterEntry("corpus/pch2/", "private"),
 ]
 
 
@@ -28,6 +35,38 @@ def test_pch2_inside_synth_corpus_passes(tmp_path):
     rel = "nmg2_tools/testdata/pch2_synth/demo.pch2"
     _write(tmp_path / rel, 10)
     failures = lint_committed_files(tmp_path, [rel], REGISTER)
+    assert failures == []
+
+
+def test_pch2_at_registered_corpus_path_in_private_repo_passes(tmp_path):
+    """Clause 1 is a PUBLIC-repository rule; a private repository may hold the corpus.
+
+    This is the exact shape `nmg2-artifacts` has: a private repository, a
+    `corpus/pch2/` row marked private, and a `.pch2` file beneath it.
+    """
+    rel = "corpus/pch2/Anthem demo.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], REGISTER, visibility="private")
+    assert failures == []
+
+
+def test_pch2_outside_synth_corpus_in_public_repo_still_fails(tmp_path):
+    """The private-repository allowance must not weaken the public rule."""
+    rel = "corpus/pch2/Anthem demo.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], REGISTER, visibility="public")
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-PRIVATE-IN-PUBLIC: {rel}: register marks this path private, "
+        "but it is committed in a public repository",
+    ]
+
+
+def test_unregistered_pch2_in_private_repo_passes(tmp_path):
+    """A private repository is not the place clause 1 polices, registered or not."""
+    rel = "some/other/place.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], REGISTER, visibility="private")
     assert failures == []
 
 
