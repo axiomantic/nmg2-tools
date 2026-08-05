@@ -5,6 +5,33 @@ This check is static. It reads no network. It parses the content of a
 
 The authority table below is the same table the plan document states. Keep
 it in sync with the plan by hand; this module does not read the plan.
+
+THE SCOPE OF THE HARD FAILURE IS THE `axiomantic` ORGANIZATION, AND THE PLAN
+STATES THE RULE TWICE IN TWO WIDTHS.
+
+The recorded-fixture register states it as an allow-list: "any URL that does
+not name a repository the repository table lists as PUBLIC". The task's own
+check states it as a prohibition: the step "fails when a `.gitmodules` file in
+the repository names `nmg2-artifacts`, or names any URL under `axiomantic` that
+is private", and it requires the step to PASS on the `gearmulator` fork.
+
+The two cannot both hold. Measured against the real fork, `.gitmodules` there
+declares eight submodules and SIX of them are third-party public repositories
+the table does not list and never will: JUCE, cpp-terminal,
+clap-juce-extensions, RmlUi, freetype and lunasvg. Under the allow-list reading
+the step fails on that fork for ever, so the task could not pass its own check.
+
+This module implements the PROHIBITION reading, which is the task gate:
+
+  * a URL naming the private repository is a hard failure;
+  * a URL under `axiomantic` that is not on the public list is a hard failure,
+    because a repository of this project's own that is missing from the table
+    is exactly the defect the table exists to catch;
+  * a URL outside the `axiomantic` organization is REPORTED and is not a
+    failure. It cannot be this project's private repository.
+
+The contradiction is a plan defect and it is recorded here rather than
+resolved silently.
 """
 
 from __future__ import annotations
@@ -48,9 +75,13 @@ def _repo_name(url_line: str) -> str | None:
     return f"{m.group('owner')}/{m.group('repo')}"
 
 
-def lint_gitmodules_text(text: str) -> list[str]:
-    """Return a list of named failures for the given ``.gitmodules`` text."""
+def lint_gitmodules_text(text: str) -> tuple[list[str], list[str]]:
+    """Return ``(failures, notes)`` for the given ``.gitmodules`` text.
+
+    A failure fails the step. A note is printed and does not.
+    """
     failures: list[str] = []
+    notes: list[str] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         repo = _repo_name(line)
         if repo is None:
@@ -67,18 +98,18 @@ def lint_gitmodules_text(text: str) -> list[str]:
                 "public authority list"
             )
         else:
-            failures.append(
-                f"SUBMODULE-UNKNOWN: line {lineno}: {repo} names a repository "
-                "outside both the public and private authority lists"
+            notes.append(
+                f"SUBMODULE-THIRD-PARTY: line {lineno}: {repo} is outside the "
+                "axiomantic organization and is not this project's to list"
             )
-    return failures
+    return failures, notes
 
 
-def lint_repo_tree(repo_path: Path) -> list[str]:
+def lint_repo_tree(repo_path: Path) -> tuple[list[str], list[str]]:
     """Lint the ``.gitmodules`` file at the root of ``repo_path``, if any."""
     gitmodules = repo_path / ".gitmodules"
     if not gitmodules.is_file():
-        return []
+        return [], []
     return lint_gitmodules_text(gitmodules.read_text())
 
 
@@ -89,7 +120,9 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    failures = lint_repo_tree(args.repo_path)
+    failures, notes = lint_repo_tree(args.repo_path)
+    for note in notes:
+        print(note)
     for failure in failures:
         print(failure, file=sys.stderr)
     return 1 if failures else 0
