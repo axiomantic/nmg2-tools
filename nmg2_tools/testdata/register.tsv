@@ -1,0 +1,26 @@
+nmg2_tools/testdata/pch2_synth/	public
+g2Lib/test/fixtures/synthetic_block_program.asm	public
+g2Lib/test/fixtures/frame_sync_spin.asm	public
+g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public
+g2Lib/test/fixtures/golden/manifest.txt	public
+g2Lib/test/fixtures/module_map.coverage	public
+module_map.coverage	public
+unclaimed_compute.count	public
+artifacts.sha256	public
+golden.timebase	public
+conformance/corpus/	public allow-listed
+corpus/pch2/	private
+corpus/pch2/MANIFEST.txt	private
+fixtures/protocol/	private
+fixtures/protocol/editor_sequence.bin	private
+fixtures/protocol/m7_trace.bin	private
+fixtures/protocol/perf4_frame_sequence.bin	private
+golden/	private
+captures/	private
+module_map.csv	private
+unclaimed_compute.txt	private
+BOOT_128_Loader.bin	private
+NMG2_128_OS.bin	private
+CODE_30000400.bin	private
+SRAM_20000800.bin	private
+FINDINGS.md	private
