@@ -67,5 +67,14 @@ those tests skip and give the reason. They never fail for that reason.
 
 ## Licence
 
-The licence is not yet set. This repository carries no `LICENSE` file until the
-operator selects one.
+MIT. See `LICENSE`.
+
+The MIT licence puts a rule on every contribution: **this repository is
+clean-room with respect to GPL and LGPL code.** Do not copy, port, translate or
+transliterate code from a GPL or LGPL source into this repository. This applies
+to the known GPL editors and tools in this problem space, among them
+`msg/g2ools`, `BVerhue/nord_g2_editor` and `redpola/nomad2026`.
+
+Facts stay usable. Protocol message formats, field offsets, bit layouts and
+module type identifiers are facts, not expression, so a GPL tool is a
+legitimate place to *check* a fact. Only copied expression is a problem.

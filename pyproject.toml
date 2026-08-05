@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=68"]
+# setuptools 77.0.0 is the first release that accepts a PEP 639 SPDX `license`
+# string and a `license-files` list. The floor is 77, not 68, because the
+# `license = "MIT"` field below is a build error on any older backend.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,9 +10,11 @@ name = "nmg2-tools"
 version = "0.0.0"
 description = "Python tools for the Nord Modular G2 emulator project"
 requires-python = ">=3.11"
-
-# The licence is not yet set. Do not add a `license` field, a `LICENSE` file or
-# a licence classifier until the operator selects one.
+# PEP 639. `license` is an SPDX expression string, not the deprecated table
+# form, and not a `License ::` trove classifier. Both of those are deprecated
+# and setuptools warns on them.
+license = "MIT"
+license-files = ["LICENSE"]
 
 [tool.setuptools]
 # The layout is fixed. The package is `nmg2_tools/` and it is the only package.
