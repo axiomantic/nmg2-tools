@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nmg2-tools"
+version = "0.0.0"
+description = "Python tools for the Nord Modular G2 emulator project"
+requires-python = ">=3.11"
+
+# The licence is not yet set. Do not add a `license` field, a `LICENSE` file or
+# a licence classifier until the operator selects one.
+
+[tool.setuptools]
+# The layout is fixed. The package is `nmg2_tools/` and it is the only package.
+packages = ["nmg2_tools"]
+
+[tool.pytest.ini_options]
+# The layout is fixed. Every test lives at `tests/` in the repository root, and
+# never inside the package. `pythonpath` puts the repository root on the import
+# path so that a test imports `nmg2_tools` without an install step.
+testpaths = ["tests"]
+pythonpath = ["."]
