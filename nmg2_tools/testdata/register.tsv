@@ -29,4 +29,4 @@ FINDINGS.md	private
 # suggest the upstream author's own test patches rather than Clavia factory
 # patches, and that is a suggestion and not a finding. Revisit with upstream
 # commit provenance, or a comparison against a Clavia factory bank.
-PatchTestFiles/	public pch2-exception
+PatchTestFiles/	public pch2-exception	axiomantic/G2-Edit

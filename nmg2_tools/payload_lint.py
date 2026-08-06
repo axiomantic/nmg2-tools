@@ -31,10 +31,12 @@ The register file format
 -------------------------
 A simple tab-separated text file, one row per line::
 
-    <path><TAB><visibility>
+    <path><TAB><visibility>[<TAB><repo>]
 
 ``path`` is a repository-relative path. A path ending in ``/`` names a
-directory and covers every path beneath it. ``visibility`` is one of:
+directory and covers every path beneath it. The optional third field is an
+``owner/name`` repository slug that SCOPES the row to one repository; see
+``public pch2-exception`` below. ``visibility`` is one of:
 
 - ``public``               -- the path may be committed in a public
   repository, no size ceiling by itself (clause 3's path scope still
@@ -45,7 +47,12 @@ directory and covers every path beneath it. ``visibility`` is one of:
   an operator-granted exception for a ``.pch2`` file whose provenance is
   unestablished. It grants NO size exemption: clause 3 still applies, so
   use ``public allow-listed`` for that and never assume one implies the
-  other.
+  other. It MUST carry the third ``repo`` field, because this register is
+  ONE file shared by all seven repositories: an unqualified row would except
+  the path in every one of them, and any repository could then silence
+  clause 1 by choosing a directory name. The exception applies only when the
+  caller passes a matching ``--repo``; an unidentified repository gets no
+  exception, so the check fails CLOSED.
 
 Blank lines and lines starting with ``#`` are ignored.
 """
@@ -75,11 +82,14 @@ def _in_ceiling_scope(posix_path: str) -> bool:
 
 
 class RegisterEntry:
-    __slots__ = ("path", "visibility")
+    __slots__ = ("path", "visibility", "repo")
 
-    def __init__(self, path: str, visibility: str) -> None:
+    def __init__(
+        self, path: str, visibility: str, repo: str | None = None
+    ) -> None:
         self.path = path
         self.visibility = visibility
+        self.repo = repo
 
     @property
     def is_dir_rule(self) -> bool:
@@ -92,6 +102,21 @@ class RegisterEntry:
     @property
     def pch2_excepted(self) -> bool:
         return self.visibility == "public pch2-exception"
+
+    def pch2_excepted_in(self, repo: str | None) -> bool:
+        """Does this row except clause 1 for the repository being linted?
+
+        A ``pch2-exception`` row that names a repository applies ONLY there.
+        The register is one shared file, so an unqualified row would except
+        the path in all seven repositories and let any of them silence this
+        lint by choosing a directory name. An unidentified repository
+        (``repo`` is ``None``) gets no exception: this fails CLOSED.
+        """
+        if not self.pch2_excepted:
+            return False
+        if self.repo is None:
+            return True
+        return repo is not None and repo == self.repo
 
 
 def load_register(register_path: Path) -> list[RegisterEntry]:
@@ -107,7 +132,8 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
             parts = line.split(None, 1)
         path = parts[0].strip()
         visibility = parts[1].strip()
-        entries.append(RegisterEntry(path, visibility))
+        repo = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
+        entries.append(RegisterEntry(path, visibility, repo))
     return entries
 
 
@@ -141,6 +167,7 @@ def lint_committed_files(
     committed_files: list[str],
     entries: list[RegisterEntry],
     visibility: str = "public",
+    repo: str | None = None,
 ) -> list[str]:
     """Return named failures for a given list of repository-relative paths."""
     failures: list[str] = []
@@ -156,7 +183,7 @@ def lint_committed_files(
 
         if visibility == "public" and posix_path.endswith(".pch2"):
             if not posix_path.startswith(PCH2_ALLOWED_DIR) and not (
-                entry is not None and entry.pch2_excepted
+                entry is not None and entry.pch2_excepted_in(repo)
             ):
                 failures.append(
                     f"PAYLOAD-PCH2-LOCATION: {posix_path}: .pch2 file outside "
@@ -203,11 +230,14 @@ def lint_committed_files(
 
 
 def lint_repo_tree(
-    repo_path: Path, register_path: Path, visibility: str = "public"
+    repo_path: Path,
+    register_path: Path,
+    visibility: str = "public",
+    repo: str | None = None,
 ) -> list[str]:
     entries = load_register(register_path)
     committed = _committed_files(repo_path)
-    return lint_committed_files(repo_path, committed, entries, visibility)
+    return lint_committed_files(repo_path, committed, entries, visibility, repo)
 
 
 def main(argv: list[str]) -> int:
@@ -227,9 +257,21 @@ def main(argv: list[str]) -> int:
         default="public",
         help="repository visibility (default: public)",
     )
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help=(
+            "the `owner/name` slug of the repository under test, as "
+            "`github.repository` supplies it. A `public pch2-exception` "
+            "register row that names a repository applies ONLY when this "
+            "matches. Omitting it grants no scoped exception."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    failures = lint_repo_tree(args.repo_path, args.register, args.visibility)
+    failures = lint_repo_tree(
+        args.repo_path, args.register, args.visibility, args.repo
+    )
     for failure in failures:
         print(failure, file=sys.stderr)
     return 1 if failures else 0

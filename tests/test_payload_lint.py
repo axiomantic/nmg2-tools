@@ -132,3 +132,68 @@ def test_shipped_register_has_exactly_one_pch2_exception_row():
     exception_entries = [e for e in entries if e.pch2_excepted]
     assert len(exception_entries) == 1
     assert exception_entries[0].path == "PatchTestFiles/"
+
+
+# --- The pch2 exception is scoped to ONE repository -------------------------
+#
+# The register is a single file shared by all seven repositories. An
+# unqualified `PatchTestFiles/` row would except that path in EVERY public
+# repository, so any repository could silence this lint by choosing a
+# directory name. The exception carries the repository it was granted for,
+# and it applies nowhere else.
+
+SCOPED_REGISTER = [
+    RegisterEntry("nmg2_tools/testdata/pch2_synth/", "public"),
+    RegisterEntry("PatchTestFiles/", "public pch2-exception", "axiomantic/G2-Edit"),
+]
+
+
+def test_pch2_exception_applies_in_the_repository_it_names(tmp_path):
+    rel = "PatchTestFiles/InheritedOne.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(
+        tmp_path, [rel], SCOPED_REGISTER, repo="axiomantic/G2-Edit"
+    )
+    assert failures == []
+
+
+def test_pch2_exception_does_not_apply_in_a_different_repository(tmp_path):
+    """A directory merely NAMED `PatchTestFiles` in another repository fails."""
+    rel = "PatchTestFiles/Smuggled.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(
+        tmp_path, [rel], SCOPED_REGISTER, repo="axiomantic/mc68k"
+    )
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_pch2_exception_does_not_apply_when_no_repository_is_supplied(tmp_path):
+    """Fail closed: an unidentified repository gets no scoped exception."""
+    rel = "PatchTestFiles/Smuggled.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], SCOPED_REGISTER, repo=None)
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_scoped_exception_does_not_widen_to_other_paths_in_its_own_repo(tmp_path):
+    """The grant covers its own path only, not every `.pch2` in G2-Edit."""
+    rel = "src/Sneaky.pch2"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(
+        tmp_path, [rel], SCOPED_REGISTER, repo="axiomantic/G2-Edit"
+    )
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_shipped_register_pch2_exception_row_is_scoped_to_g2_edit():
+    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    exception_entries = [e for e in entries if e.pch2_excepted]
+    assert len(exception_entries) == 1
+    assert exception_entries[0].path == "PatchTestFiles/"
+    assert exception_entries[0].repo == "axiomantic/G2-Edit"
