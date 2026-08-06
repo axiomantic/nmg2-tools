@@ -14,6 +14,7 @@ Design section 4.2, on the Python half:
 """
 
 import os
+from typing import Optional
 
 # The message a failed resolve returns, WORD FOR WORD. Design section 4.2 fixes
 # the wording and section 18.5 builds the skip line on top of it.
@@ -59,3 +60,40 @@ def resolve_artifacts() -> tuple[str, str]:
         return "", ARTIFACT_UNAVAILABLE_MESSAGE
 
     return value, ""
+
+
+# ---------------------------------------------------------------------------
+# Task REPO-7, the Python half of the skip discipline. Design section 18.5,
+# plan section 5.2 rules 2 and 3.
+#
+# REPO-7 depends on REPO-5 and both are repo-track tasks, so this section is a
+# track-internal order and not a race. The C++ half is
+# `source/nord/g2/g2Lib/test/gatedFixture.h` in the `gearmulator` fork.
+# ---------------------------------------------------------------------------
+
+# Section 18.5's skip line is section 4.2's message with this prefix. The line is
+# built by CONCATENATION and is not spelled out a second time: a message with two
+# texts is a message with two meanings, and the one an implementer copies is the
+# one that drifts. `gatedFixture.h` builds it the same way.
+GATED_SKIP_PREFIX = "SKIPPED: "
+
+
+def gated_skip_line() -> str:
+    """The line design section 18.5 step 2 requires a gated test to emit."""
+    return GATED_SKIP_PREFIX + ARTIFACT_UNAVAILABLE_MESSAGE
+
+
+def gated_skip_reason() -> Optional[str]:
+    """Return the skip line when a gated test cannot run, or ``None`` when it can.
+
+    ``None`` means the artifact resolved and the gated body must run. Any other
+    return is a reason, never a silent pass: design section 18.5 opens with "a
+    firmware-gated test that cannot run must skip WITH A REASON. It must never
+    pass silently."
+    """
+    directory, _why = resolve_artifacts()
+
+    if directory:
+        return None
+
+    return gated_skip_line()
