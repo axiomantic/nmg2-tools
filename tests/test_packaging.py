@@ -119,6 +119,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "lzo1x.py",
         "payload_lint.py",
         "submodule_lint.py",
+        # TOOL-12. The synthesized `.pch2` corpus generator.
+        "synth_pch2.py",
     ]
 
 
@@ -139,6 +141,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_packaging.py",
         "test_payload_lint.py",
         "test_submodule_lint.py",
+        # TOOL-12. The synthesized `.pch2` corpus generator.
+        "test_synth_pch2.py",
     ]
 
 

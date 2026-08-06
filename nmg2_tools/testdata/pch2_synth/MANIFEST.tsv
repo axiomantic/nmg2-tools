@@ -1,0 +1,14 @@
+# Task TOOL-12. Every byte of this corpus is authored by this project.
+# file	kind	expected_refusal
+bad_crc.pch2	malformed	PCH2-BAD-CRC
+bad_length_past_end.pch2	malformed	PCH2-LENGTH-PAST-END
+bad_truncated_object.pch2	malformed	PCH2-TRUNCATED-OBJECT
+bad_unknown_type.pch2	malformed	PCH2-UNKNOWN-OBJECT-TYPE
+bit_widths.pch2	wellformed	-
+length_boundaries.pch2	wellformed	-
+min.pch2	wellformed	-
+object_types.pch2	wellformed	-
+wire_extra_bytes_file.pch2	wellformed	-
+wire_extra_bytes_usb.pch2	wellformed	-
+wire_morph_names.pch2	wellformed	-
+wire_variation_count.pch2	wellformed	-
