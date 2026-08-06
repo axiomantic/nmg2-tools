@@ -109,6 +109,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "artifacts.py",
         # TOOL-2. The container checksum.
         "checksum.py",
+        # TOOL-3. The container header and section table.
+        "container.py",
         "credential_lint.py",
         "extract_demo_corpus.py",
         # TOOL-1. The LZO1X decompressor.
@@ -124,6 +126,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_artifacts.py",
         # TOOL-2. The container checksum.
         "test_checksum.py",
+        # TOOL-3. The container header and section table.
+        "test_container.py",
         "test_credential_lint.py",
         "test_extract_demo_corpus.py",
         # TOOL-1. The LZO1X decompressor.
