@@ -12,6 +12,7 @@ from tests.planlint.support import load_fixture
 
 from planlint import registrar
 from planlint.document import PlanDocument
+from planlint.finding import ERROR
 
 
 def run(name):
@@ -246,6 +247,188 @@ class AbbreviatedPathRegistrarTest(unittest.TestCase):
         self.assertEqual([f.task for f in result.findings], ["BBB-1"])
         self.assertEqual(
             [f for f in result.findings if f.task in {"CCC-1", "DDD-1", "EEE-1"}], []
+        )
+
+
+class OwnerAgainstLaterWriterTest(unittest.TestCase):
+    """Section 7.4.2 names an OWNER for a registration list, and it calls every
+    other task that writes the list a DECLARED SECOND WRITER.
+
+    The registration rule of that section obliges a task whose check runs
+    `ctest -R <name>` to declare, on its own `Files:` line, the list it edits to
+    register that name. **A registration is a change, and a change is
+    declared.** The lint read every declarer of the list as a CREATOR of it, so
+    the compliant line made each writer a registrar the other writers had to
+    reach — and the form the document requires was the form the lint rejected.
+
+    Measured on the real plan on 2026-08-06: adding
+    `source/dsp56kEmu/test/CMakeLists.txt` to DSP-15's `Files:` line, which is
+    exactly what section 7.4.2 asks of it, moved the plan from 0 ERRORs to NINE
+    `registrar-outside-closure`.
+
+    The rule is not weakened to clear that: the OWNER must still be reachable,
+    and `UnreachableOwner` below is the direction that must keep failing.
+    """
+
+    OWNED = (
+        "### 7.4.2 Every shared file has one owner\n"
+        "\n"
+        "| Path | Owner |\n"
+        "|---|---|\n"
+        "| `alpha/test/CMakeLists.txt` | **AAA-0** |\n"
+        "\n"
+        "## 9. The tasks\n"
+        "\n"
+        "**AAA-0 · The registrar, which creates the list and registers nothing** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`\n"
+        "Design: 1\n"
+        "Depends: none\n"
+        "Check: `cmake -S . -B build` succeeds and the configured tree holds "
+        "`build/alpha/test/CTestTestfile.cmake`.\n"
+        "\n"
+        "**BBB-1 · The first declared second writer** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`, `alpha/test/t0_beta.cpp`\n"
+        "Design: 2\n"
+        "Depends: AAA-0\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_beta$`. "
+        "Registered with `add_test(NAME t0_beta ...)`.\n"
+        "\n"
+        "**CCC-1 · The second declared second writer** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`, `alpha/test/t0_gamma.cpp`\n"
+        "Design: 3\n"
+        "Depends: AAA-0\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_gamma$`. "
+        "Registered with `add_test(NAME t0_gamma ...)`.\n"
+    )
+
+    # The same three writers, and DDD-1 reaches the owner through nothing at
+    # all. Its `Files:` line carries the registration the rule asks for, so the
+    # only thing between it and a passing check is AAA-0, which it never waits
+    # on.
+    UNREACHABLE_OWNER = OWNED + (
+        "\n"
+        "**DDD-1 · The writer that never waits on the owner** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`, `alpha/test/t0_delta.cpp`\n"
+        "Design: 4\n"
+        "Depends: none\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_delta$`. "
+        "Registered with `add_test(NAME t0_delta ...)`.\n"
+    )
+
+    def owned(self):
+        return PlanDocument.from_text(self.OWNED, name="inline")
+
+    def unreachable_owner(self):
+        return PlanDocument.from_text(self.UNREACHABLE_OWNER, name="inline")
+
+    def test_the_owner_alone_registers_the_directory(self):
+        """`registrars_of` answers with the task section 7.4.2 names, and not
+        with the two later writers that declare the same list."""
+        self.assertEqual(
+            [
+                (task.ident, cmake)
+                for task, cmake in registrar.registrars_of(
+                    self.owned(), "alpha/test/t0_beta.cpp"
+                )
+            ],
+            [("AAA-0", "alpha/test/CMakeLists.txt")],
+        )
+
+    def test_two_declared_second_writers_do_not_register_each_other(self):
+        """BBB-1 and CCC-1 both declare the list, neither declares the other,
+        and both reach the owner. This is the compliant form of section 7.4.2's
+        registration rule, and the lint reported four ERRORs against it."""
+        self.assertEqual(registrar.run(self.owned()).findings, [])
+
+    def test_the_compliant_form_examines_both_names(self):
+        """An empty examination would make the assertion above pass while
+        reading nothing at all."""
+        self.assertEqual(registrar.run(self.owned()).examined, 2)
+
+    def test_a_writer_that_cannot_reach_the_owner_is_still_an_error(self):
+        """The direction the repair must NOT weaken. Exactly one finding, and
+        it names the owner — not the two other writers of the same list."""
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.severity, f.evidence)
+                for f in registrar.run(self.unreachable_owner()).findings
+            ],
+            [
+                (
+                    "registrar-outside-closure",
+                    "DDD-1",
+                    ERROR,
+                    "-R t0_delta needs AAA-0, which creates "
+                    "`alpha/test/CMakeLists.txt`; AAA-0 is not in DDD-1's "
+                    "dependency closure",
+                )
+            ],
+        )
+
+    def test_a_list_with_no_owner_row_still_reads_every_declarer(self):
+        """Section 7.4.2 names an owner for every shared registration list, and
+        `shared-path-without-owner` is the ERROR when it does not. Where the
+        document states no owner the lint cannot tell the creator from the
+        writers, so it keeps the conservative reading and suspects them all —
+        the repair narrows the rule where the document speaks, nowhere else.
+        """
+        doc = PlanDocument.from_text(
+            self.OWNED.replace("| `alpha/test/CMakeLists.txt` | **AAA-0** |\n", ""),
+            name="inline",
+        )
+
+        self.assertEqual(
+            [
+                (task.ident, cmake)
+                for task, cmake in registrar.registrars_of(
+                    doc, "alpha/test/t0_beta.cpp"
+                )
+            ],
+            [
+                ("AAA-0", "alpha/test/CMakeLists.txt"),
+                ("BBB-1", "alpha/test/CMakeLists.txt"),
+                ("CCC-1", "alpha/test/CMakeLists.txt"),
+            ],
+        )
+
+    def test_an_owner_cell_naming_no_task_falls_back_to_every_declarer(self):
+        """Section 7.4.2 carries prose owners — `the plugin track`, `the
+        operator`. A cell that names no task block states no registrar, so the
+        conservative reading stands rather than an owner list of one None."""
+        doc = PlanDocument.from_text(
+            self.OWNED.replace("| **AAA-0** |", "| **the alpha track** |"),
+            name="inline",
+        )
+
+        self.assertEqual(
+            [
+                task.ident
+                for task, _ in registrar.registrars_of(doc, "alpha/test/t0_beta.cpp")
+            ],
+            ["AAA-0", "BBB-1", "CCC-1"],
+        )
+
+    def test_the_second_writer_named_beside_the_owner_does_not_register(self):
+        """The BRD-0/BRD-23 shape, verbatim from section 7.4.2: `**DSP-0**, with
+        **DSP-1** as the one declared second writer`. The FIRST identifier in
+        the cell is the owner; every later one is a declared second writer and
+        registers nothing."""
+        doc = PlanDocument.from_text(
+            self.OWNED.replace(
+                "| **AAA-0** |",
+                "| **AAA-0**, with **CCC-1** as the one declared second writer |",
+            ),
+            name="inline",
+        )
+
+        self.assertEqual(
+            [
+                (task.ident, cmake)
+                for task, cmake in registrar.registrars_of(
+                    doc, "alpha/test/t0_beta.cpp"
+                )
+            ],
+            [("AAA-0", "alpha/test/CMakeLists.txt")],
         )
 
 

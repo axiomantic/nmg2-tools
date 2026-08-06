@@ -528,20 +528,48 @@ class PlanDocument:
             for path in backticked(cells[0]):
                 self.owned_paths[canonical_path(path)] = strip_markup(cells[1])
 
-    def has_owner(self, path):
-        """Whether section 7.4.2 names an owner for a path.
+    def owner_cell(self, path):
+        """The section 7.4.2 owner cell for a path, as written, or `None`.
 
         A row whose path ends in `/` is a DIRECTORY row and owns every path
         beneath it — section 7.4.2 says so, and `g2JucePlugin/` and
         `g2TestConsole/` are the two that rely on it. A file row owns exactly
-        the path it names.
+        the path it names, and it WINS over a directory row that also covers
+        the path, because it is the more specific statement.
         """
         if path in self.owned_paths:
-            return True
-        return any(
-            owned.endswith("/") and path.startswith(owned)
-            for owned in self.owned_paths
-        )
+            return self.owned_paths[path]
+        for owned, cell in self.owned_paths.items():
+            if owned.endswith("/") and path.startswith(owned):
+                return cell
+        return None
+
+    def has_owner(self, path):
+        """Whether section 7.4.2 names an owner for a path."""
+        return self.owner_cell(path) is not None
+
+    def owner_of(self, path):
+        """The task section 7.4.2 names as the OWNER of a path, or `None`.
+
+        The owner is the FIRST identifier in the cell, and every later one is a
+        DECLARED SECOND WRITER. Section 7.4.2 writes that shape out —
+        `**DSP-0**, with **DSP-1** as the one declared second writer` — and it
+        states the difference the identifiers carry: **a registrar CREATES the
+        list and registers nothing; a registering task CHANGES the list and
+        registers exactly its own names.**
+
+        A cell that names no task block states no owner this tool can resolve.
+        Section 7.4.2 carries several — `the plugin track`, `the operator`,
+        `append only` — so the answer is `None` and the caller keeps whatever
+        reading it holds for a path the document leaves unowned.
+        """
+        cell = self.owner_cell(path)
+        if cell is None:
+            return None
+        found = IDENT.search(cell)
+        if not found or not self.has_task(found.group(1)):
+            return None
+        return self.task(found.group(1))
 
     def _read_cross_track_table(self, body):
         """Section 7.3: `A -> B, C; D -> E` is three edges, not two tokens."""

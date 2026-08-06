@@ -66,15 +66,43 @@ def creators_of(doc, name):
 
 
 def registrars_of(doc, item):
-    """The tasks that create the `CMakeLists.txt` governing an item.
+    """The tasks that CREATE the `CMakeLists.txt` governing an item.
 
     An item with no directory is a build target its own task declares, so that
     task is its registrar.
+
+    **A creator, and not every later writer.** Section 7.4.2 draws that line
+    itself: it names an OWNER for each registration list and calls every other
+    writer a DECLARED SECOND WRITER — "a registrar CREATES the list and
+    registers nothing; a registering task CHANGES the list and registers
+    exactly its own names".
+
+    The same section's registration rule then OBLIGES every registering task to
+    name the list on its own `Files:` line, because a registration is a change
+    and section 1.1 defines `Files:` as what a task creates **or changes**.
+    Reading each declarer as a creator therefore made the compliant form the
+    form this lint rejects, and each of eight writers a registrar the other
+    seven had to reach. **Measured on 2026-08-06: adding
+    `source/dsp56kEmu/test/CMakeLists.txt` to ONE dsp task's `Files:` line —
+    DSP-15's — moved the plan from 0 ERRORs to NINE
+    `registrar-outside-closure`**, one for each `-R` name in that directory.
+    That is why DSP-1 to DSP-6 never carried the declaration the rule asks of
+    them: the document was right and the tool was wrong.
+
+    **The rule is not weakened, only aimed.** The owner must still sit inside
+    the depending task's closure, and a task that reaches no owner is still an
+    ERROR. Where section 7.4.2 states no owner the lint cannot tell a creator
+    from a writer, so it keeps the conservative reading and answers every
+    declarer — and `shared-path-without-owner` is the ERROR that a shared list
+    carries no owner row, so the narrow reading never hides a missing one.
     """
     if "/" not in item:
         return []
     directory = item.rsplit("/", 1)[0]
     wanted = f"{directory}/CMakeLists.txt"
+    owner = doc.owner_of(wanted)
+    if owner is not None:
+        return [(owner, wanted)]
     return [(task, wanted) for task in doc.tasks if wanted in task.files_items]
 
 
