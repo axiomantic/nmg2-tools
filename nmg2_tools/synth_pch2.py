@@ -104,6 +104,16 @@ MAX_PAYLOAD = 0xFFFF
 MIN_FIELD_WIDTH = 1
 MAX_FIELD_WIDTH = 32
 
+# The length `bad_length_past_end.pch2` declares. It is DELIBERATELY NOT
+# `MAX_PAYLOAD`. That file writes its length through its own `to_bytes` call
+# rather than through `build_object`, so it is a SECOND code site for the 2-byte
+# length field and needs its own asymmetric value. 0xFFFF is a byte palindrome:
+# written little-endian it is the same two bytes, so a byte order fault at this
+# site would be invisible to every test in this repository, the
+# regenerate-against-the-tree check included. 0xFF01 is not a palindrome, and it
+# still runs far past the end of a file of a few dozen bytes.
+PAST_END_LENGTH = 0xFF01
+
 
 class SynthPch2Error(ValueError):
     """A corpus byte this generator refuses to write.
@@ -265,9 +275,11 @@ def generate() -> dict[str, bytes]:
     )
 
     # A length that runs past the END OF THE FILE, which is a different fault
-    # from a payload that merely stops early.
+    # from a payload that merely stops early. The length is `PAST_END_LENGTH`
+    # and not `MAX_PAYLOAD`, for the byte-order reason stated where that
+    # constant is declared.
     files["bad_length_past_end.pch2"] = build_file(
-        bytes([0x4A]) + MAX_PAYLOAD.to_bytes(2, "big")
+        bytes([0x4A]) + PAST_END_LENGTH.to_bytes(2, "big")
     )
 
     # An unknown object type.

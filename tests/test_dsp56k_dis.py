@@ -37,11 +37,34 @@ from nmg2_tools.dsp56k_dis import (
 # ---------------------------------------------------------------------------
 
 
+# WHY EACH TEST BELOW CARRIES A SECOND OPERAND BYTE.
+#
+# The three operand bytes trap 7.10 records -- 0xA6, 0xA5 and 0x9D -- all have
+# BIT 6 CLEAR. A six-bit mask and a seven-bit mask therefore give the SAME
+# answer for every one of them, so the three registers the trap is about cannot
+# detect a decoder that masked seven bits. That is the mask-width variant of
+# trap 7.10 itself, and the tests that exist because of the trap were blind to
+# it.
+#
+# Each test below adds the SAME low six bits with BIT 6 SET. This states no new
+# fact about the processor: `test_the_operand_window_...` already pins, from the
+# oracle, that 0x40 to 0x7F, 0x80 to 0xBF and 0xC0 to 0xFF all fold onto the
+# same 64 words, so 0x66 and 0xA6 answer alike. A seven-bit mask answers
+# $1000026 for 0x66 and is caught here.
+
+
 def test_movep_decodes_the_ddr2_register_at_x_ffffe6():
     """`08 F4 A6`. The operand byte's low six bits are 0x26, and
     $FFFFC0 + $26 = $FFFFE6. The oracle answers `x:<<M_DDR2` for this word."""
     assert decode([0x08F4A6, 0x123456]) == Instruction(
         words=(0x08F4A6, 0x123456),
+        text="movep #$123456,X:$FFFFE6",
+    )
+
+    # 0x66 carries the same low six bits with bit 6 SET. A seven-bit mask
+    # answers $1000026 here and a six-bit mask answers $FFFFE6.
+    assert decode([0x08F466, 0x123456]) == Instruction(
+        words=(0x08F466, 0x123456),
         text="movep #$123456,X:$FFFFE6",
     )
 
@@ -54,12 +77,26 @@ def test_movep_decodes_the_dco2_register_at_x_ffffe5():
         text="movep #$00000F,X:$FFFFE5",
     )
 
+    # 0x65 is the same low six bits with bit 6 set. A seven-bit mask gives
+    # $1000025.
+    assert decode([0x08F465, 0x00000F]) == Instruction(
+        words=(0x08F465, 0x00000F),
+        text="movep #$00000F,X:$FFFFE5",
+    )
+
 
 def test_movep_decodes_the_dco4_register_at_x_ffffdd():
     """`08 F4 9D`. Low six bits 0x1D, and $FFFFC0 + $1D = $FFFFDD. The oracle
     answers `x:<<M_DCO4`."""
     assert decode([0x08F49D, 0xABCDEF]) == Instruction(
         words=(0x08F49D, 0xABCDEF),
+        text="movep #$ABCDEF,X:$FFFFDD",
+    )
+
+    # 0x5D is the same low six bits with bit 6 set. A seven-bit mask gives
+    # $100001D.
+    assert decode([0x08F45D, 0xABCDEF]) == Instruction(
+        words=(0x08F45D, 0xABCDEF),
         text="movep #$ABCDEF,X:$FFFFDD",
     )
 
@@ -81,6 +118,17 @@ def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
     ]
     for wrong in ("$FFFFA6", "$FFFFA5", "$FFFF9D"):
         assert not any(wrong in text for text in texts)
+
+    # The same three registers reached through an operand whose bit 6 is SET.
+    # Bit 6 is clear in all three bytes above, so without these the mask width
+    # is unpinned and a seven-bit mask passes the whole trap 7.10 group.
+    bit_six_set = [
+        decode([0x08F466, 0]).text,
+        decode([0x08F465, 0]).text,
+        decode([0x08F45D, 0]).text,
+    ]
+
+    assert bit_six_set == texts
 
 
 def test_the_memory_space_comes_from_the_first_word_and_not_from_the_operand():
@@ -135,10 +183,14 @@ def test_a_movep_with_no_immediate_word_after_it_is_refused():
 
 
 def test_the_one_word_instructions_the_covered_set_names():
-    assert decode([0x000000]).text == "nop"
-    assert decode([0x000004]).text == "rti"
-    assert decode([0x000005]).text == "illegal"
-    assert decode([0x00000C]).text == "rts"
+    """The WHOLE instruction, not only its text. Reading `.text` alone leaves
+    the word count of all four unpinned, and a decoder that reported two words
+    for a one-word instruction would desynchronize every walk after it while
+    printing the right mnemonic."""
+    assert decode([0x000000]) == Instruction(words=(0x000000,), text="nop")
+    assert decode([0x000004]) == Instruction(words=(0x000004,), text="rti")
+    assert decode([0x000005]) == Instruction(words=(0x000005,), text="illegal")
+    assert decode([0x00000C]) == Instruction(words=(0x00000C,), text="rts")
 
 
 def test_the_two_word_jumps_the_covered_set_names():
@@ -179,11 +231,27 @@ def test_a_word_outside_the_covered_set_says_so_and_never_invents_a_mnemonic():
 
 
 def test_the_word_count_of_every_covered_instruction():
-    """A wrong word count desynchronizes every instruction after it, which is
-    the failure a stride error produces in a walk."""
+    """EVERY, and the name is the contract. The covered set names eight
+    instructions and an earlier form of this test checked three of them, so
+    `rti`, `illegal`, `rts`, `jsr` and the Y-space `movep` carried no word
+    count at all and a stride error in any of them passed here.
+
+    A wrong word count desynchronizes every instruction after it, which is the
+    failure a stride error produces in a walk."""
+    # The four one-word instructions the covered set names.
     assert decode([0x000000]).words == (0x000000,)
-    assert decode([0x08F4A6, 0x123456]).words == (0x08F4A6, 0x123456)
+    assert decode([0x000004]).words == (0x000004,)
+    assert decode([0x000005]).words == (0x000005,)
+    assert decode([0x00000C]).words == (0x00000C,)
+
+    # The four two-word instructions the covered set names.
     assert decode([0x0AF080, 0x001234]).words == (0x0AF080, 0x001234)
+    assert decode([0x0BF080, 0x001234]).words == (0x0BF080, 0x001234)
+    assert decode([0x08F4A6, 0x123456]).words == (0x08F4A6, 0x123456)
+    assert decode([0x09F4A6, 0x123456]).words == (0x09F4A6, 0x123456)
+
+    # A word outside the covered set consumes one word and never guesses at a
+    # second, so a walk over undecoded words advances by one.
     assert decode([0xFFFFFF]).words == (0xFFFFFF,)
 
 

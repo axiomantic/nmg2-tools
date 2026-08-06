@@ -37,6 +37,14 @@ SRAM_CHECKSUM = 0xFFFFFE01
 # 0x14 header bytes plus one 0x2C entry.
 ONE_ENTRY_DATA_OFFSET = 0x40
 
+# The first entry starts where the header ends. Design section 7.3 places the
+# compressed length at +0x14 of an entry and the trailing zero word at +0x1C.
+# The two numbers are written out here, not derived from the module, because an
+# offset taken from the code under test moves with a mutation of it.
+FIRST_ENTRY_OFFSET = 0x14
+COMPRESSED_LENGTH_OFFSET = FIRST_ENTRY_OFFSET + 0x14
+RESERVED_OFFSET = FIRST_ENTRY_OFFSET + 0x1C
+
 
 def test_the_builder_interface_declares_exactly_one_method():
     """Plan TOOL-5: "one method, ``build(sections) -> bytes``". The seam for
@@ -54,16 +62,38 @@ def test_the_builder_interface_declares_exactly_one_method():
 
 def test_the_builder_interface_cannot_be_instantiated():
     """The interface is the seam and not a default. An L2 that forgot to
-    override ``build`` must fail at construction and never return an image."""
-    with pytest.raises(TypeError):
+    override ``build`` must fail at construction and never return an image.
+
+    THE CAUSE IS PINNED AND NOT ONLY THE EXCEPTION TYPE. ``TypeError`` alone
+    cannot tell "this class is abstract" from "this constructor wants an
+    argument". An interface whose ``build`` had become concrete, and which
+    merely took a version argument, would raise ``TypeError`` here and still
+    return an image to anyone who passed one."""
+    assert inspect.isabstract(Cs2ImageBuilder)
+
+    with pytest.raises(TypeError) as caught:
         Cs2ImageBuilder()
+
+    assert "abstract" in str(caught.value)
 
 
 def test_container_layout_is_the_one_implementation_today():
     """Plan TOOL-5: "one implementation today, ``ContainerLayout``, which is
     L1". A second implementation before spike criterion (g) reports would be a
-    guessed L2 header, which section 7.5 forbids."""
-    assert Cs2ImageBuilder.__subclasses__() == [ContainerLayout]
+    guessed L2 header, which section 7.5 forbids.
+
+    THE WALK IS RECURSIVE. ``__subclasses__`` returns DIRECT subclasses only, so
+    a class that derived from ``ContainerLayout`` rather than from the interface
+    would not appear in it and a guessed L2 could land unseen."""
+
+    def every_subclass(root):
+        found = set()
+        for child in root.__subclasses__():
+            found.add(child)
+            found |= every_subclass(child)
+        return found
+
+    assert every_subclass(Cs2ImageBuilder) == {ContainerLayout}
     assert issubclass(ContainerLayout, Cs2ImageBuilder)
 
 
@@ -128,9 +158,18 @@ def test_the_built_image_parses_to_the_declared_header_and_table():
     )
 
 
-def test_two_sections_load_in_table_order_and_both_checksums_verify():
+def test_two_sections_load_in_table_order_and_the_plain_checksum_verifies():
     """Plan TOOL-5: "asserts its checksums verify". ``load_sections`` performs
-    that verification, so a wrong checksum raises rather than returning."""
+    that verification, so a wrong checksum raises rather than returning.
+
+    THE NAME SAYS ONE CHECKSUM AND NOT BOTH, BECAUSE ONLY ONE RUNS. Every
+    section this builder writes is stored, so ``load_section`` takes the
+    ``is_stored`` branch, and that branch never reaches the compressed-checksum
+    verification at all. An earlier form of this test was named for both and
+    could not have detected either, because it asserted only the parsed field
+    values: deleting the whole plain-checksum check left it green. The failure
+    half is asserted below, on the SECOND section, so a check that ran on the
+    first section alone is caught too."""
     image = ContainerLayout(version=VERSION_1_62).build(
         [
             Cs2Section(tag="SRAM", load_address=0x20000800, data=SRAM_BYTES),
@@ -169,9 +208,33 @@ def test_two_sections_load_in_table_order_and_both_checksums_verify():
         ),
     ]
 
+    # THE FAILURE HALF. Without it every assertion above is satisfied by a
+    # loader that verifies nothing, because they read only the parsed fields.
+    # The byte flipped is in the SECOND section, so a verification that ran on
+    # the first section alone does not pass here either. CODE starts at 0x6E,
+    # and 0x01 becomes 0x02, so the sum is 11 and (~0x0B) & 0xFFFFFFFF is
+    # 0xFFFFFFF4 against the stored 0xFFFFFFF5.
+    damaged = bytearray(image)
+    damaged[0x6E] = 0x02
+
+    with pytest.raises(ContainerError) as caught:
+        load_sections(bytes(damaged))
+
+    assert str(caught.value) == (
+        "CONTAINER-PLAIN-CHECKSUM: section CODE stored 0xFFFFFFF5, "
+        "computed 0xFFFFFFF4"
+    )
+
 
 def test_a_section_that_holds_no_bytes_round_trips():
-    """The boundary. sum(b"") = 0, and (~0) & 0xFFFFFFFF = 0xFFFFFFFF."""
+    """The boundary. sum(b"") = 0, and (~0) & 0xFFFFFFFF = 0xFFFFFFFF.
+
+    EVERY EXPECTATION OF THE EMPTY CASE IS DEGENERATE. The two lengths are zero,
+    the file offset is the only one there is, and both checksums are the
+    all-ones constant, so a ``checksum`` whose whole body was ``return
+    0xFFFFFFFF`` satisfies all of them and the test cannot tell the function
+    from a stub. The two one-byte sections below separate them: they differ
+    from the constant and from each other."""
     image = ContainerLayout(version=VERSION_1_62).build(
         [Cs2Section(tag="CODE", load_address=0x30000400, data=b"")]
     )
@@ -191,6 +254,29 @@ def test_a_section_that_holds_no_bytes_round_trips():
             b"",
         )
     ]
+
+    # sum(b"\x00") = 0, so the checksum is the same all-ones value as the empty
+    # section. The LENGTH is what separates this case from the one above.
+    zero_byte = ContainerLayout(version=VERSION_1_62).build(
+        [Cs2Section(tag="CODE", load_address=0x30000400, data=b"\x00")]
+    )
+    (zero_section, zero_data) = load_sections(zero_byte)[0]
+
+    assert zero_data == b"\x00"
+    assert zero_section.uncompressed_length == 1
+    assert zero_section.plain_checksum == 0xFFFFFFFF
+
+    # sum(b"\x01") = 1, and (~1) & 0xFFFFFFFF = 0xFFFFFFFE. This is the value a
+    # constant checksum cannot produce.
+    one_byte = ContainerLayout(version=VERSION_1_62).build(
+        [Cs2Section(tag="CODE", load_address=0x30000400, data=b"\x01")]
+    )
+    (one_section, one_data) = load_sections(one_byte)[0]
+
+    assert one_data == b"\x01"
+    assert one_section.uncompressed_length == 1
+    assert one_section.plain_checksum == 0xFFFFFFFE
+    assert one_section.compressed_checksum == 0xFFFFFFFE
 
 
 def test_a_flipped_data_byte_makes_the_plain_checksum_fail():
@@ -217,7 +303,13 @@ def test_a_flipped_data_byte_makes_the_plain_checksum_fail():
 
 def test_a_tag_that_is_not_four_ascii_characters_is_refused():
     """The tag is a fixed four-byte field. A shorter one would shift every
-    field of the entry that follows it."""
+    field of the entry that follows it.
+
+    BOTH SIDES OF THE LENGTH, because the guard is an inequality and only one
+    side of it was tested. A guard that refused a SHORT tag alone leaves a long
+    one to the ``>4s`` pack format, which truncates it in silence: `CODES` would
+    be written as `CODE` and the image would name a section the caller never
+    asked for."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=VERSION_1_62).build(
             [Cs2Section(tag="OS", load_address=0x30000400, data=CODE_BYTES)]
@@ -226,6 +318,18 @@ def test_a_tag_that_is_not_four_ascii_characters_is_refused():
     assert str(caught.value) == (
         "FLASHIMAGE-BAD-SECTION-TAG: section 0 holds 'OS', which is not four "
         "ASCII characters"
+    )
+
+    # The long side. `>4s` truncates rather than raising, so nothing below the
+    # builder would report this.
+    with pytest.raises(FlashImageError) as caught:
+        ContainerLayout(version=VERSION_1_62).build(
+            [Cs2Section(tag="CODES", load_address=0x30000400, data=CODE_BYTES)]
+        )
+
+    assert str(caught.value) == (
+        "FLASHIMAGE-BAD-SECTION-TAG: section 0 holds 'CODES', which is not "
+        "four ASCII characters"
     )
 
 
@@ -254,7 +358,12 @@ def test_an_image_with_no_section_is_refused():
 
 
 def test_a_version_that_does_not_fit_the_word_is_refused():
-    """The field is 16 bits. A wider value would silently truncate."""
+    """The field is 16 bits. A wider value would silently truncate.
+
+    BOTH ENDS OF THE RANGE. The guard is ``0 <= version <= MASK16`` and only
+    the high end was tested, so a guard that had lost its lower half passed.
+    A negative version then escapes the NAMED refusal and dies inside
+    ``struct.pack`` instead, which names no field and no rule."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=0x10000).build(
             [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
@@ -264,9 +373,22 @@ def test_a_version_that_does_not_fit_the_word_is_refused():
         "FLASHIMAGE-BAD-VERSION: 0x10000 does not fit the 16-bit version word"
     )
 
+    with pytest.raises(FlashImageError) as caught:
+        ContainerLayout(version=-1).build(
+            [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
+        )
+
+    assert str(caught.value) == (
+        "FLASHIMAGE-BAD-VERSION: 0x-1 does not fit the 16-bit version word"
+    )
+
 
 def test_a_load_address_that_does_not_fit_the_longword_is_refused():
-    """The field is 32 bits, and the m68k address space is 32 bits."""
+    """The field is 32 bits, and the m68k address space is 32 bits.
+
+    BOTH ENDS OF THE RANGE, for the reason the version test gives: only the
+    high end was tested, and a negative load address that escaped the named
+    refusal would fail inside ``struct.pack`` with no field named."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=VERSION_1_62).build(
             [Cs2Section(tag="CODE", load_address=0x100000000, data=CODE_BYTES)]
@@ -277,6 +399,16 @@ def test_a_load_address_that_does_not_fit_the_longword_is_refused():
         "does not fit the 32-bit field"
     )
 
+    with pytest.raises(FlashImageError) as caught:
+        ContainerLayout(version=VERSION_1_62).build(
+            [Cs2Section(tag="CODE", load_address=-1, data=CODE_BYTES)]
+        )
+
+    assert str(caught.value) == (
+        "FLASHIMAGE-BAD-LOAD-ADDRESS: section 0 loads at 0x-1, which does not "
+        "fit the 32-bit field"
+    )
+
 
 def test_every_section_is_stored_because_this_repository_has_no_compressor():
     """TOOL-1 decompresses and nothing in this repository compresses, so
@@ -284,12 +416,71 @@ def test_every_section_is_stored_because_this_repository_has_no_compressor():
     compressed length of zero means the bytes at the file offset are plain.
     This assertion is here so that a later compressing builder cannot land
     without a decision, because L1 pays one LZO1X decompression on every boot
-    and a stored image does not."""
+    and a stored image does not.
+
+    EVERY SECTION, so the image holds MORE THAN ONE. An earlier form built a
+    single section, which cannot tell "every section is stored" from "the first
+    section is stored": a builder that stored section 0 and compressed the rest
+    satisfied it."""
+    image = ContainerLayout(version=VERSION_1_62).build(
+        [
+            Cs2Section(tag="SRAM", load_address=0x20000800, data=SRAM_BYTES),
+            Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES),
+        ]
+    )
+
+    sections = parse_header(image).sections
+
+    assert len(sections) == 2
+    assert [s.compressed_length for s in sections] == [0, 0]
+    assert all(s.is_stored is True for s in sections)
+
+
+def test_the_compressed_length_and_the_trailing_zero_sit_at_their_declared_offsets():
+    """WHAT THIS TEST CAN PIN, AND WHAT NOTHING IN THIS REPOSITORY CAN.
+
+    Both slots are DEGENERATE in an image this builder writes. Every section is
+    stored, so the compressed length is always zero and the trailing zero word
+    is always zero. Two equal values cannot pin their own order: an image built
+    with the two slots EXCHANGED is byte-identical for every input, so that
+    exchange is an equivalent mutant and no test anywhere can turn it red. Only
+    a compressor, which this repository does not have and which
+    `pyproject.toml` declares no dependency that could supply, would make the
+    compressed length differ from the trailing zero and make the exchange
+    visible. The same holds for the plain and the compressed checksum, which
+    are the same number for the same reason.
+
+    What IS observable is which BYTE OFFSET of the entry carries which name,
+    and that is what this test pins. A distinct sentinel goes into each of the
+    two slots of a built image and the reader must report each under the right
+    name. The other six fields are asserted unmoved, so a sentinel that landed
+    in any of them is named rather than silently absorbed. A reader that
+    exchanged the two offsets fails here; the whole-image assertion above
+    cannot, because it compares zero against zero.
+    """
     image = ContainerLayout(version=VERSION_1_62).build(
         [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
     )
 
-    (section,) = parse_header(image).sections
+    # The builder writes zero into both slots. That is the stored form.
+    assert image[COMPRESSED_LENGTH_OFFSET : COMPRESSED_LENGTH_OFFSET + 4] == bytes(4)
+    assert image[RESERVED_OFFSET : RESERVED_OFFSET + 4] == bytes(4)
 
-    assert section.compressed_length == 0
-    assert section.is_stored is True
+    # Two sentinels, distinct from each other and from every other value in the
+    # entry, so a landing in the wrong field is visible rather than plausible.
+    probe = bytearray(image)
+    probe[COMPRESSED_LENGTH_OFFSET : COMPRESSED_LENGTH_OFFSET + 4] = b"\x11\x22\x33\x44"
+    probe[RESERVED_OFFSET : RESERVED_OFFSET + 4] = b"\x55\x66\x77\x88"
+
+    (section,) = parse_header(bytes(probe)).sections
+
+    assert section.compressed_length == 0x11223344
+    assert section.reserved == 0x55667788
+
+    # Every other field of the entry is where it was.
+    assert section.tag == "CODE"
+    assert section.file_offset == ONE_ENTRY_DATA_OFFSET
+    assert section.uncompressed_length == 4
+    assert section.load_address == 0x30000400
+    assert section.plain_checksum == CODE_CHECKSUM
+    assert section.compressed_checksum == CODE_CHECKSUM
