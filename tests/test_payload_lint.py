@@ -1,19 +1,29 @@
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from nmg2_tools.payload_lint import (
     PCH2_ALLOWED_DIR,
+    RegisterError,
     RegisterEntry,
     lint_committed_files,
     load_register,
+    main,
 )
+
+# `pch2-exception` rows carry the repository they were granted for. An
+# unqualified row grants nothing anywhere, so a fixture that leaves the field
+# out no longer describes a usable register.
+FIXTURE_REPO = "axiomantic/G2-Edit"
 
 REGISTER = [
     RegisterEntry("nmg2_tools/testdata/pch2_synth/", "public"),
     RegisterEntry("g2Lib/test/fixtures/synthetic_block_program.asm", "public"),
     RegisterEntry("conformance/corpus/", "public allow-listed"),
     RegisterEntry("golden/", "private"),
-    RegisterEntry("PatchTestFiles/", "public pch2-exception"),
-    RegisterEntry("testdata/PatchTestFiles/", "public pch2-exception"),
+    RegisterEntry("PatchTestFiles/", "public pch2-exception", FIXTURE_REPO),
+    RegisterEntry("testdata/PatchTestFiles/", "public pch2-exception", FIXTURE_REPO),
     # Mirrors the row `nmg2-artifacts` carries for its demo corpus.
     RegisterEntry("corpus/pch2/", "private"),
 ]
@@ -115,15 +125,18 @@ def test_private_row_in_private_repo_passes(tmp_path):
 def test_pch2_under_pch2_exception_row_passes(tmp_path):
     rel = "PatchTestFiles/InheritedOne.pch2"
     _write(tmp_path / rel, 10)
-    failures = lint_committed_files(tmp_path, [rel], REGISTER)
+    failures = lint_committed_files(tmp_path, [rel], REGISTER, repo=FIXTURE_REPO)
     assert failures == []
 
 
 def test_pch2_exception_row_grants_no_size_exemption(tmp_path):
     rel = "testdata/PatchTestFiles/InheritedBig.pch2"
     _write(tmp_path / rel, 65_537)
-    failures = lint_committed_files(tmp_path, [rel], REGISTER)
-    assert any(f.startswith("PAYLOAD-CEILING") for f in failures)
+    failures = lint_committed_files(tmp_path, [rel], REGISTER, repo=FIXTURE_REPO)
+    assert failures == [
+        f"PAYLOAD-CEILING: {rel}: 65537 bytes exceeds the 65536 byte ceiling "
+        "and is not allow-listed"
+    ]
 
 
 def test_shipped_register_has_exactly_one_pch2_exception_row():
@@ -197,3 +210,176 @@ def test_shipped_register_pch2_exception_row_is_scoped_to_g2_edit():
     assert len(exception_entries) == 1
     assert exception_entries[0].path == "PatchTestFiles/"
     assert exception_entries[0].repo == "axiomantic/G2-Edit"
+
+
+# --- An UNQUALIFIED exception row grants nothing, anywhere ------------------
+#
+# The row scoping above closed the hole for a row that NAMES a repository. A
+# row that names none was still honoured in every repository, which is the
+# same hole with the field left out. The register is one file shared by seven
+# repositories, so the unqualified row is the wider hole, not the narrower
+# one. It now grants nothing at all.
+
+# The seven repositories that share `nmg2_tools/testdata/register.tsv`.
+SEVEN_REPOS = (
+    "axiomantic/nmg2-tools",
+    "axiomantic/G2-Edit",
+    "axiomantic/mc68k",
+    "axiomantic/mcf5307",
+    "axiomantic/dsp56300",
+    "axiomantic/gearmulator",
+    "axiomantic/nmg2-artifacts",
+)
+
+UNQUALIFIED_REGISTER = [
+    RegisterEntry("nmg2_tools/testdata/pch2_synth/", "public"),
+    RegisterEntry("PatchTestFiles/", "public pch2-exception"),
+]
+
+
+def test_unqualified_pch2_exception_row_grants_no_exception_in_any_repository(
+    tmp_path,
+):
+    """Fail closed: a row with no repository field excepts nothing, anywhere.
+
+    Checked against all seven repositories that share the register, and
+    against an unidentified caller.
+    """
+    rel = "PatchTestFiles/InheritedOne.pch2"
+    _write(tmp_path / rel, 10)
+    expected = [f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"]
+    for repo in (*SEVEN_REPOS, None):
+        failures = lint_committed_files(
+            tmp_path, [rel], UNQUALIFIED_REGISTER, repo=repo
+        )
+        assert failures == expected, f"unqualified row was honoured for repo={repo!r}"
+
+
+def test_unqualified_row_grants_nothing_even_at_the_entry_level():
+    """The grant test itself fails closed, not only the caller that uses it."""
+    entry = RegisterEntry("PatchTestFiles/", "public pch2-exception")
+    assert entry.pch2_excepted is True
+    assert entry.pch2_excepted_in("axiomantic/G2-Edit") is False
+    assert entry.pch2_excepted_in(None) is False
+
+
+# --- A malformed exception row is a HARD ERROR, not a silent no-grant -------
+#
+# Failing closed at the grant test alone would leave a register row that
+# reads like a grant and does nothing. That is the same green mirage this
+# module exists to stop, so the parse rejects the row and names the line.
+
+
+def _register_file(tmp_path: Path, text: str) -> Path:
+    path = tmp_path / "register.tsv"
+    path.write_text(text)
+    return path
+
+
+def test_load_register_rejects_a_pch2_exception_row_with_no_repository_field(tmp_path):
+    path = _register_file(
+        tmp_path,
+        "nmg2_tools/testdata/pch2_synth/\tpublic\n"
+        "PatchTestFiles/\tpublic pch2-exception\n",
+    )
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert str(caught.value) == (
+        f"{path}:2: a `public pch2-exception` row must carry a third, "
+        "tab-separated `owner/name` field naming the one repository it is "
+        "granted for: 'PatchTestFiles/\\tpublic pch2-exception'"
+    )
+
+
+def test_load_register_rejects_a_pch2_exception_row_written_with_spaces(tmp_path):
+    """The space-separated fallback cannot carry a repository field.
+
+    A row that reaches it therefore cannot be a valid exception row, even
+    when the operator wrote a repository slug on the line.
+    """
+    path = _register_file(
+        tmp_path,
+        "PatchTestFiles/  public pch2-exception  axiomantic/G2-Edit\n",
+    )
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert str(caught.value) == (
+        f"{path}:1: a `public pch2-exception` row must carry a third, "
+        "tab-separated `owner/name` field naming the one repository it is "
+        "granted for: 'PatchTestFiles/  public pch2-exception  "
+        "axiomantic/G2-Edit'"
+    )
+
+
+def test_load_register_accepts_the_canonical_pch2_exception_row(tmp_path):
+    path = _register_file(
+        tmp_path, "PatchTestFiles/\tpublic pch2-exception\taxiomantic/G2-Edit\n"
+    )
+    entries = load_register(path)
+    assert [(e.path, e.visibility, e.repo) for e in entries] == [
+        ("PatchTestFiles/", "public pch2-exception", "axiomantic/G2-Edit")
+    ]
+
+
+def test_main_reports_a_malformed_register_row_as_a_named_failure(
+    tmp_path, capsys
+):
+    """A bad register is a named finding and exit 1, never a traceback."""
+    register = _register_file(
+        tmp_path, "PatchTestFiles/\tpublic pch2-exception\n"
+    )
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    # A real, empty git tree: the register is rejected on its own account and
+    # not because the tree could not be read.
+    subprocess.run(["git", "-C", str(tree), "init", "-q"], check=True)
+    status = main([str(tree), "--register", str(register), "--repo", "axiomantic/G2-Edit"])
+    assert status == 1
+    assert capsys.readouterr().err == (
+        f"PAYLOAD-REGISTER-MALFORMED: {register}:1: a `public pch2-exception` "
+        "row must carry a third, tab-separated `owner/name` field naming the "
+        "one repository it is granted for: "
+        "'PatchTestFiles/\\tpublic pch2-exception'\n"
+    )
+
+
+# --- The shipped, qualified row keeps working -------------------------------
+
+
+def test_shipped_register_exception_applies_in_g2_edit(tmp_path):
+    rel = "PatchTestFiles/InheritedOne.pch2"
+    _write(tmp_path / rel, 10)
+    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    failures = lint_committed_files(
+        tmp_path, [rel], entries, repo="axiomantic/G2-Edit"
+    )
+    assert failures == []
+
+
+def test_shipped_register_exception_does_not_travel_to_another_repository(tmp_path):
+    rel = "PatchTestFiles/InheritedOne.pch2"
+    _write(tmp_path / rel, 10)
+    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    failures = lint_committed_files(tmp_path, [rel], entries, repo="axiomantic/mc68k")
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_shipped_register_private_guard_holds_for_the_demo_corpus(tmp_path):
+    """The private-repository allowance is untouched by the fail-closed rule.
+
+    `nmg2-artifacts` is private and holds `corpus/pch2/`; clause 1 does not
+    police a private repository, and clause 4 lets the `private` row stand.
+    """
+    rel = "corpus/pch2/Anthem demo.pch2"
+    _write(tmp_path / rel, 10)
+    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    failures = lint_committed_files(
+        tmp_path,
+        [rel],
+        entries,
+        visibility="private",
+        repo="axiomantic/nmg2-artifacts",
+    )
+    assert failures == []

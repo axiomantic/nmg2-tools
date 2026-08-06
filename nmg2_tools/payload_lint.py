@@ -26,6 +26,10 @@ independent conditions, each with its own failure name:
    row is ``private`` is a failure. In a PRIVATE repository a ``private``
    row passes; the row exists precisely so a private repository, such as
    ``nmg2-artifacts``, may hold it.
+5. PAYLOAD-REGISTER-MALFORMED: the register itself holds a
+   ``public pch2-exception`` row that does not name the repository it is
+   granted for. This is a failure of the REGISTER and not of any committed
+   file, so it fails whatever the tree holds, and in either visibility.
 
 The register file format
 -------------------------
@@ -54,6 +58,20 @@ directory and covers every path beneath it. The optional third field is an
   caller passes a matching ``--repo``; an unidentified repository gets no
   exception, so the check fails CLOSED.
 
+  That ``MUST`` is ENFORCED and not merely written here, at two levels. The
+  parser REFUSES an exception row that names no repository (clause 5 above),
+  so the malformed row cannot enter the register at all; and the grant test
+  itself returns no exception for a row with no repository, so an entry
+  built in code and never parsed cannot grant one either. The refusal is
+  deliberate: a row that reads like a grant and silently grants nothing is
+  the same unread rule in the other direction, and the operator who wrote it
+  would never learn that the exception they believed they had is not there.
+
+  One consequence of the tab-separated format: the space-separated fallback
+  below carries two fields at most, so it can NEVER carry a repository. An
+  exception row written with spaces is refused for that reason, however it
+  reads.
+
 Blank lines and lines starting with ``#`` are ignored.
 """
 
@@ -72,6 +90,12 @@ PCH2_ALLOWED_DIR = "nmg2_tools/testdata/pch2_synth/"
 # these path prefixes. Anything else is out of scope for the ceiling check.
 CEILING_SCOPE_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testdata/")
 
+# The one accepted spelling of a clause 1 exception, and the substring that
+# says a line MEANT to be one. A line that carries the mark but not the exact
+# visibility is a malformed exception row, not an unrelated row.
+PCH2_EXCEPTION_VISIBILITY = "public pch2-exception"
+PCH2_EXCEPTION_MARK = "pch2-exception"
+
 
 def _in_ceiling_scope(posix_path: str) -> bool:
     parts = posix_path.split("/")
@@ -79,6 +103,10 @@ def _in_ceiling_scope(posix_path: str) -> bool:
         if parts[i] + "/" in CEILING_SCOPE_DIRS:
             return True
     return False
+
+
+class RegisterError(ValueError):
+    """A register line the parser refuses to accept."""
 
 
 class RegisterEntry:
@@ -101,28 +129,42 @@ class RegisterEntry:
 
     @property
     def pch2_excepted(self) -> bool:
-        return self.visibility == "public pch2-exception"
+        return self.visibility == PCH2_EXCEPTION_VISIBILITY
 
     def pch2_excepted_in(self, repo: str | None) -> bool:
         """Does this row except clause 1 for the repository being linted?
 
-        A ``pch2-exception`` row that names a repository applies ONLY there.
-        The register is one shared file, so an unqualified row would except
-        the path in all seven repositories and let any of them silence this
-        lint by choosing a directory name. An unidentified repository
-        (``repo`` is ``None``) gets no exception: this fails CLOSED.
+        A ``pch2-exception`` row applies ONLY in the repository it names, and
+        it must name one. The register is one shared file, so a row that
+        names no repository would except the path in all seven and let any of
+        them silence this lint by choosing a directory name. Both an
+        unqualified row (``self.repo`` is ``None``) and an unidentified
+        caller (``repo`` is ``None``) therefore get no exception: this fails
+        CLOSED on either side. ``load_register`` refuses the unqualified row
+        outright; this test is the second lock, for an entry built in code.
         """
         if not self.pch2_excepted:
             return False
-        if self.repo is None:
-            return True
-        return repo is not None and repo == self.repo
+        if self.repo is None or repo is None:
+            return False
+        return repo == self.repo
 
 
 def load_register(register_path: Path) -> list[RegisterEntry]:
-    """Parse a register file into a list of :class:`RegisterEntry`."""
+    """Parse a register file into a list of :class:`RegisterEntry`.
+
+    A ``public pch2-exception`` row is accepted in ONE form only: three
+    tab-separated fields, the second exactly ``public pch2-exception`` and the
+    third a non-empty ``owner/name`` slug. Anything else raises
+    :class:`RegisterError` and names the line. The row is refused rather than
+    quietly granting nothing, because a security-register row that reads like
+    a grant and does nothing is the same silent hole in the other direction.
+    Note that the space-separated fallback below produces two fields at most,
+    so it can never carry the repository field: an exception row written with
+    spaces is refused for that reason.
+    """
     entries: list[RegisterEntry] = []
-    for raw_line in register_path.read_text().splitlines():
+    for lineno, raw_line in enumerate(register_path.read_text().splitlines(), 1):
         line = raw_line.strip("\n")
         if not line.strip() or line.strip().startswith("#"):
             continue
@@ -130,6 +172,16 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
         if len(parts) < 2:
             # Tolerate accidental runs of spaces instead of a literal tab.
             parts = line.split(None, 1)
+        if PCH2_EXCEPTION_MARK in line and (
+            len(parts) < 3
+            or parts[1].strip() != PCH2_EXCEPTION_VISIBILITY
+            or not parts[2].strip()
+        ):
+            raise RegisterError(
+                f"{register_path}:{lineno}: a `{PCH2_EXCEPTION_VISIBILITY}` row "
+                "must carry a third, tab-separated `owner/name` field naming "
+                f"the one repository it is granted for: {line!r}"
+            )
         path = parts[0].strip()
         visibility = parts[1].strip()
         repo = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
@@ -269,9 +321,16 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    failures = lint_repo_tree(
-        args.repo_path, args.register, args.visibility, args.repo
-    )
+    try:
+        failures = lint_repo_tree(
+            args.repo_path, args.register, args.visibility, args.repo
+        )
+    except RegisterError as error:
+        # A named finding and exit 1, the same shape as every other failure
+        # this module reports. A traceback would say the same thing worse.
+        print(f"PAYLOAD-REGISTER-MALFORMED: {error}", file=sys.stderr)
+        return 1
+
     for failure in failures:
         print(failure, file=sys.stderr)
     return 1 if failures else 0
