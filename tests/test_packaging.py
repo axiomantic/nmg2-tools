@@ -112,6 +112,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         # TOOL-3. The container header and section table.
         "container.py",
         "credential_lint.py",
+        # TOOL-7. The DSP56300 disassembler.
+        "dsp56k_dis.py",
         "extract_demo_corpus.py",
         # TOOL-5. The CS2 flash image builder.
         "flashimage.py",
@@ -133,6 +135,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         # TOOL-3. The container header and section table.
         "test_container.py",
         "test_credential_lint.py",
+        # TOOL-7. The DSP56300 disassembler.
+        "test_dsp56k_dis.py",
         "test_extract_demo_corpus.py",
         # TOOL-5. The CS2 flash image builder.
         "test_flashimage.py",
