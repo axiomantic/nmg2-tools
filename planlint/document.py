@@ -32,7 +32,6 @@ HEADING = re.compile(r"^(?P<hashes>#{1,6}) +(?P<text>.+?)\s*$")
 FIELD = re.compile(r"^(?P<field>Files|Design|Depends|Check): ?(?P<value>.*)$")
 FENCE = re.compile(r"^\s*```")
 IDENT = re.compile(r"\b([A-Z]{2,6}-\d+)\b")
-BACKTICKED = re.compile(r"`([^`]+)`")
 TABLE_ROW = re.compile(r"^\s*\|(?P<cells>.+)\|\s*$")
 TABLE_RULE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 MILESTONE_CELL = re.compile(r"^\*\*(M\d+)\*\*$")
@@ -95,6 +94,101 @@ def strip_markup(text):
     return " ".join(text.split())
 
 
+# ------------------------------------------------------- the backtick scanner
+#
+# Defect L-5. A single regex, `` `([^`]+)` ``, paired backticks across a whole
+# task body. A fenced block opens with THREE backticks, so the regex swallowed
+# the fence BODY as one span and left two backticks over — and every pairing
+# after that point was inverted. Prose read as a quoted span, and every quoted
+# name read as prose. Everything after the first fence in a task body was
+# invisible.
+#
+# It was measured, not theorised: adding transcripts to five task bodies moved
+# the plan from 169 warnings to 166. The count fell while text was added, which
+# is the shape a scanner going blind always has, and it reads as an improvement.
+#
+# Two rules replace the regex, and both of them WIDEN what is seen:
+#
+#   1. A fenced block is a REGION, not a run of inline spans. It yields no
+#      backticked names at all, because a backtick inside a fence is a literal
+#      character and delimits nothing. Section 7.7 already treats a fence as its
+#      own scope unit — `scoped_segments` hands the non-transcript ones to the
+#      check lint whole, and holds the `$ ` transcripts back as records of a
+#      measurement. Reading a transcript's printed output as a run of symbol
+#      names would attribute a producer to whatever a tool happened to print.
+#   2. An inline span never crosses a LINE BREAK, and an unmatched backtick is
+#      literal text. That is CommonMark's own reading, and it is what stops one
+#      stray backtick from swallowing the remainder of a body. `sentences()`
+#      already refuses to cross a line for the same reason.
+#
+# An UNTERMINATED fence is deliberately NOT a region. Letting it run to the end
+# of the text would hide every task below it, which is the failure this scanner
+# exists to end. It stays visible and `planlint.structure` reports it.
+
+
+def fenced_line_indexes(lines):
+    """The index of every line inside a CLOSED fence, both markers included.
+
+    A fence with no partner is absent from the result on purpose. `_scan_fences`
+    reads the document the same way, so the two agree, and nothing below a
+    broken fence is hidden from any lint.
+    """
+    inside = set()
+    open_at = None
+    for index, line in enumerate(lines):
+        if not FENCE.match(line):
+            continue
+        if open_at is None:
+            open_at = index
+        else:
+            inside.update(range(open_at, index + 1))
+            open_at = None
+    return inside
+
+
+def _scan_line(line, offset, spans, unmatched):
+    """Pair the backticks of ONE line. Whatever is left over is literal."""
+    ticks = [index for index, char in enumerate(line) if char == "`"]
+    position = 0
+    while position + 1 < len(ticks):
+        opener, closer = ticks[position], ticks[position + 1]
+        if closer == opener + 1:
+            # An empty span names nothing. The first tick is literal and the
+            # second one is offered to the next name, which is what the old
+            # `[^`]+` did by requiring a character between the two.
+            unmatched.append(offset + opener)
+            position += 1
+            continue
+        spans.append((offset + opener, offset + closer, line[opener + 1:closer]))
+        position += 2
+    for leftover in ticks[position:]:
+        unmatched.append(offset + leftover)
+
+
+def inline_code_spans(text):
+    """`(spans, unmatched)` for a run of text.
+
+    A span is `(opening tick offset, closing tick offset, the text between)`.
+    `unmatched` carries the offset of every backtick with no partner on its own
+    line, which is what `planlint.structure` reports rather than absorbing.
+    """
+    lines = text.split("\n")
+    fenced = fenced_line_indexes(lines)
+    spans = []
+    unmatched = []
+    offset = 0
+    for index, line in enumerate(lines):
+        if index not in fenced:
+            _scan_line(line, offset, spans, unmatched)
+        offset += len(line) + 1
+    return spans, unmatched
+
+
+def backticked(text):
+    """Every inline backticked name, in order. The fence-aware `findall`."""
+    return [inner for _, _, inner in inline_code_spans(text)[0]]
+
+
 @dataclasses.dataclass(frozen=True)
 class Segment:
     """A run of text the lint scope admits."""
@@ -152,7 +246,7 @@ class TaskBlock:
         that every consumer compares one spelling. A build target carries no
         directory and passes through untouched.
         """
-        return expand_files_items(BACKTICKED.findall(self.files_text))
+        return expand_files_items(backticked(self.files_text))
 
     @property
     def files_targets(self):
@@ -160,7 +254,7 @@ class TaskBlock:
         match = re.search(r"\btargets?\b", self.files_text)
         if not match:
             return []
-        return BACKTICKED.findall(self.files_text[match.end():])
+        return backticked(self.files_text[match.end():])
 
     @property
     def files_paths(self):
@@ -402,7 +496,7 @@ class PlanDocument:
 
     def _read_repository_table(self, body):
         for _, cells in body:
-            names = BACKTICKED.findall(cells[0])
+            names = backticked(cells[0])
             if not names:
                 continue
             visibility = "PRIVATE" if "PRIVATE" in cells[1] else "PUBLIC"
@@ -411,10 +505,10 @@ class PlanDocument:
     def _read_fixture_table(self, body):
         for line, cells in body:
             path_cell = cells[1]
-            names = BACKTICKED.findall(path_cell)
+            names = backticked(path_cell)
             path = names[0] if names else strip_markup(path_cell)
             owner = IDENT.search(cells[2])
-            repo_names = BACKTICKED.findall(cells[3])
+            repo_names = backticked(cells[3])
             visibility = cells[4]
             self.fixture_register.append(
                 FixtureRow(
@@ -431,7 +525,7 @@ class PlanDocument:
     def _read_owner_table(self, body):
         """Section 7.4.2: the shared paths that are not CMake lists."""
         for _, cells in body:
-            for path in BACKTICKED.findall(cells[0]):
+            for path in backticked(cells[0]):
                 self.owned_paths[canonical_path(path)] = strip_markup(cells[1])
 
     def has_owner(self, path):

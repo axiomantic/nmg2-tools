@@ -59,6 +59,48 @@ Severity orders the report. It never excuses a finding from the exit code.
 | 7 | `implicit` | A task that writes into or reads from an artifact another task creates, with no `Depends:` edge. The candidate whose missing edge would **close a cycle** is reported under its own rule. | — |
 | 8 | `registrar` | A task whose check runs `ctest -R <name>` has the task that CREATES the test source and the task that REGISTERS the directory inside its transitive dependency closure. | 7.4.2, 7.7 clause 2, 7.7.1 |
 | 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in two buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
+| 10 | `structure` | The markup the other nine lints parse. A task body carrying a backtick with no partner on its own line, and a fenced block opened and never closed. **A parse failure is a finding, never a quiet degradation.** | 7.7 |
+
+`structure` runs FIRST. Every lint below it reads a parsed document, so a
+broken fence is the cause and everything else is the consequence.
+
+### How the backtick scanner reads a fence — defect L-5
+
+A fenced block opens with THREE backticks. The scanner used one regex,
+`` `([^`]+)` ``, over a whole task body, so a fence swallowed its own body as
+one span and left two backticks over. **Every pairing after that point was
+inverted:** prose read as a quoted span, and every quoted name read as prose.
+Everything below the first fence in a task body was invisible.
+
+It was measured, not theorised. Adding transcripts to five task bodies of the
+real plan moved the warning count from **169 to 166** — DOWN, while three real
+`symbol-closure-candidate` findings went silent. A count that falls as text is
+added is the signature of a scanner going blind, and it reads as an improvement.
+Two task bodies, `SCH-12` and `PLG-10`, each held a qualified name and reported
+zero qualified spans.
+
+Two rules replace the regex, and both **widen** what is seen:
+
+1. **A fence is a REGION, not a run of inline spans.** It yields no backticked
+   name, because a backtick inside a fence is a literal character and delimits
+   nothing. The region is masked whole, so a verb printed inside a transcript is
+   no more a consumer verb than one inside backticks. Section 7.7 already treats
+   a fence as its own scope unit: `scoped_segments` hands the non-transcript
+   ones to the check lint whole and holds the `$ ` transcripts back as records
+   of a measurement. Reading a transcript's printed output as a run of symbol
+   names would attribute a producer to whatever a tool happened to print.
+2. **An inline span never crosses a LINE BREAK, and an unmatched backtick is
+   literal text.** That is CommonMark's own reading. It is what stops one stray
+   backtick from swallowing the remainder of a body — the same defect in a
+   smaller shape. `sentences()` already refuses to cross a line for this reason.
+
+An UNTERMINATED fence is deliberately NOT a region. Letting it run to the end of
+the text would hide every task below it, which is the failure being repaired.
+It stays visible, and `structure` reports it under `unclosed-fence`.
+
+The scanner is `planlint.document.inline_code_spans`. `closure`, `checks` and
+the `Files:` and table readers of `document` all read through it, so no consumer
+carries a second, private notion of what a quoted span is.
 
 ### How the check lint reads the document
 
@@ -159,6 +201,8 @@ reports it. A lint with no negative fixture is not done.
 | `neg_hist_brd0_target_link.md` | **Historical defect 1, pre-repair.** BRD-0 links `mcf5307::mcf5307`, which CPU-1 exports, with a closure of `{BRD-0, REPO-3, REPO-12}`. |
 | `neg_hist_repo9_type_name.md` | **Historical defect 2, pre-repair.** REPO-9's gate reads `Scheduler::Config`, and neither task that writes `scheduler.h` or `scheduler.cpp` is in its closure. |
 | `neg_hist_brd21_gated_link.md` | **Historical defect 3, pre-repair.** BRD-21 calls `mcf5307_exec` behind an option BRD-23 turns ON, and does not declare BRD-23. Its producer CPU-1 IS reachable, so the producer rule stays silent and the option rule fires. |
+| `neg_structure_unmatched_backtick.md` | A task body carrying a backtick with no partner on its own line. |
+| `neg_structure_unclosed_fence.md` | A fenced block opened and never closed, outside every task body. |
 | `repo_public_bad/`, `repo_public_good/` | A repository tree with each breach route, and one with none. |
 
 ### Mutation check, per RULE
@@ -174,7 +218,7 @@ in the same lint. The 14 mutations of that revision triggered 16 of the 31
 rules. Fifteen rules had no mutation, and the fifteen included
 `registrar-outside-closure` and `shared-path-without-owner`.
 
-The eight document lints emit 36 rules and every one carries a mutation. A rule
+The nine document lints emit 38 rules and every one carries a mutation. A rule
 that reached the inventory as a VARIABLE would hide from the meta-test, so
 `closure.run` builds each breach as a `Finding` at the point where its rule is
 known — the same reason `graph.build_edges` uses `dataclasses.replace`.

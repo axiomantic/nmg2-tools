@@ -30,7 +30,7 @@ def test_pyproject_declares_the_planlint_console_script():
 
 
 def test_planlint_package_directory_holds_every_module_the_cli_imports():
-    """The nine lint modules plus the four support modules. A module that the
+    """The ten lint modules plus the four support modules. A module that the
     migration dropped makes `planlint.cli` fail to import; this names which."""
     committed = sorted(p.name for p in (ROOT / "planlint").glob("*.py"))
 
@@ -46,15 +46,20 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "implicit.py",
         "payload.py",
         "registrar.py",
+        "structure.py",
         "tiers.py",
         "waves.py",
     ]
 
 
-def test_planlint_cli_exposes_the_nine_lints():
+def test_planlint_cli_exposes_the_ten_lints():
     from planlint import cli
 
+    # `structure` runs FIRST. Every lint below it reads a parsed document, so
+    # a broken fence or an unpaired backtick is the cause and the rest are the
+    # consequence.
     assert list(cli.DOCUMENT_LINTS) == [
+        "structure",
         "graph",
         "waves",
         "tiers",
@@ -66,6 +71,7 @@ def test_planlint_cli_exposes_the_nine_lints():
     ]
     assert cli.REPOSITORY_LINTS == ("payload",)
     assert cli.ALL_LINTS == [
+        "structure",
         "graph",
         "waves",
         "tiers",

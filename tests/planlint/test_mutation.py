@@ -29,10 +29,21 @@ import unittest
 
 from tests.planlint.support import fixture_path
 
-from planlint import checks, closure, counts, graph, implicit, registrar, tiers, waves
+from planlint import (
+    checks,
+    closure,
+    counts,
+    graph,
+    implicit,
+    registrar,
+    structure,
+    tiers,
+    waves,
+)
 from planlint.document import PlanDocument
 
 LINTS = {
+    "structure": structure.run,
     "graph": graph.run,
     "waves": waves.run,
     "tiers": tiers.run,
@@ -45,7 +56,7 @@ LINTS = {
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
 
-# The 36 rules the eight document lints emit. The list is here so that adding or
+# The 38 rules the nine document lints emit. The list is here so that adding or
 # renaming a rule is a deliberate edit to this file and not a silent drift; the
 # meta-test reads the same set out of the lint source and compares.
 DOCUMENT_RULES = frozenset(
@@ -94,6 +105,9 @@ DOCUMENT_RULES = frozenset(
         "symbol-closure-candidate",
         "symbol-producer-unreachable",
         "target-producer-unreachable",
+        # structure
+        "unclosed-fence",
+        "unmatched-backtick",
     }
 )
 
@@ -336,6 +350,20 @@ MUTATIONS = [
         "with `NMG2_ARTIFACTS` set. This task does not link `gamma::gamma_lib`.",
         {"symbol-closure-candidate"},
     ),
+    # -------------------------------------------------------------- structure
+    (
+        "a task body carrying a backtick with no partner",
+        "The suite carries a failing case of its own.",
+        "The suite carries a failing case of its own. The forwarding flag is "
+        "spelled `--group.",
+        {"unmatched-backtick"},
+    ),
+    (
+        "a fenced block opened and never closed",
+        "### 24.4 The conditional tasks",
+        "```\n\n### 24.4 The conditional tasks",
+        {"unclosed-fence"},
+    ),
 ]
 
 
@@ -370,7 +398,10 @@ def rules_in_source(module):
 
 def rules_the_lints_emit():
     out = set()
-    for module in (graph, waves, tiers, checks, counts, implicit, registrar, closure):
+    for module in (
+        graph, waves, tiers, checks, counts, implicit, registrar, closure,
+        structure,
+    ):
         out |= rules_in_source(module)
     return out
 
@@ -418,16 +449,16 @@ class RuleCoverageTest(unittest.TestCase):
         """Coverage is measured per RULE, and four rules carry two mutations
         each. Thus the deletion of one of those mutations keeps every other
         assertion in this class green. This line makes that deletion loud."""
-        self.assertEqual(len(MUTATIONS), 36)
+        self.assertEqual(len(MUTATIONS), 38)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 36)
+        self.assertEqual(len(rules_the_lints_emit()), 38)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
             "graph": graph, "waves": waves, "tiers": tiers, "checks": checks,
             "counts": counts, "implicit": implicit, "registrar": registrar,
-            "closure": closure,
+            "closure": closure, "structure": structure,
         }
         self.assertEqual(
             sorted(

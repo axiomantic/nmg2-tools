@@ -23,6 +23,7 @@ from planlint import (
     implicit,
     payload,
     registrar,
+    structure,
     tiers,
     waves,
 )
@@ -30,7 +31,13 @@ from planlint.document import PlanDocument
 
 # The order is the order the report prints. It runs from the structural lints to
 # the two that catch the classes careful reading kept missing.
+#
+# `structure` is FIRST because every lint below it reads a parsed document. When
+# the markup is broken, the reader below it is reading the wrong text, and a
+# report that named the consequence before the cause would send a reader to the
+# wrong repair.
 DOCUMENT_LINTS = {
+    "structure": structure.run,
     "graph": graph.run,
     "waves": waves.run,
     "tiers": tiers.run,

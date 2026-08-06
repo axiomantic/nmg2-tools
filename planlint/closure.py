@@ -66,7 +66,12 @@ import dataclasses
 import re
 
 from planlint import graph, registrar
-from planlint.document import BACKTICKED, canonical_path
+from planlint.document import (
+    backticked,
+    canonical_path,
+    fenced_line_indexes,
+    inline_code_spans,
+)
 from planlint.finding import ERROR, WARNING, Finding, guard_no_input
 
 CODE_SUFFIXES = (".h", ".hpp", ".hh", ".cpp", ".cc", ".c", ".nim", ".py")
@@ -153,17 +158,31 @@ class GatedOption:
 
 
 def mask_backticks(text):
-    """The text with every backticked span blanked, and the spans beside it.
+    """The text with every quoted region blanked, and the inline spans beside it.
 
     The blanks keep every offset, so a verb found in the masked text has the
     position it has in the original. Masking is what stops `Link gamma` inside
     an `option(...)` string from reading as the verb `link`.
+
+    A FENCED block is blanked whole and yields no span. A fence is a quoted
+    region — an inline span that runs over several lines — so a verb printed
+    inside a transcript is no more a consumer verb than one inside backticks.
+    Reading a fence as a run of inline spans is defect L-5 and is what blinded
+    the lint to everything after the first fence in a task body.
     """
     spans = []
     out = list(text)
-    for match in BACKTICKED.finditer(text):
-        spans.append((match.start(1), match.end(1), match.group(1)))
-        for index in range(match.start(), match.end()):
+    lines = text.split("\n")
+    offset = 0
+    fenced = fenced_line_indexes(lines)
+    for index, line in enumerate(lines):
+        if index in fenced:
+            for position in range(offset, offset + len(line)):
+                out[position] = " "
+        offset += len(line) + 1
+    for opener, closer, inner in inline_code_spans(text)[0]:
+        spans.append((opener + 1, closer, inner))
+        for index in range(opener, closer + 1):
             out[index] = " "
     return "".join(out), spans
 
@@ -481,7 +500,7 @@ def gated_options(doc):
             match = OPTION_OFF.search(raw)
             if not match:
                 continue
-            names = BACKTICKED.findall(raw)
+            names = backticked(raw)
             symbols = {
                 name
                 for name in names

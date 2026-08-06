@@ -21,7 +21,7 @@ not carry, and a path that more than one task claims with no owner in section
 
 import re
 
-from planlint.document import BACKTICKED, strip_markup
+from planlint.document import inline_code_spans, strip_markup
 from planlint.finding import ERROR, WARNING, Finding, guard_no_input
 
 # A command word alone is a noun. `A `ctest` invocation carries no flag` is
@@ -71,13 +71,21 @@ def commands_in(text):
     remains after the spans are removed is scanned line by line, because an
     invocation written without backticks is still an invocation — and it is the
     one most likely to have lost a flag.
+
+    The spans are read by the fence-aware scanner. A stray backtick used to pair
+    with the next one on a LATER line, which removed the prose between them from
+    the remainder and hid whatever invocation that prose carried. An unmatched
+    backtick is literal text, so the remainder keeps every line it had.
     """
     out = []
-    for span in BACKTICKED.findall(text):
-        if COMMAND_WORD.search(span):
-            out.append(span.strip())
-    remainder = BACKTICKED.sub(" ", text)
-    for line in remainder.splitlines():
+    spans, _ = inline_code_spans(text)
+    remainder = list(text)
+    for opener, closer, inner in spans:
+        if COMMAND_WORD.search(inner):
+            out.append(inner.strip())
+        for index in range(opener, closer + 1):
+            remainder[index] = " "
+    for line in "".join(remainder).splitlines():
         match = COMMAND_LINE.search(line)
         if match:
             out.append(match.group(0).strip())
