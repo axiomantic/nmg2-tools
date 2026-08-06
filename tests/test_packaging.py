@@ -99,6 +99,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [
         "__init__.py",
+        # REPO-5. The Python half of the ArtifactResolver.
+        "artifacts.py",
         "credential_lint.py",
         "extract_demo_corpus.py",
         "payload_lint.py",
@@ -108,6 +110,8 @@ def test_the_superseded_plan_lint_module_is_absent():
 
 def test_the_superseded_plan_lint_test_module_is_absent():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
+        # REPO-5. The Python half of the ArtifactResolver.
+        "test_artifacts.py",
         "test_credential_lint.py",
         "test_extract_demo_corpus.py",
         "test_packaging.py",
