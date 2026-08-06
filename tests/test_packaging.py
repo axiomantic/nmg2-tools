@@ -113,6 +113,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "container.py",
         "credential_lint.py",
         "extract_demo_corpus.py",
+        # TOOL-5. The CS2 flash image builder.
+        "flashimage.py",
         # TOOL-1. The LZO1X decompressor.
         "lzo1x.py",
         "payload_lint.py",
@@ -130,6 +132,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_container.py",
         "test_credential_lint.py",
         "test_extract_demo_corpus.py",
+        # TOOL-5. The CS2 flash image builder.
+        "test_flashimage.py",
         # TOOL-1. The LZO1X decompressor.
         "test_lzo1x.py",
         "test_packaging.py",
