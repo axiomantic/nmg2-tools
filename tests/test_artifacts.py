@@ -79,6 +79,23 @@ def test_directory_without_named_artifact_returns_message_three(tmp_path, monkey
     assert why == f"firmware artifact not available (firmware.bin not found under NMG2_ARTIFACTS: {tmp_path})"
 
 
+def test_message_three_wording_with_a_different_name(tmp_path, monkeypatch):
+    """A second witness for message 3's wording. The test above pins the
+    wording with ``firmware.bin``; a rewrite that happens to align with
+    ``firmware.bin`` would slip through a single-test check. Message 3 is the
+    most error-prone of the three because it echoes both ``name`` and the
+    directory in one format string, so a second name exercises the format
+    against a different interpolation and a third pair of substitution
+    positions. The two tests are independent -- either one catches a drift
+    the other misses."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    directory, why = resolve_artifacts("different_artifact.bin")
+
+    assert directory == ""
+    assert why == f"firmware artifact not available (different_artifact.bin not found under NMG2_ARTIFACTS: {tmp_path})"
+
+
 def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
     artifact = tmp_path / "firmware.bin"
     artifact.write_text("not real firmware\n")
@@ -90,7 +107,7 @@ def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
     assert why == ""
 
 
-def test_never_raises(monkeypatch):
+def test_never_raises(monkeypatch, tmp_path):
     """Design section 4.2: the resolver never throws. The cases below are the
     inputs most likely to make a naive implementation raise."""
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
@@ -102,6 +119,20 @@ def test_never_raises(monkeypatch):
             resolve_artifacts()
         except Exception as exc:  # noqa: BLE001 - the assertion IS that nothing escapes
             pytest.fail(f"resolve_artifacts() raised on {value!r}: {exc!r}")
+
+    # The same rule on the ``name`` argument. A defensive ``raise`` on a path
+    # separator in ``name`` would fire here: ``subdir/file.bin`` carries ``/``,
+    # ``../etc/passwd`` carries ``..``, ``/absolute/path`` is absolute, and
+    # ``./relative`` starts with a dot. ``tmp_path`` is a real directory so
+    # the ``name`` path is actually consulted and message 3 can fire; without
+    # that, the function would return at the unset -- or no-directory -- check
+    # and the name would never reach the raise.
+    for name in ("subdir/file.bin", "../etc/passwd", "/absolute/path", "./relative"):
+        monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+        try:
+            resolve_artifacts(name)
+        except Exception as exc:  # noqa: BLE001 - the assertion IS that nothing escapes
+            pytest.fail(f"resolve_artifacts({name!r}) raised: {exc!r}")
 
 
 def test_an_existing_directory_resolves(tmp_path, monkeypatch):
