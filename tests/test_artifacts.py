@@ -7,11 +7,11 @@ Plan section 9.2, REPO-5. Design sections 4.2 and 18.5.
 
 The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
 ``gearmulator`` fork and ``source/nord/g2/g2Lib/test/t0_artifact_resolver.cpp``
-asserts the identical properties. The message literal below is written out in
-full ON PURPOSE, exactly as the C++ test writes it out in full: comparing
+asserts the identical properties. The message literals below are written out in
+full ON PURPOSE, exactly as the C++ test writes them out in full: comparing
 against a full literal in each language is what makes "word for word and
-identically in both languages" a falsifiable claim. Deriving it from the module
-under test would assert only that the module equals itself.
+identically in both languages" a falsifiable claim. Deriving them from the
+module under test would assert only that the module equals itself.
 """
 
 import pytest
@@ -24,7 +24,9 @@ from nmg2_tools.artifacts import resolve_artifacts
 # real fixture rot while a stale copy went on passing.
 _GENERATED_CONFTEST = "from tests.conftest import artifacts_dir  # noqa: F401\n"
 
-EXPECTED_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
+# The THREE expected messages, written out in full.
+EXPECTED_UNSET = "firmware artifact not available (NMG2_ARTIFACTS unset)"
+EXPECTED_BAD_PATH = "firmware artifact not available (NMG2_ARTIFACTS names no directory: /nmg2/no/such/directory/REPO-5)"
 
 
 def test_unset_returns_empty_and_the_exact_message(monkeypatch):
@@ -33,20 +35,18 @@ def test_unset_returns_empty_and_the_exact_message(monkeypatch):
     directory, why = resolve_artifacts()
 
     assert directory == ""
-    assert why == EXPECTED_MESSAGE
+    assert why == EXPECTED_UNSET
 
 
-def test_missing_directory_gives_the_same_result(monkeypatch):
+def test_missing_directory_returns_message_two(monkeypatch):
     """Design section 4.2 gives the unset case and the missing-directory case
-    ONE message, so the two results must be equal and not merely both falsey."""
-    monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
-    unset_result = resolve_artifacts()
-
+    DISTINCT messages, so the two results must NOT be equal."""
     monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory/REPO-5")
-    missing_result = resolve_artifacts()
 
-    assert missing_result == ("", EXPECTED_MESSAGE)
-    assert missing_result == unset_result
+    directory, why = resolve_artifacts()
+
+    assert directory == ""
+    assert why == EXPECTED_BAD_PATH
 
 
 def test_empty_value_is_treated_as_unset(monkeypatch):
@@ -55,15 +55,39 @@ def test_empty_value_is_treated_as_unset(monkeypatch):
     so that the two halves do not mean different things on the same input."""
     monkeypatch.setenv("NMG2_ARTIFACTS", "")
 
-    assert resolve_artifacts() == ("", EXPECTED_MESSAGE)
+    assert resolve_artifacts() == ("", EXPECTED_UNSET)
 
 
-def test_a_path_that_is_a_file_and_not_a_directory_gives_the_same_result(tmp_path, monkeypatch):
+def test_a_path_that_is_a_file_and_not_a_directory_returns_message_two(tmp_path, monkeypatch):
     not_a_directory = tmp_path / "artifacts.txt"
     not_a_directory.write_text("not a directory\n")
+    expected = f"firmware artifact not available (NMG2_ARTIFACTS names no directory: {not_a_directory})"
     monkeypatch.setenv("NMG2_ARTIFACTS", str(not_a_directory))
 
-    assert resolve_artifacts() == ("", EXPECTED_MESSAGE)
+    directory, why = resolve_artifacts()
+
+    assert directory == ""
+    assert why == expected
+
+
+def test_directory_without_named_artifact_returns_message_three(tmp_path, monkeypatch):
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    directory, why = resolve_artifacts("firmware.bin")
+
+    assert directory == ""
+    assert why == f"firmware artifact not available (firmware.bin not found under NMG2_ARTIFACTS: {tmp_path})"
+
+
+def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
+    artifact = tmp_path / "firmware.bin"
+    artifact.write_text("not real firmware\n")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    directory, why = resolve_artifacts("firmware.bin")
+
+    assert directory == str(tmp_path)
+    assert why == ""
 
 
 def test_never_raises(monkeypatch):
@@ -140,12 +164,12 @@ def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
     message onto the prefix, so that the message has one text. This asserts the
     Python half does the same rather than spelling the whole line out twice."""
     from nmg2_tools.artifacts import (
-        ARTIFACT_UNAVAILABLE_MESSAGE,
+        ARTIFACT_UNSET_MESSAGE,
         GATED_SKIP_PREFIX,
         gated_skip_line,
     )
 
-    assert gated_skip_line() == GATED_SKIP_PREFIX + ARTIFACT_UNAVAILABLE_MESSAGE
+    assert gated_skip_line() == GATED_SKIP_PREFIX + ARTIFACT_UNSET_MESSAGE
     assert gated_skip_line() == EXPECTED_SKIP_LINE
 
 
