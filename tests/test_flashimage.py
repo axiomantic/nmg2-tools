@@ -28,6 +28,10 @@ VERSION_1_62 = 0x00A2
 # (~0x0A) & 0xFFFFFFFF = 0xFFFFFFF5.
 CODE_BYTES = b"\x01\x02\x03\x04"
 CODE_CHECKSUM = 0xFFFFFFF5
+# The same number as the four big-endian bytes an entry holds. It is written
+# out and not packed, because a pack taken from the code under test moves with
+# a mutation of the byte order.
+CODE_CHECKSUM_BYTES = b"\xff\xff\xff\xf5"
 
 # sum(b"\xFF\xFF") = 255 + 255 = 510 = 0x1FE.
 # (~0x1FE) & 0xFFFFFFFF = 0xFFFFFE01.
@@ -38,11 +42,14 @@ SRAM_CHECKSUM = 0xFFFFFE01
 ONE_ENTRY_DATA_OFFSET = 0x40
 
 # The first entry starts where the header ends. Design section 7.3 places the
-# compressed length at +0x14 of an entry and the trailing zero word at +0x1C.
-# The two numbers are written out here, not derived from the module, because an
-# offset taken from the code under test moves with a mutation of it.
+# plain checksum at +0x10 of an entry, the compressed length at +0x14, the
+# compressed checksum at +0x18 and the trailing zero word at +0x1C. The four
+# numbers are written out here, not derived from the module, because an offset
+# taken from the code under test moves with a mutation of it.
 FIRST_ENTRY_OFFSET = 0x14
+PLAIN_CHECKSUM_OFFSET = FIRST_ENTRY_OFFSET + 0x10
 COMPRESSED_LENGTH_OFFSET = FIRST_ENTRY_OFFSET + 0x14
+COMPRESSED_CHECKSUM_OFFSET = FIRST_ENTRY_OFFSET + 0x18
 RESERVED_OFFSET = FIRST_ENTRY_OFFSET + 0x1C
 
 
@@ -439,42 +446,69 @@ def test_every_section_is_stored_because_this_repository_has_no_compressor():
 def test_the_compressed_length_and_the_trailing_zero_sit_at_their_declared_offsets():
     """WHAT THIS TEST CAN PIN, AND WHAT NOTHING IN THIS REPOSITORY CAN.
 
-    Both slots are DEGENERATE in an image this builder writes. Every section is
-    stored, so the compressed length is always zero and the trailing zero word
-    is always zero. Two equal values cannot pin their own order: an image built
-    with the two slots EXCHANGED is byte-identical for every input, so that
-    exchange is an equivalent mutant and no test anywhere can turn it red. Only
-    a compressor, which this repository does not have and which
-    `pyproject.toml` declares no dependency that could supply, would make the
-    compressed length differ from the trailing zero and make the exchange
-    visible. The same holds for the plain and the compressed checksum, which
-    are the same number for the same reason.
+    Two PAIRS of slots are DEGENERATE in an image this builder writes. Every
+    section is stored, so the compressed length is always zero and the trailing
+    zero word is always zero; and both checksums are the checksum of the same
+    plain bytes, so the plain checksum always equals the compressed checksum.
 
-    What IS observable is which BYTE OFFSET of the entry carries which name,
-    and that is what this test pins. A distinct sentinel goes into each of the
-    two slots of a built image and the reader must report each under the right
-    name. The other six fields are asserted unmoved, so a sentinel that landed
-    in any of them is named rather than silently absorbed. A reader that
-    exchanged the two offsets fails here; the whole-image assertion above
-    cannot, because it compares zero against zero.
+    THE BUILDER SIDE OF EACH PAIR IS AN EQUIVALENT MUTANT. Two equal values
+    cannot pin their own order. A builder that EXCHANGED the compressed length
+    with the trailing zero, or the plain checksum with the compressed checksum,
+    writes a byte-identical image for every input, so no test anywhere can turn
+    either exchange red. Only a compressor, which this repository does not have
+    and which `pyproject.toml` declares no dependency that could supply, would
+    make the members of either pair differ and make the exchange visible.
+
+    THE READER SIDE OF EACH PAIR IS OBSERVABLE, and that is what this test
+    pins. Which BYTE OFFSET of the entry carries which name does not depend on
+    the builder writing distinct values, because a probe can plant them. A
+    distinct sentinel goes into each of the four slots of a built image and the
+    reader must report each under the right name. A reader that exchanged
+    either pair of offsets fails here. The whole-image assertion above cannot
+    catch the length-and-zero exchange, because it compares zero against zero;
+    and no assertion that read both checksums as `CODE_CHECKSUM` could catch
+    the checksum exchange, for the same reason.
+
+    The remaining four fields are asserted unmoved, and their values are
+    distinct from each other and from all four sentinels, so a sentinel that
+    landed in any of them is named rather than silently absorbed.
     """
     image = ContainerLayout(version=VERSION_1_62).build(
         [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
     )
 
-    # The builder writes zero into both slots. That is the stored form.
+    # The builder writes zero into both length slots. That is the stored form.
     assert image[COMPRESSED_LENGTH_OFFSET : COMPRESSED_LENGTH_OFFSET + 4] == bytes(4)
     assert image[RESERVED_OFFSET : RESERVED_OFFSET + 4] == bytes(4)
 
-    # Two sentinels, distinct from each other and from every other value in the
-    # entry, so a landing in the wrong field is visible rather than plausible.
+    # The builder writes the SAME checksum into both checksum slots, because a
+    # stored section compresses to itself. This is the degeneracy the sentinels
+    # below exist to work around.
+    assert (
+        image[PLAIN_CHECKSUM_OFFSET : PLAIN_CHECKSUM_OFFSET + 4] == CODE_CHECKSUM_BYTES
+    )
+    assert (
+        image[COMPRESSED_CHECKSUM_OFFSET : COMPRESSED_CHECKSUM_OFFSET + 4]
+        == CODE_CHECKSUM_BYTES
+    )
+
+    # Four sentinels, distinct from each other and from every other value in
+    # the entry, so a landing in the wrong field is visible rather than
+    # plausible. `parse_header` reads the table and verifies no checksum, so a
+    # checksum sentinel reaches the reader unchallenged.
     probe = bytearray(image)
+    probe[PLAIN_CHECKSUM_OFFSET : PLAIN_CHECKSUM_OFFSET + 4] = b"\x99\xaa\xbb\xcc"
     probe[COMPRESSED_LENGTH_OFFSET : COMPRESSED_LENGTH_OFFSET + 4] = b"\x11\x22\x33\x44"
+    probe[COMPRESSED_CHECKSUM_OFFSET : COMPRESSED_CHECKSUM_OFFSET + 4] = (
+        b"\xdd\xee\xff\x01"
+    )
     probe[RESERVED_OFFSET : RESERVED_OFFSET + 4] = b"\x55\x66\x77\x88"
 
     (section,) = parse_header(bytes(probe)).sections
 
+    assert section.plain_checksum == 0x99AABBCC
     assert section.compressed_length == 0x11223344
+    assert section.compressed_checksum == 0xDDEEFF01
     assert section.reserved == 0x55667788
 
     # Every other field of the entry is where it was.
@@ -482,5 +516,3 @@ def test_the_compressed_length_and_the_trailing_zero_sit_at_their_declared_offse
     assert section.file_offset == ONE_ENTRY_DATA_OFFSET
     assert section.uncompressed_length == 4
     assert section.load_address == 0x30000400
-    assert section.plain_checksum == CODE_CHECKSUM
-    assert section.compressed_checksum == CODE_CHECKSUM
