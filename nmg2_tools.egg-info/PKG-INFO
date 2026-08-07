@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: nmg2-tools
+Version: 0.0.0
+Summary: Python tools for the Nord Modular G2 emulator project
+License-Expression: MIT
+Requires-Python: >=3.11
+License-File: LICENSE
+Dynamic: license-file
