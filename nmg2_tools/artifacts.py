@@ -8,35 +8,47 @@ section 7.4.2 records that as the reason this file has REPO-5 as its owner.
 Design section 4.2, on the Python half:
 
     ``axiomantic/nmg2-tools`` carries the Python equivalent,
-    ``resolve_artifacts()``, with the same contract and the same message, so
-    that the Python extractor and the C++ extractor skip for the same reason in
-    the same words.
+    ``resolve_artifacts()``, with the same contract and three distinct messages,
+    one for each of the three conditions REPO-5's check names, so that the Python
+    extractor and the C++ extractor skip for the same reason in the same words.
 """
 
 import os
 from typing import Optional
 
-# The message a failed resolve returns, WORD FOR WORD. Design section 4.2 fixes
-# the wording and section 18.5 builds the skip line on top of it.
-#
-# It reads "unset" for BOTH failure cases -- the variable unset, and the
-# variable naming a directory that is not there. That is the design's own
-# decision: section 4.2 gives the two cases one message, and REPO-5's check
-# requires "the result is the same". This constant is not the place to improve
-# on it.
-ARTIFACT_UNAVAILABLE_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
-
+# The THREE messages, WORD FOR WORD. Design section 4.2 fixes the wording and
+# section 18.5 builds the skip line on top of them. The three are distinct on
+# purpose: one message for two conditions told an operator with a wrong path that
+# their variable was unset, which is a message that sends them to the wrong
+# file. Echoing the variable value unchanged is the whole point of message 2.
+ARTIFACT_UNSET_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
 ARTIFACT_ENVIRONMENT_VARIABLE = "NMG2_ARTIFACTS"
 
 
-def resolve_artifacts() -> tuple[str, str]:
+def _message_no_directory(value: str) -> str:
+    return f"firmware artifact not available (NMG2_ARTIFACTS names no directory: {value})"
+
+
+def _message_not_found(name: str, value: str) -> str:
+    return f"firmware artifact not available ({name} not found under NMG2_ARTIFACTS: {value})"
+
+
+def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
     """Resolve the directory that holds the Clavia-derived artifacts.
 
     Returns ``(directory, why)``.
 
     On success ``directory`` is the resolved directory and ``why`` is empty.
-    On failure ``directory`` is empty and ``why`` is
-    :data:`ARTIFACT_UNAVAILABLE_MESSAGE`.
+    On failure ``directory`` is empty and ``why`` is one of three distinct
+    messages, one per condition:
+
+    1. ``NMG2_ARTIFACTS`` unset or empty -- :data:`ARTIFACT_UNSET_MESSAGE`.
+    2. The path it names does not exist or is not a directory -- message 2
+       (echoing the variable's value unchanged).
+    3. The directory exists but the named artifact is not in it -- message 3
+       (echoing the variable's value unchanged).
+
+    ``name`` is the artifact the caller asked for and only message 3 reads it.
 
     Never raises. This mirrors the C++ half, where design section 4.2 states the
     no-exception rule on ``ArtifactResolver::resolve`` directly.
@@ -48,16 +60,23 @@ def resolve_artifacts() -> tuple[str, str]:
     # different on Windows than it means on Linux and macOS -- and the two halves
     # of this task would then disagree on the same input.
     if not value:
-        return "", ARTIFACT_UNAVAILABLE_MESSAGE
+        return "", ARTIFACT_UNSET_MESSAGE
 
     # A path that does not exist, a path the process cannot stat, and a path that
     # exists but is not a directory all land here, and all three give the SAME
-    # result the plan's check requires of the unset case. `os.path.isdir` reports
-    # False rather than raising for every one of them, so this function needs no
-    # exception handler to satisfy the never-raises contract -- and a handler
-    # that can never fire would be a branch no test could drive.
+    # message 2. `os.path.isdir` reports False rather than raising for every one
+    # of them, so this function needs no exception handler to satisfy the
+    # never-raises contract -- and a handler that can never fire would be a branch
+    # no test could drive.
     if not os.path.isdir(value):
-        return "", ARTIFACT_UNAVAILABLE_MESSAGE
+        return "", _message_no_directory(value)
+
+    # The directory exists. If a name was asked for and the file is not in the
+    # directory, message 3 fires. The caller chose ``name`` and we echo it.
+    if name is not None:
+        candidate = os.path.join(value, name)
+        if not os.path.isfile(candidate):
+            return "", _message_not_found(name, value)
 
     return value, ""
 
@@ -80,7 +99,7 @@ GATED_SKIP_PREFIX = "SKIPPED: "
 
 def gated_skip_line() -> str:
     """The line design section 18.5 step 2 requires a gated test to emit."""
-    return GATED_SKIP_PREFIX + ARTIFACT_UNAVAILABLE_MESSAGE
+    return GATED_SKIP_PREFIX + ARTIFACT_UNSET_MESSAGE
 
 
 def gated_skip_reason() -> Optional[str]:
