@@ -6,11 +6,26 @@
 # ignored. A line is either a ctest test name or a "pytest <path>"
 # invocation.
 
-pytest tests/test_plan_lint.py
-pytest tests/test_payload_lint.py
-pytest tests/test_submodule_lint.py
+pytest tests/test_artifacts.py
 pytest tests/test_credential_lint.py
 pytest tests/test_extract_demo_corpus.py
+pytest tests/test_packaging.py
+pytest tests/test_payload_lint.py
+pytest tests/test_submodule_lint.py
+pytest tests/planlint/test_checks.py
+pytest tests/planlint/test_cli.py
+pytest tests/planlint/test_closure.py
+pytest tests/planlint/test_counts.py
+pytest tests/planlint/test_document.py
+pytest tests/planlint/test_fences.py
+pytest tests/planlint/test_finding.py
+pytest tests/planlint/test_graph.py
+pytest tests/planlint/test_implicit.py
+pytest tests/planlint/test_mutation.py
+pytest tests/planlint/test_payload.py
+pytest tests/planlint/test_registrar.py
+pytest tests/planlint/test_structure.py
+pytest tests/planlint/test_suite_integrity.py
+pytest tests/planlint/test_tiers.py
+pytest tests/planlint/test_waves.py
 
-# REPO-5, the Python half of the ArtifactResolver.
-pytest tests/test_artifacts.py

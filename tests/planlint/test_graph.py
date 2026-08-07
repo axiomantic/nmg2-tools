@@ -70,14 +70,33 @@ class DependsParseTest(unittest.TestCase):
             [("depends-prose", "and it is also scheduled after BBB-1 runs → BBB-1")],
         )
 
-    def test_a_prose_clause_naming_no_task_is_not_reported(self):
+    def test_a_prose_clause_naming_no_task_is_reported_as_depends_prose(self):
         edges, findings = graph.parse_depends(
             "**REPO-15**, which produces the corpus this repository carries. "
             "**Not on the critical path to M2.** Schedule it before M3."
         )
 
         self.assertEqual(edges, ["REPO-15"])
-        self.assertEqual(findings, [])
+        self.assertEqual(
+            [f.rule for f in findings],
+            ["depends-prose", "depends-prose", "depends-prose"],
+        )
+
+    def test_zero_identifier_prose_item_is_flagged(self):
+        edges, findings = graph.parse_depends("whatever finishes first")
+
+        self.assertEqual(edges, [])
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "depends-prose")
+        self.assertEqual(findings[0].evidence, "whatever finishes first")
+
+    def test_item_combining_valid_identifier_and_zero_identifier_prose(self):
+        edges, findings = graph.parse_depends("CPU-1, whatever finishes first")
+
+        self.assertEqual(edges, ["CPU-1"])
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "depends-prose")
+        self.assertEqual(findings[0].evidence, "whatever finishes first")
 
 
 class GraphLintTest(unittest.TestCase):

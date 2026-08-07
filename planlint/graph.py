@@ -56,6 +56,8 @@ def parse_depends(text):
         item = item.strip().rstrip(".").strip()
         if not item:
             continue
+        if item.lower() in ("none", "nothing"):
+            continue
         match = RANGE.match(item)
         if match:
             low_track, low, high_track, high = match.groups()
@@ -71,16 +73,30 @@ def parse_depends(text):
             # `REPO-15 for the T1 half only` — an edge with a qualifier.
             add(lead.group(1))
             continue
-        for extra in IDENT_ANY.findall(item):
+        extras = IDENT_ANY.findall(item)
+        if extras:
+            for extra in extras:
+                findings.append(
+                    Finding(
+                        rule="depends-prose",
+                        message=(
+                            "an identifier sits in prose on the `Depends:` line, so it is "
+                            "not read as an edge; state it as an item or move the note off "
+                            "the line"
+                        ),
+                        evidence=f"{item} → {extra}",
+                        severity=ERROR,
+                    )
+                )
+        else:
             findings.append(
                 Finding(
                     rule="depends-prose",
                     message=(
-                        "an identifier sits in prose on the `Depends:` line, so it is "
-                        "not read as an edge; state it as an item or move the note off "
-                        "the line"
+                        "a prose item on the `Depends:` line yields 0 graph edges and "
+                        "matches no task identifier, range, or 'none'"
                     ),
-                    evidence=f"{item} → {extra}",
+                    evidence=item,
                     severity=ERROR,
                 )
             )
@@ -89,15 +105,29 @@ def parse_depends(text):
         stripped = sentence.strip()
         if stripped.upper().startswith(MARKERS):
             continue
-        for extra in IDENT_ANY.findall(stripped):
+        extras = IDENT_ANY.findall(stripped)
+        if extras:
+            for extra in extras:
+                findings.append(
+                    Finding(
+                        rule="depends-prose",
+                        message=(
+                            "an annotation on the `Depends:` line names a task; it is not "
+                            "read as an edge, and a parser that read it would invent one"
+                        ),
+                        evidence=f"{stripped} → {extra}",
+                        severity=ERROR,
+                    )
+                )
+        else:
             findings.append(
                 Finding(
                     rule="depends-prose",
                     message=(
-                        "an annotation on the `Depends:` line names a task; it is not "
-                        "read as an edge, and a parser that read it would invent one"
+                        "an annotation on the `Depends:` line yields 0 graph edges and "
+                        "matches no task identifier, range, or 'none'"
                     ),
-                    evidence=f"{stripped} → {extra}",
+                    evidence=stripped,
                     severity=ERROR,
                 )
             )

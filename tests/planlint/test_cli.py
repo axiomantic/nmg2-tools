@@ -78,6 +78,55 @@ class ExitCodeTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("no such plan document", text)
 
+    def test_check_targets_option_runs_check_targets_validation(self):
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--check-targets", str(fixture_path("clean_check_targets.txt")),
+            ]
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIn("checks: clean", text)
+
+    def test_build_dir_option_with_invalid_path_exits_non_zero(self):
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--only", "checks",
+                "--build-dir", "axiomantic/nord-g2=/nonexistent/path",
+            ]
+        )
+
+        self.assertEqual(code, 1)
+        self.assertIn("invalid-build-dir", text)
+
+    def test_build_dir_option_with_valid_path_and_ctestfile_exits_zero(self):
+        import pathlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pathlib.Path(tmp)
+            (p / "CTestTestfile.cmake").write_text(
+                'add_test(t0_alpha "echo" "1")\n'
+                'add_test(t0_beta "echo" "1")\n'
+                'add_test(t1_gamma "echo" "1")\n'
+                'add_test(t0_delta "echo" "1")\n'
+                'add_test(t0_epsilon "echo" "1")\n'
+                'add_test(t2_zeta "echo" "1")\n'
+                'add_test(t0_eta "echo" "1")\n'
+            )
+            code, text = run(
+                [
+                    "--plan", str(fixture_path("clean_plan.md")),
+                    "--only", "checks",
+                    "--build-dir", f"axiomantic/nord-g2={tmp}",
+                ]
+            )
+
+            self.assertEqual(code, 0)
+            self.assertIn("checks: clean", text)
+
 
 if __name__ == "__main__":
     unittest.main()
+

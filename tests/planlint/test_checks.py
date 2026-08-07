@@ -316,7 +316,7 @@ class CheckLintTest(unittest.TestCase):
                 "**AAA-1 · A task** — T0\n"
                 "Files: `src/one.cpp`\n"
                 "Depends: none\n"
-                "Check: The operator confirms the repository exists.\n",
+                "Check: The operator confirms the repository exists or fails.\n",
                 name="inline",
             )
         )
@@ -367,5 +367,176 @@ class AbbreviatedSharedPathTest(unittest.TestCase):
         self.assertNotIn("g2JucePlugin/covered.cpp", evidence)
 
 
+class CheckTargetsTest(unittest.TestCase):
+    def test_check_targets_matching_set_equality(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n"
+            "**BBB-1 · Pytest task** — T0\n"
+            "Files: `tests/test_foo.py`\n"
+            "Depends: AAA-1\n"
+            "Check: `pytest tests/test_foo.py`\n",
+            name="inline",
+        )
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", delete=False) as f:
+            f.write("t0_alpha\npytest tests/test_foo.py\n")
+            f.flush()
+            result = checks.run(doc, check_targets_path=f.name)
+            self.assertEqual([f.rule for f in result.findings if f.rule == "check-targets-mismatch"], [])
+
+    def test_check_targets_missing_in_plan(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", delete=False) as f:
+            f.write("t0_alpha\npytest tests/test_missing.py\n")
+            f.flush()
+            result = checks.run(doc, check_targets_path=f.name)
+            mismatches = [f for f in result.findings if f.rule == "check-targets-mismatch"]
+            self.assertEqual(len(mismatches), 1)
+            self.assertIn("missing in plan: pytest tests/test_missing.py", mismatches[0].evidence)
+
+    def test_check_targets_extra_in_plan(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", delete=False) as f:
+            f.write("# empty check targets\n")
+            f.flush()
+            result = checks.run(doc, check_targets_path=f.name)
+            mismatches = [f for f in result.findings if f.rule == "check-targets-mismatch"]
+            self.assertEqual(len(mismatches), 1)
+            self.assertIn("extra in plan: t0_alpha", mismatches[0].evidence)
+
+
+class NonEmptyCheckBlockTest(unittest.TestCase):
+    def test_task_block_without_check_block_reports_finding(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · Task no check** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n",
+            name="inline",
+        )
+        result = checks.run(doc)
+        findings = [f for f in result.findings if f.rule == "non-empty-check-block"]
+        self.assertEqual(len(findings), 1)
+        self.assertIn("carries no Check: block", findings[0].message)
+
+    def test_check_block_without_command_or_failure_mechanism_reports_finding(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · Task manual check** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: The engineer verifies that the output looks good.\n",
+            name="inline",
+        )
+        result = checks.run(doc)
+        findings = [f for f in result.findings if f.rule == "non-empty-check-block"]
+        self.assertEqual(len(findings), 1)
+        self.assertIn("no explicit failure mechanism", findings[0].message)
+
+    def test_check_block_with_explicit_failure_mechanism_passes(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · Task explicit failure** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: The script verifies output and fails on mismatch.\n",
+            name="inline",
+        )
+        result = checks.run(doc)
+        findings = [f for f in result.findings if f.rule == "non-empty-check-block"]
+        self.assertEqual(findings, [])
+
+
+class BuildDirTest(unittest.TestCase):
+    def test_build_dir_nonexistent_or_lacking_ctestfile_is_hard_failure(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            # Empty directory without CTestTestfile.cmake
+            result = checks.run(doc, build_dirs=[f"axiomantic/nord-g2={tmp}"])
+            findings = [f for f in result.findings if f.rule == "invalid-build-dir"]
+            self.assertEqual(len(findings), 1)
+            self.assertEqual(findings[0].severity, "ERROR")
+            self.assertIn("lacks CTestTestfile.cmake", findings[0].message)
+
+        # Nonexistent directory
+        result = checks.run(doc, build_dirs=["axiomantic/nord-g2=/nonexistent/build/dir"])
+        findings = [f for f in result.findings if f.rule == "invalid-build-dir"]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].severity, "ERROR")
+
+    def test_build_dir_invalid_format(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        result = checks.run(doc, build_dirs=["no_equals_sign_here"])
+        findings = [f for f in result.findings if f.rule == "invalid-build-dir"]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].severity, "ERROR")
+        self.assertIn("invalid --build-dir format", findings[0].message)
+
+    def test_build_dir_valid_with_matching_registered_test_passes(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        import pathlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pathlib.Path(tmp)
+            (p / "CTestTestfile.cmake").write_text('add_test(t0_alpha "echo" "1")\n')
+            result = checks.run(doc, build_dirs=[f"axiomantic/nord-g2={tmp}"])
+            reg_findings = [f for f in result.findings if f.rule == "r-name-not-registered"]
+            self.assertEqual(reg_findings, [])
+
+    def test_build_dir_valid_with_missing_registered_test_upgrades_to_error(self):
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n",
+            name="inline",
+        )
+        import pathlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pathlib.Path(tmp)
+            # Register a different test, so t0_alpha is missing from CTest listing
+            (p / "CTestTestfile.cmake").write_text('add_test(t0_other "echo" "1")\n')
+            result = checks.run(doc, build_dirs=[f"axiomantic/nord-g2={tmp}"])
+            reg_findings = [f for f in result.findings if f.rule == "r-name-not-registered"]
+            self.assertEqual(len(reg_findings), 1)
+            self.assertEqual(reg_findings[0].severity, "ERROR")
+            self.assertIn("missing from CTest listing in build directory", reg_findings[0].evidence)
+
+
 if __name__ == "__main__":
     unittest.main()
+
