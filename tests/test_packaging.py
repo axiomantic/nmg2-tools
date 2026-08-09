@@ -120,6 +120,10 @@ def test_the_superseded_plan_lint_module_is_absent():
         # TOOL-1. The LZO1X decompressor.
         "lzo1x.py",
         "payload_lint.py",
+        # TOOL-4. The Windows PE resource reader.
+        "pe.py",
+        # TOOL-4. The Macintosh resource-fork reader.
+        "rsrc.py",
         "submodule_lint.py",
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "synth_pch2.py",
@@ -137,6 +141,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_credential_lint.py",
         # TOOL-7. The DSP56300 disassembler.
         "test_dsp56k_dis.py",
+        # TOOL-4. The updater resource extraction tests.
+        "test_extract.py",
         "test_extract_demo_corpus.py",
         # TOOL-5. The CS2 flash image builder.
         "test_flashimage.py",
