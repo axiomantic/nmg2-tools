@@ -122,6 +122,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         # TOOL-8. The module map generator.
         "modulemap.py",
         "payload_lint.py",
+        # TOOL-10. The `.pch2` parser.
+        "pch2.py",
         # TOOL-4. The Windows PE resource reader.
         "pe.py",
         # TOOL-4. The Macintosh resource-fork reader.
@@ -156,6 +158,10 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_modulemap.py",
         "test_packaging.py",
         "test_payload_lint.py",
+        # TOOL-10. The `.pch2` parser against the synthesized corpus (T0).
+        "test_pch2.py",
+        # TOOL-10. The `.pch2` parser against the G2 Demo corpus (T1).
+        "test_pch2_real_corpus.py",
         # TOOL-6. The descriptor signature scanner.
         "test_sigscan.py",
         "test_submodule_lint.py",
