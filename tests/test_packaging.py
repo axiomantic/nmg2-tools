@@ -124,6 +124,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "pe.py",
         # TOOL-4. The Macintosh resource-fork reader.
         "rsrc.py",
+        # TOOL-6. The descriptor signature scanner.
+        "sigscan.py",
         "submodule_lint.py",
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "synth_pch2.py",
@@ -150,6 +152,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_lzo1x.py",
         "test_packaging.py",
         "test_payload_lint.py",
+        # TOOL-6. The descriptor signature scanner.
+        "test_sigscan.py",
         "test_submodule_lint.py",
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "test_synth_pch2.py",
