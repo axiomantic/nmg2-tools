@@ -119,6 +119,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "flashimage.py",
         # TOOL-1. The LZO1X decompressor.
         "lzo1x.py",
+        # TOOL-8. The module map generator.
+        "modulemap.py",
         "payload_lint.py",
         # TOOL-4. The Windows PE resource reader.
         "pe.py",
@@ -150,6 +152,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_flashimage.py",
         # TOOL-1. The LZO1X decompressor.
         "test_lzo1x.py",
+        # TOOL-8. The module map generator.
+        "test_modulemap.py",
         "test_packaging.py",
         "test_payload_lint.py",
         # TOOL-6. The descriptor signature scanner.
