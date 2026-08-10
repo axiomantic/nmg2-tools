@@ -196,6 +196,7 @@ reports it. A lint with no negative fixture is not done.
 | `neg_implicit_dependency.md` | An undeclared consumer of a created directory, and the undeclared edge that would close a cycle. |
 | `neg_registrar_unreachable.md` | A registrar and a creator outside the depending task's closure. |
 | `neg_path_abbreviation.md` | The two spellings of one file: an abbreviated `Files:` entry and a canonical one, colliding on a shared path and on a registrar directory. |
+| `neg_check_marked_second_write.md` | The ownership marker of section 1.1.1 rule D: a bare collision with no owner row that must stay red, a bare collision with an owner row, a marked entry with an owner row, and a marked entry with none. |
 | `neg_check_empty_r_argument.md` | `-R ^$`, which strips to the empty name. |
 | `neg_closure_header_and_candidate.md` | An `#include` of a header outside the closure, a hedged consumption, and a control task that declares the producer and must not be reported. |
 | `neg_hist_brd0_target_link.md` | **Historical defect 1, pre-repair.** BRD-0 links `mcf5307::mcf5307`, which CPU-1 exports, with a closure of `{BRD-0, REPO-3, REPO-12}`. |

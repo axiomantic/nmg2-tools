@@ -79,12 +79,8 @@ import pathlib
 import re
 
 from planlint import checks
+from planlint.document import strip_marker
 from planlint.finding import ERROR, Finding, guard_no_input
-
-# Section 1.1.1 rule D: a second write is marked `<path>@<OWNER-ID>`. The marker
-# is split off before the path is read, because the marked entry IS a claim on
-# the path it names.
-MARKER = re.compile(r"@[A-Z]{2,6}-\d+$")
 
 # Section 7.4.2 names the registration lists as a CLASS: `tests_<track>.cmake`
 # inside `g2Lib/test/`, `tests/tests_cpu.cmake` or
@@ -104,11 +100,6 @@ WRAPPER = re.compile(
     r"(.*?)^[ \t]*end(?:function|macro)\s*\(",
     re.DOTALL | re.MULTILINE | re.IGNORECASE,
 )
-
-
-def strip_marker(item):
-    """`.../tests_board.cmake@BRD-0` is a claim on `.../tests_board.cmake`."""
-    return MARKER.sub("", item)
 
 
 def is_registration_list(item):

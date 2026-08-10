@@ -87,6 +87,83 @@ def expand_files_items(items):
     return out
 
 
+# Section 1.1.1 rule D: a `Files:` entry may declare a write to a file ANOTHER
+# task owns, and the entry is MARKED — `<path>@<OWNER-ID>`. Rules B and C apply
+# to the path half BEFORE the marker is read, so an expanded path still carries
+# the marker on its end.
+#
+# NOT every consumer removes that marker. The RULE has THREE correct handlings
+# and not two. A marked entry is not a claim of OWNERSHIP, so a consumer either
+# STRIPS the marker, or SKIPS the entry, or KEEPS the marker deliberately
+# because it needs the `<OWNER-ID>` that the marker carries.
+#
+# The third is not a lapse and it is not optional. Section 7.4.2 rows 2, 3 and 4
+# — `second-write-wrong-owner`, `second-write-outside-closure` and
+# `second-write-outside-class` — are all tests ON the owner id, and they are
+# REPO-14 condition 10. A parser that stripped the marker would destroy the one
+# field those rules read, so `TaskBlock.files_items` and `TaskBlock.files_targets`
+# keep it by design. Do NOT "repair" a keeper into a stripper.
+#
+# A claim counter in particular must SKIP and never strip. Under a stripping
+# reading one bare writer beside one marked writer is still two claimants, so
+# `shared-path-without-owner` keeps firing on the very file the marker exists to
+# declare and the defect survives one layer down. `checks._shared_paths` skips.
+#
+# A consumer that does NONE of the three compares the marked spelling as written.
+#
+# The count is deliberately NOT stated here. It was stated here twice and was
+# wrong twice, and both times it failed the same way: it was built by grepping
+# two property names over a package that reaches this one `Files:` line through
+# SIX accessors. A list kept by hand in a comment is a claim with no mechanism
+# behind it. `tests/planlint/test_marker_census.py` is the mechanism. It grows
+# the accessor set to a fixed point from `files_text`, computes the census out
+# of this source, and asserts it against an explicit table, so a consumer added
+# to the package, or a consumer that changes its handling, fails a test that
+# NAMES the function. Read the census there and never restate it here.
+#
+# A reader that does neither can MISS a marked entry. Three measured examples.
+# `Task.test_files` reads the suffix of `tests/test_packaging.py@REPO-2` as
+# `.py@REPO-2`, which is not in `TEST_SOURCE_SUFFIXES`, so the entry is not a
+# test file and `test-file-never-invoked` says nothing about it.
+# `closure._scopes_of` tests `endswith("/CMakeLists.txt")`, which
+# `source/dsp56kEmu/test/CMakeLists.txt@DSP-0` fails, so `source/dsp56kEmu/test`
+# is absent from the scope set. `registrar.registrars_of` compares an UNMARKED
+# `<directory>/CMakeLists.txt` against `files_items`, so a marked declaration can
+# never match it.
+#
+# On the plan as it stands this costs almost nothing, and the exception is worth
+# stating exactly. All ten document lints were re-run on 2026-08-10 against a
+# copy whose producer strips the marker. No FINDING moves except
+# `shared-path-without-owner`, which goes from 1 to 9. One REPORT LINE moves with
+# no finding behind it: `implicit: clean (60 tracked artifacts examined)` becomes
+# `implicit: clean (59 tracked artifacts examined)`, because
+# `implicit.artifact_creators` loses `source/dsp56kEmu/test/CMakeLists.txt ->
+# DSP-0`. That path has ONE claimant today only because eight other writers spell
+# it `...@DSP-0`; strip the marker and it has nine, so it stops being an artifact
+# exactly one task creates. Do not read the consumers that do neither as live
+# breakage. Read them as the reason a NEW reader must strip or skip the marker
+# itself.
+#
+# The marker says two things, and both of them are read. It NAMES the path, so
+# the registration-list shape test splits it off and reads the list
+# underneath. And it says the entry is not a claim of OWNERSHIP — section 7.4.2,
+# verbatim: "A marked entry never raises `shared-path-without-owner`, because a
+# marked entry is not a claim." That reading is what `has_marker` serves. HOW
+# MANY functions read each is a COUNT, and this comment states no counts. The
+# census counts them.
+MARKER = re.compile(r"@[A-Z]{2,6}-\d+$")
+
+
+def strip_marker(item):
+    """`.../tests_board.cmake@BRD-0` names `.../tests_board.cmake`."""
+    return MARKER.sub("", item)
+
+
+def has_marker(item):
+    """Whether a `Files:` entry declares a write to a file another task owns."""
+    return MARKER.search(item) is not None
+
+
 def strip_markup(text):
     """Remove bold markers and backticks, and collapse whitespace."""
     text = text.replace("**", "")

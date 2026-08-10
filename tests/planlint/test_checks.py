@@ -6,6 +6,7 @@ from tests.planlint.support import load_fixture
 
 from planlint import checks
 from planlint.document import PlanDocument
+from planlint.finding import ERROR
 
 
 def run(name):
@@ -535,6 +536,108 @@ class BuildDirTest(unittest.TestCase):
             self.assertEqual(len(reg_findings), 1)
             self.assertEqual(reg_findings[0].severity, "ERROR")
             self.assertIn("missing from CTest listing in build directory", reg_findings[0].evidence)
+
+
+class MarkedSecondWriteTest(unittest.TestCase):
+    """Section 7.4.2, verbatim: "A marked entry never raises
+    `shared-path-without-owner`, because a marked entry is not a claim."
+
+    "Not a claim" is stronger than "strip the marker and carry on". An entry
+    that carried a marker never enters the claims map at all, so one bare
+    writer beside any number of marked ones is one claimant and not two. The
+    weaker reading — strip the marker, then count the entry — leaves the rule
+    firing on `unrowed_manifest.cpp` below, which is why that path is in the
+    fixture.
+
+    The first case is the control. `genuinely_unowned.cpp` has two bare
+    claimants and no owner row, and it must stay red. A rule that reads the
+    marker and goes silent everywhere was deleted, not repaired, and a fixture
+    on which nothing fires proves nothing about the three that go silent.
+    """
+
+    FIXTURE = "neg_check_marked_second_write.md"
+
+    def verdict_for(self, path):
+        """Every `shared-path-without-owner` evidence naming exactly this path.
+
+        The comparison is a whole list against a whole list, so an extra
+        finding fails as loudly as a missing one.
+        """
+        result = run(self.FIXTURE)
+        return [
+            f.evidence
+            for f in result.findings
+            if f.rule == "shared-path-without-owner"
+            and f.evidence.startswith(f"`{path}`")
+        ]
+
+    def test_a_bare_collision_with_no_owner_row_is_reported(self):
+        """THE CONTROL. Red before the marker is understood and red after."""
+        self.assertEqual(
+            self.verdict_for("source/nord/g2/g2Lib/genuinely_unowned.cpp"),
+            [
+                "`source/nord/g2/g2Lib/genuinely_unowned.cpp` is claimed by "
+                "AAA-2, AAA-3; section 7.4.2 names no owner for it"
+            ],
+        )
+
+    def test_a_bare_collision_with_an_owner_row_is_silent(self):
+        self.assertEqual(self.verdict_for("source/nord/g2/g2Lib/owned_shared.cpp"), [])
+
+    def test_a_marked_entry_with_an_owner_row_is_not_a_claim(self):
+        """The defect. The marked spelling was a claims-map key of its own, two
+        tasks carried it, and no owner row can name a path with a marker on the
+        end of it — so the owner row that exists could not be found."""
+        self.assertEqual(
+            self.verdict_for("source/nord/g2/g2Lib/test/tests_marked.cmake"),
+            [],
+        )
+        self.assertEqual(
+            self.verdict_for("source/nord/g2/g2Lib/test/tests_marked.cmake@AAA-1"),
+            [],
+        )
+
+    def test_a_marked_entry_with_no_owner_row_is_not_a_claim_either(self):
+        """The discriminator between the two readings. One bare writer and two
+        marked ones on a path section 7.4.2 holds no row for: "never a claim"
+        gives one claimant and silence, "strip and count" gives three claimants
+        and a finding. Section 7.4.2 gives the missing row to
+        `second-write-no-owner-row`, a rule this tool does not implement."""
+        self.assertEqual(
+            self.verdict_for("source/nord/g2/g2Lib/unrowed_manifest.cpp"),
+            [],
+        )
+        self.assertEqual(
+            self.verdict_for("source/nord/g2/g2Lib/unrowed_manifest.cpp@AAA-1"),
+            [],
+        )
+
+    def test_the_whole_verdict_of_the_rule_on_this_fixture(self):
+        """The four cases above filter by path, so a finding naming a path none
+        of them names would escape all four. This one holds the complete
+        finding — rule, task, section, line, severity and evidence — against
+        the complete list the lint produced."""
+        result = run(self.FIXTURE)
+        first_claimant = load_fixture(self.FIXTURE).task("AAA-2")
+
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.evidence)
+                for f in result.findings
+                if f.rule == "shared-path-without-owner"
+            ],
+            [
+                (
+                    "shared-path-without-owner",
+                    "",
+                    "7.4.2 Every shared file has one owner",
+                    first_claimant.line,
+                    ERROR,
+                    "`source/nord/g2/g2Lib/genuinely_unowned.cpp` is claimed by "
+                    "AAA-2, AAA-3; section 7.4.2 names no owner for it",
+                )
+            ],
+        )
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ import pathlib
 import re
 import subprocess
 
-from planlint.document import inline_code_spans, strip_markup
+from planlint.document import has_marker, inline_code_spans, strip_markup
 from planlint.finding import ERROR, WARNING, Finding, guard_no_input
 
 
@@ -583,10 +583,28 @@ def _repositories(doc):
 
 
 def _shared_paths(doc):
-    """Section 7.4.2: every file more than one track can reach needs an owner."""
+    """Section 7.4.2: every file more than one track can reach needs an owner.
+
+    A MARKED entry is not a claimant. Section 7.4.2 states it verbatim — "A
+    marked entry never raises `shared-path-without-owner`, because a marked
+    entry is not a claim" — and that is stronger than stripping the marker and
+    counting the entry anyway. Under the weaker reading one bare writer beside
+    one marked writer is still two claimants, so the rule keeps firing on the
+    very file the marker of section 1.1.1 rule D exists to declare, and the
+    defect survives one layer down. So a marked entry never enters the map at
+    all, and what the map counts is BARE claims of ownership only. Section
+    7.4.2 states that too: "The ownership script compares BARE entries only."
+
+    A path every writer marks therefore has no claimant here and this rule says
+    nothing about it. Section 7.4.2 gives that case to
+    `second-write-no-owner-row` and `manifest-without-creator`, which are
+    REPO-14 condition 10 and are not built.
+    """
     claims = {}
     for task in doc.tasks:
         for path in set(task.files_paths):
+            if has_marker(path):
+                continue
             claims.setdefault(path, []).append(task.ident)
     findings = []
     for path, owners in sorted(claims.items()):
