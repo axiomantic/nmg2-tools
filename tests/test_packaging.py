@@ -30,7 +30,7 @@ def test_pyproject_declares_the_planlint_console_script():
 
 
 def test_planlint_package_directory_holds_every_module_the_cli_imports():
-    """The ten lint modules plus the four support modules. A module that the
+    """The eleven lint modules plus the four support modules. A module that the
     migration dropped makes `planlint.cli` fail to import; this names which."""
     committed = sorted(p.name for p in (ROOT / "planlint").glob("*.py"))
 
@@ -46,13 +46,14 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "implicit.py",
         "payload.py",
         "registrar.py",
+        "rule9.py",
         "structure.py",
         "tiers.py",
         "waves.py",
     ]
 
 
-def test_planlint_cli_exposes_the_ten_lints():
+def test_planlint_cli_exposes_the_eleven_lints():
     from planlint import cli
 
     # `structure` runs FIRST. Every lint below it reads a parsed document, so
@@ -67,6 +68,7 @@ def test_planlint_cli_exposes_the_ten_lints():
         "counts",
         "implicit",
         "registrar",
+        "rule9",
         "closure",
     ]
     assert cli.REPOSITORY_LINTS == ("payload",)
@@ -79,6 +81,7 @@ def test_planlint_cli_exposes_the_ten_lints():
         "counts",
         "implicit",
         "registrar",
+        "rule9",
         "closure",
         "payload",
     ]

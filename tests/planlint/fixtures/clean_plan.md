@@ -60,6 +60,7 @@ disabling either one reddens this document.
 |---|---|
 | `g2Lib/test/` | AAA-1 |
 | `testdata/shared.json` | AAA-2 |
+| `tests/tests_core.cmake` | **AAA-1**, with every task that registers its own name as a declared second writer |
 
 ### 7.8 The recorded-fixture register
 
@@ -78,7 +79,7 @@ Depends: none
 Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`. The test is registered with `add_test(NAME t0_alpha ...)` and carries one negative case that drives it to fail. The work lands in the `axiomantic/core` repository.
 
 **AAA-2 · The synthesized corpus** — T0
-Files: `testdata/synth/`, `testdata/shared.json`, `tests/t0_beta.cpp`
+Files: `testdata/synth/`, `testdata/shared.json`, `tests/t0_beta.cpp`, `tests/tests_core.cmake`
 Design: 2
 Depends: AAA-1
 Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered with `add_test(NAME t0_beta ...)` through the track test list.
@@ -90,13 +91,13 @@ Depends: AAA-2
 Check: `ctest --test-dir build --no-tests=error -R t1_gamma` with `NMG2_ARTIFACTS` set. Registered with `add_test(NAME t1_gamma ...)`.
 
 **CCC-1 · The conditional extra** — T0
-Files: `tests/t0_delta.cpp`, `g2Lib/delta.cpp`
+Files: `tests/t0_delta.cpp`, `g2Lib/delta.cpp`, `tests/tests_core.cmake`
 Design: 4
 Depends: CCC-2, AAA-2. **CONDITIONAL: this task exists only if the probe reports a result.**
 Check: `ctest --test-dir build --no-tests=error -R t0_delta`. Registered with `add_test(NAME t0_delta ...)`.
 
 **CCC-2 · The second conditional** — T0
-Files: `tests/t0_epsilon.cpp`, `g2Lib/gamma.h`, targets `gamma_lib`
+Files: `tests/t0_epsilon.cpp`, `g2Lib/gamma.h`, `tests/tests_core.cmake`, targets `gamma_lib`
 Design: 5
 Depends: AAA-2. **CONDITIONAL: this task exists only if the probe reports a second result.**
 Check: `ctest --test-dir build --no-tests=error -R t0_epsilon`. Registered with `add_test(NAME t0_epsilon ...)`.
@@ -109,13 +110,13 @@ Depends: AAA-2
 Check: `pytest tools/test_delta.py`. The suite carries a failing case of its own.
 
 **DDD-2 · The oracle comparison** — T2
-Files: `tests/t2_zeta.cpp`
+Files: `tests/t2_zeta.cpp`, `tests/tests_core.cmake`
 Design: 7
 Depends: DDD-1
 Check: `ctest --test-dir build --no-tests=error -R '^t2_zeta$'`. Registered with `add_test(NAME t2_zeta ...)`.
 
 **EEE-1 · The late gate** — T0
-Files: `tests/t0_eta.cpp`
+Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake`
 Design: 8
 Depends: CCC-1, CCC-2
 Check: `ctest --test-dir build --no-tests=error -R t0_eta`. Registered with `add_test(NAME t0_eta ...)`.

@@ -23,6 +23,7 @@ from planlint import (
     implicit,
     payload,
     registrar,
+    rule9,
     structure,
     tiers,
     waves,
@@ -45,6 +46,7 @@ DOCUMENT_LINTS = {
     "counts": counts.run,
     "implicit": implicit.run,
     "registrar": registrar.run,
+    "rule9": rule9.run,
     "closure": closure.run,
 }
 REPOSITORY_LINTS = ("payload",)
@@ -75,6 +77,15 @@ def build_parser():
         default=None,
         metavar="REPO=PATH",
         help="path to a repository build directory for live test registration verification (can be specified multiple times)",
+    )
+    parser.add_argument(
+        "--source-repo",
+        action="append",
+        default=None,
+        metavar="LABEL=PATH",
+        help="path to a repository SOURCE tree, for the rule 9 lint's half B. It "
+        "reads the CMake files as written and needs no build directory (can be "
+        "specified multiple times)",
     )
     parser.add_argument(
         "--only",
@@ -112,6 +123,20 @@ def main(argv=None, stream=None):
         stream.write("--repo is required to run the payload lint\n")
         return 2
 
+    source_repos = {}
+    for entry in args.source_repo or ():
+        if "=" not in entry:
+            stream.write(
+                f"invalid --source-repo '{entry}', expected LABEL=PATH\n"
+            )
+            return 2
+        label, _, value = entry.partition("=")
+        root = pathlib.Path(value.strip())
+        if not root.is_dir():
+            stream.write(f"no such repository tree: {root}\n")
+            return 2
+        source_repos[label.strip()] = root
+
     doc = PlanDocument.from_path(plan_path)
     stream.write(f"planlint: {plan_path}\n")
     stream.write(f"          {len(doc.tasks)} task blocks parsed\n\n")
@@ -127,6 +152,8 @@ def main(argv=None, stream=None):
                     check_targets_path=args.check_targets,
                     build_dirs=args.build_dir,
                 )
+            elif name == "rule9":
+                result = rule9.run(doc, source_repos=source_repos)
             else:
                 result = DOCUMENT_LINTS[name](doc)
         else:

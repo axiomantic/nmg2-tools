@@ -32,7 +32,7 @@ class TaskBlockParseTest(unittest.TestCase):
 
         self.assertEqual(
             (task.track, task.number, task.line, task.section),
-            ("BBB", 1, 86, "9. The tasks"),
+            ("BBB", 1, 87, "9. The tasks"),
         )
 
     def test_tier_text_splits_into_a_tier_set(self):
