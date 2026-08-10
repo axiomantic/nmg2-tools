@@ -55,8 +55,9 @@ LINTS = {
 }
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
+CLEAN_CHECK_TARGETS = fixture_path("clean_check_targets.txt")
 
-# The 38 rules the nine document lints emit. The list is here so that adding or
+# The 40 rules the nine document lints emit. The list is here so that adding or
 # renaming a rule is a deliberate edit to this file and not a silent drift; the
 # meta-test reads the same set out of the lint source and compares.
 DOCUMENT_RULES = frozenset(
@@ -78,8 +79,11 @@ DOCUMENT_RULES = frozenset(
         "t0-gated-check",
         "t0-reads-private-fixture",
         # checks
+        "check-targets-mismatch",
         "ctest-forwards-arguments",
         "ctest-without-no-tests-error",
+        "invalid-build-dir",
+        "non-empty-check-block",
         "r-name-not-created",
         "r-name-not-registered",
         "repository-not-in-layout",
@@ -220,13 +224,13 @@ MUTATIONS = [
         "-R t0_beta`. Registered",
         "-R t0_beta` and `ctest --test-dir build --no-tests=error -R t0_ghost`. "
         "Registered",
-        {"r-name-not-created", "registrar-unknown"},
+        {"r-name-not-created", "registrar-unknown", "check-targets-mismatch"},
     ),
     (
         "an -R argument that strips to the empty name",
         "-R t0_beta`. Registered",
         "-R ^$`. Registered",
-        {"r-name-not-created", "registrar-unknown", "test-file-never-invoked"},
+        {"r-name-not-created", "registrar-unknown", "test-file-never-invoked", "check-targets-mismatch"},
     ),
     (
         "a name the plan states no add_test for",
@@ -258,6 +262,25 @@ MUTATIONS = [
         "| `g2Lib/test/` | AAA-1 |",
         "| `g2Lib/other/` | AAA-1 |",
         {"shared-path-without-owner"},
+    ),
+    (
+        "a task block with no Check block",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered with `add_test(NAME t0_beta ...)` through the track test list.",
+        "Design: 2.1",
+        {"non-empty-check-block", "check-targets-mismatch", "test-file-never-invoked"},
+    ),
+    (
+        "a Check target missing from check-targets.txt",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered with `add_test(NAME t0_beta ...)` through the track test list.",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_ghost`. Registered with `add_test(NAME t0_ghost ...)` through the track test list.",
+        {"check-targets-mismatch", "r-name-not-created", "registrar-unknown", "test-file-never-invoked"},
+    ),
+    (
+        "an invalid build-dir path",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`",
+        {"invalid-build-dir"},
+        ["axiomantic/nord-g2=/nonexistent/path/to/build"],
     ),
     # ----------------------------------------------------------------- counts
     (
@@ -367,12 +390,18 @@ MUTATIONS = [
 ]
 
 
-def red_rules(text):
+def red_rules(text, build_dirs=None):
     """Every rule any document lint reports against a document."""
     doc = PlanDocument.from_text(text, name="mutant")
     out = set()
-    for run in LINTS.values():
-        out |= {finding.rule for finding in run(doc).findings}
+    for name, run in LINTS.items():
+        if name == "checks":
+            out |= {
+                finding.rule
+                for finding in run(doc, check_targets_path=CLEAN_CHECK_TARGETS, build_dirs=build_dirs).findings
+            }
+        else:
+            out |= {finding.rule for finding in run(doc).findings}
     return out
 
 
@@ -411,16 +440,18 @@ class MutationTest(unittest.TestCase):
         self.assertEqual(red_rules(CLEAN), set())
 
     def test_each_mutation_reddens_exactly_the_rules_that_own_it(self):
-        for label, old, new, expected in MUTATIONS:
+        for item in MUTATIONS:
+            label, old, new, expected = item[:4]
+            build_dirs = item[4] if len(item) > 4 else None
             with self.subTest(mutation=label):
                 self.assertIn(old, CLEAN, f"anchor missing for: {label}")
-                self.assertEqual(red_rules(CLEAN.replace(old, new, 1)), expected)
+                self.assertEqual(red_rules(CLEAN.replace(old, new, 1), build_dirs=build_dirs), expected)
 
     def test_every_mutation_anchor_appears_once_in_the_clean_fixture(self):
         """A mutation whose anchor appears twice edits a place its author did
         not read, and its expected rule set then describes the wrong defect."""
         self.assertEqual(
-            [label for label, old, _, _ in MUTATIONS if CLEAN.count(old) != 1],
+            [item[0] for item in MUTATIONS if CLEAN.count(item[1]) != 1],
             [],
         )
 
@@ -432,8 +463,8 @@ class RuleCoverageTest(unittest.TestCase):
 
     def covered(self):
         out = set()
-        for _, _, _, expected in MUTATIONS:
-            out |= expected
+        for item in MUTATIONS:
+            out |= item[3]
         return out
 
     def test_the_lints_emit_exactly_the_rules_this_file_names(self):
@@ -449,10 +480,10 @@ class RuleCoverageTest(unittest.TestCase):
         """Coverage is measured per RULE, and four rules carry two mutations
         each. Thus the deletion of one of those mutations keeps every other
         assertion in this class green. This line makes that deletion loud."""
-        self.assertEqual(len(MUTATIONS), 38)
+        self.assertEqual(len(MUTATIONS), 41)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 38)
+        self.assertEqual(len(rules_the_lints_emit()), 41)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

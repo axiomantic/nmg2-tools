@@ -1,0 +1,8 @@
+t0_alpha
+t0_beta
+t1_gamma
+t0_delta
+t0_epsilon
+pytest tools/test_delta.py
+t2_zeta
+t0_eta

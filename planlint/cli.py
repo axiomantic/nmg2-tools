@@ -65,6 +65,18 @@ def build_parser():
         "not apply to it",
     )
     parser.add_argument(
+        "--check-targets",
+        metavar="PATH",
+        help="path to docs/check-targets.txt to verify set equality with plan Check: targets",
+    )
+    parser.add_argument(
+        "--build-dir",
+        action="append",
+        default=None,
+        metavar="REPO=PATH",
+        help="path to a repository build directory for live test registration verification (can be specified multiple times)",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         default=None,
@@ -109,7 +121,14 @@ def main(argv=None, stream=None):
         if name not in selected:
             continue
         if name in DOCUMENT_LINTS:
-            result = DOCUMENT_LINTS[name](doc)
+            if name == "checks":
+                result = checks.run(
+                    doc,
+                    check_targets_path=args.check_targets,
+                    build_dirs=args.build_dir,
+                )
+            else:
+                result = DOCUMENT_LINTS[name](doc)
         else:
             result = payload.run(
                 args.repo, public=not args.private, register=doc.fixture_register

@@ -19,10 +19,157 @@ not carry, and a path that more than one task claims with no owner in section
 7.4.2.
 """
 
+import pathlib
 import re
+import subprocess
 
 from planlint.document import inline_code_spans, strip_markup
 from planlint.finding import ERROR, WARNING, Finding, guard_no_input
+
+
+def _parse_build_dirs(build_dirs):
+    """Parse build_dirs into a repo_map dict and validation findings."""
+    if not build_dirs:
+        return {}, []
+
+    items = []
+    if isinstance(build_dirs, str):
+        raw_list = [build_dirs]
+    elif isinstance(build_dirs, dict):
+        items = list(build_dirs.items())
+        raw_list = []
+    else:
+        raw_list = list(build_dirs)
+
+    for entry in raw_list:
+        if isinstance(entry, str):
+            if "=" in entry:
+                repo, p_str = entry.split("=", 1)
+                items.append((repo.strip(), p_str.strip()))
+            else:
+                return {}, [
+                    Finding(
+                        rule="invalid-build-dir",
+                        message=f"invalid --build-dir format: '{entry}', expected REPO=PATH",
+                        severity=ERROR,
+                        evidence=str(entry),
+                    )
+                ]
+        elif isinstance(entry, (tuple, list)) and len(entry) == 2:
+            items.append((str(entry[0]), str(entry[1])))
+
+    repo_map = {}
+    findings = []
+    for repo, p_val in items:
+        path = pathlib.Path(p_val)
+        if not path.is_dir() or not (path / "CTestTestfile.cmake").is_file():
+            findings.append(
+                Finding(
+                    rule="invalid-build-dir",
+                    message=(
+                        f"build directory for '{repo}' does not exist or lacks "
+                        f"CTestTestfile.cmake: {path}"
+                    ),
+                    severity=ERROR,
+                    evidence=str(path),
+                )
+            )
+        else:
+            repo_map[repo] = path
+
+    return repo_map, findings
+
+
+def _get_ctest_registered_tests(build_path):
+    """Run `ctest --test-dir <build_path> --no-tests=error -N` and parse registered test names."""
+    try:
+        res = subprocess.run(
+            ["ctest", "--test-dir", str(build_path), "--no-tests=error", "-N"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        stdout = res.stdout or ""
+        tests = set()
+        for line in stdout.splitlines():
+            match = re.search(r"Test\s+#\d+:\s*(.+)$", line)
+            if match:
+                test_name = match.group(1).strip()
+                if test_name:
+                    tests.add(test_name)
+        return tests
+    except Exception:
+        return set()
+
+
+def _check_registration(
+    doc,
+    task,
+    name,
+    registered_in_doc,
+    repo_map,
+    ctest_tests_by_repo,
+    ident,
+    section,
+    line,
+):
+    """Check if test `name` (from `-R <name>`) is registered.
+
+    When a build directory is supplied for a repository:
+      - run `ctest --test-dir <build_path> --no-tests=error -N`, parse listing text for test names matching `-R <name>`,
+      - upgrade `r-name-not-registered` findings from WARNING to ERROR if missing from CTest listing.
+    When no build directory is supplied:
+      - check if `name` is in registered_in_doc (`add_test(NAME ...)` in plan).
+      - if missing from plan: report `r-name-not-registered` as WARNING.
+    """
+    applicable_repo = None
+    if repo_map:
+        if len(repo_map) == 1:
+            applicable_repo = next(iter(repo_map))
+        else:
+            task_text = (task.body_text + " " + task.files_text) if task else ""
+            for r in repo_map:
+                r_short = r.rsplit("/", 1)[-1]
+                if r in task_text or r_short in task_text or r in doc.repositories:
+                    applicable_repo = r
+                    break
+
+    if applicable_repo and applicable_repo in ctest_tests_by_repo:
+        ctest_tests = ctest_tests_by_repo[applicable_repo]
+        if name not in ctest_tests:
+            return Finding(
+                rule="r-name-not-registered",
+                message=(
+                    "the test name is missing from the CTest listing in the supplied "
+                    "build directory; section 7.7 clause 2 reads the live build tree"
+                ),
+                severity=ERROR,
+                task=ident,
+                section=section,
+                line=line,
+                evidence=f"-R {name}; missing from CTest listing in build directory",
+            )
+        return None
+
+    if name not in registered_in_doc:
+        return Finding(
+            rule="r-name-not-registered",
+            message=(
+                "the plan states no `add_test(NAME ...)` for this "
+                "name anywhere. Section 7.7 clause 2 reads the truth "
+                "from `ctest -N` against a build tree; with no build "
+                "tree this lint reads the document, so the finding "
+                "says the plan does not state the registration"
+            ),
+            severity=WARNING,
+            task=ident,
+            section=section,
+            line=line,
+            evidence=f"-R {name}; no `add_test(NAME {name} ...)` appears in this plan",
+        )
+
+    return None
+
 
 # A command word alone is a noun. `A `ctest` invocation carries no flag` is
 # the plan stating a rule; an invocation carries at least one argument.
@@ -123,21 +270,38 @@ def registered_names(doc):
     return set(ADD_TEST.findall("\n".join(doc.lines)))
 
 
+FAILURE_MECHANISMS = re.compile(
+    r"\b(?:fail(?:s|ed|ing|ure)?|error|assert(?:ion)?|exit|panic|reject(?:s|ed|ion)?|raise|negative case|non-zero)\b",
+    re.IGNORECASE,
+)
+
+
 def _origin_task(doc, origin):
     if origin.startswith("check:"):
         return doc.task(origin.split(":", 1)[1])
     return None
 
 
-def run(doc):
+def run(doc, check_targets_path=None, build_dirs=None):
     findings = []
     pool = doc.files_name_pool()
     registered = registered_names(doc)
     segments = doc.scoped_segments()
 
+    repo_map, build_dir_findings = _parse_build_dirs(build_dirs)
+    findings.extend(build_dir_findings)
+
+    ctest_tests_by_repo = {}
+    for repo, b_path in repo_map.items():
+        ctest_tests_by_repo[repo] = _get_ctest_registered_tests(b_path)
+
     examined = 0
     explicit_r = set()
     pytest_files = set()
+
+    findings.extend(_check_non_empty_check_blocks(doc))
+    if check_targets_path:
+        findings.extend(_check_targets(doc, check_targets_path))
 
     for segment in segments:
         task = _origin_task(doc, segment.origin)
@@ -201,27 +365,20 @@ def run(doc):
                             severity=ERROR,
                         )
                     )
-                elif name not in registered:
-                    findings.append(
-                        Finding(
-                            rule="r-name-not-registered",
-                            message=(
-                                "the plan states no `add_test(NAME ...)` for this "
-                                "name anywhere. Section 7.7 clause 2 reads the truth "
-                                "from `ctest -N` against a build tree; with no build "
-                                "tree this lint reads the document, so the finding "
-                                "says the plan does not state the registration"
-                            ),
-                            severity=WARNING,
-                            task=ident,
-                            section=section,
-                            line=line,
-                            evidence=(
-                                f"-R {name}; no `add_test(NAME {name} ...)` appears "
-                                "in this plan"
-                            ),
-                        )
+                else:
+                    reg_finding = _check_registration(
+                        doc,
+                        task,
+                        name,
+                        registered,
+                        repo_map,
+                        ctest_tests_by_repo,
+                        ident,
+                        section,
+                        line,
                     )
+                    if reg_finding:
+                        findings.append(reg_finding)
 
             for target in target_arguments(command):
                 if target not in pool:
@@ -253,6 +410,116 @@ def run(doc):
     return guard_no_input(
         "checks", findings, examined, "commands in scope", "check lint"
     )
+
+
+def _check_non_empty_check_blocks(doc):
+    findings = []
+    for task in doc.tasks:
+        if not task.check_line or not task.check_text.strip():
+            findings.append(
+                Finding(
+                    rule="non-empty-check-block",
+                    message=(
+                        "a task block carries no Check: block; section 1.1 requires "
+                        "every task to state how its completion is verified"
+                    ),
+                    task=task.ident,
+                    section=task.section,
+                    line=task.line,
+                    evidence=f"task {task.ident} has no Check: block",
+                    severity=ERROR,
+                )
+            )
+            continue
+
+        text = task.check_text
+        has_ctest_or_pytest = bool(re.search(r"\b(?:ctest|pytest)\b", text))
+        has_failure_mech = bool(FAILURE_MECHANISMS.search(text))
+
+        if not has_ctest_or_pytest and not has_failure_mech:
+            findings.append(
+                Finding(
+                    rule="non-empty-check-block",
+                    message=(
+                        "a Check: block contains no ctest or pytest command and "
+                        "names no explicit failure mechanism"
+                    ),
+                    task=task.ident,
+                    section=task.section,
+                    line=task.check_line,
+                    evidence=f"Check: {text.splitlines()[0]}",
+                    severity=ERROR,
+                )
+            )
+    return findings
+
+
+def _check_targets(doc, check_targets_path):
+    findings = []
+    path = pathlib.Path(check_targets_path)
+    if not path.is_file():
+        return [
+            Finding(
+                rule="check-targets-mismatch",
+                message=f"check-targets file not found: {check_targets_path}",
+                severity=ERROR,
+                evidence=str(check_targets_path),
+            )
+        ]
+
+    expected = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        expected.add(line)
+
+    actual = set()
+    segments = doc.scoped_segments()
+    for segment in segments:
+        for command in commands_in(segment.text):
+            if "pytest" in command:
+                for match in PYTEST_PATH.finditer(command):
+                    pytest_target = match.group(0).rstrip(SENTENCE_TRAILING)
+                    actual.add(pytest_target)
+                if not PYTEST_PATH.search(command):
+                    for match in re.finditer(r"\bpytest\s+(\S+)", command):
+                        target = match.group(0).rstrip(SENTENCE_TRAILING)
+                        actual.add(target)
+            if "ctest" in command:
+                for name in r_arguments(command):
+                    if name not in PREFIX_ALLOW_LIST:
+                        actual.add(name)
+
+    missing_in_plan = sorted(expected - actual)
+    extra_in_plan = sorted(actual - expected)
+
+    for item in missing_in_plan:
+        findings.append(
+            Finding(
+                rule="check-targets-mismatch",
+                message=(
+                    f"target '{item}' is listed in {check_targets_path} "
+                    "but not found in plan Check: lines"
+                ),
+                severity=ERROR,
+                evidence=f"missing in plan: {item}",
+            )
+        )
+    for item in extra_in_plan:
+        findings.append(
+            Finding(
+                rule="check-targets-mismatch",
+                message=(
+                    f"target '{item}' is present in plan Check: lines "
+                    f"but not listed in {check_targets_path}"
+                ),
+                severity=ERROR,
+                evidence=f"extra in plan: {item}",
+            )
+        )
+
+    return findings
 
 
 def _reverse_direction(doc, explicit_r, pytest_files):
