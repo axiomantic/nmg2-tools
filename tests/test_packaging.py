@@ -1,4 +1,4 @@
-"""The packaging contract for the two packages this repository ships.
+"""The packaging contract for the packages this repository ships.
 
 `pyproject.toml` pins the layout. A package that the `packages` list does not
 name is a package that `pip install .` does not install, and a fresh clone

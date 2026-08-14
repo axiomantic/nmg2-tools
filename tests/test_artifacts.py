@@ -24,7 +24,7 @@ from nmg2_tools.artifacts import resolve_artifacts
 # real fixture rot while a stale copy went on passing.
 _GENERATED_CONFTEST = "from tests.conftest import artifacts_dir  # noqa: F401\n"
 
-# The THREE expected messages, written out in full.
+# The expected messages, written out in full.
 EXPECTED_UNSET = "firmware artifact not available (NMG2_ARTIFACTS unset)"
 EXPECTED_BAD_PATH = "firmware artifact not available (NMG2_ARTIFACTS names no directory: /nmg2/no/such/directory/REPO-5)"
 
@@ -155,7 +155,7 @@ def test_an_existing_directory_resolves(tmp_path, monkeypatch):
 # section 7.4.2 gives that shape for every file with one owner and a later
 # writer inside the same track.
 #
-# The plan gives REPO-7 ONE check and it is a ctest. tests/conftest.py would
+# The plan gives REPO-7 only a ctest check. tests/conftest.py would
 # otherwise ship with no check of its own, so the cases below drive it: the pure
 # function directly, and the fixture through pytest's own `pytester`.
 # ---------------------------------------------------------------------------

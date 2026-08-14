@@ -71,7 +71,7 @@ import dataclasses
 import io
 from collections.abc import Mapping, Sequence
 
-# The three confidence values, in the order the design names them.
+# The confidence values, in the order the design names them.
 CONFIDENCE_EXACT = "exact"
 CONFIDENCE_DERIVED = "derived"
 CONFIDENCE_UNMAPPED = "unmapped"
@@ -359,7 +359,7 @@ def _build_row(index, descriptor, patch_type_id, g2ools, panl_entry,
     routine_size = routine.size if routine is not None else None
     compute_addr = routine.addr if routine is not None else None
 
-    # The chain resolved. Establish the base confidence from the two routes.
+    # The chain resolved. Establish the base confidence from the routes.
     if _corroborated_by_name(panl_filename, compute):
         confidence = CONFIDENCE_EXACT
         evidence = (

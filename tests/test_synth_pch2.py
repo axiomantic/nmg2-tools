@@ -388,7 +388,7 @@ def test_the_bit_width_file_covers_the_minimum_the_interior_and_the_maximum_widt
 
 
 # ---------------------------------------------------------------------------
-# The three file-against-wire differences. Design section 15.7.
+# The file-against-wire differences. Design section 15.7.
 # ---------------------------------------------------------------------------
 
 

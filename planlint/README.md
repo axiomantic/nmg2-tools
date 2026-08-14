@@ -50,13 +50,13 @@ Severity orders the report. It never excuses a finding from the exit code.
 |---|---|---|---|
 | 1 | `graph` | Every `Depends:` edge, ranges expanded. Strongly connected components of size above one (Tarjan), self-loops, unknown identifiers, and **prose on a `Depends:` line that a parser would read as an edge**. | 7.6 assertions 2, 3 |
 | 2 | `waves` | Every task's wave order is at or after the order of everything it depends on. A task the wave table places nowhere, and a wave entry no task block defines. | 7.6 assertion 5 |
-| 3 | `tiers` | Every task states a tier. A T0 check is not gated on `NMG2_ARTIFACTS` and reads no fixture the register marks PRIVATE. A T0 task waits on no T1 or T2 task outside the three named edges. A `Depends:` range swallows no higher tier and no conditional task. | 1.3 rule 8, 5.2, 7.6 assertions 1, 4, 6 |
+| 3 | `tiers` | Every task states a tier. A T0 check is not gated on `NMG2_ARTIFACTS` and reads no fixture the register marks PRIVATE. A T0 task waits on no T1 or T2 task outside the named edges. A `Depends:` range swallows no higher tier and no conditional task. | 1.3 rule 8, 5.2, 7.6 assertions 1, 4, 6 |
 | 4 | `checks` | Both directions: every `-R` name is created by some `Files:` line, and every test file a `Files:` line creates is invoked by some `-R` or `pytest`. Plus `ctest` with no `--no-tests=error`, `--` argument forwarding, a `--target` nothing creates, a repository outside section 3.1's table, and a path two tasks claim with no owner. | 1.3 rules 9, 10; 7.4.2; 7.7 |
 | 5 | `payload` | No Clavia-authored content reaches a public repository by ANY route: a `.gitmodules` entry, a `*.pch2` outside the synthesized corpus, a committed fixture above the 65,536-byte ceiling with no allow-listed register row, **or a workflow step that uploads or caches a path intersecting a render, a dump, a capture or a corpus**. | 3.2, 7.8, 22.4 |
 | 6 | `counts` | Every count the plan states about itself matches its own rows: the track rows, the total, the sum, the conditional-task count, and the number of cross-track edges inside one wave. | 7.3, 7.6 assertion 7, 24.1, 24.4 |
 | 7 | `implicit` | A task that writes into or reads from an artifact another task creates, with no `Depends:` edge. The candidate whose missing edge would **close a cycle** is reported under its own rule. | — |
 | 8 | `registrar` | A task whose check runs `ctest -R <name>` has the task that CREATES the test source and the task that REGISTERS the directory inside its transitive dependency closure. **The registrar is the OWNER section 7.4.2 names, not every task that declares the list.** That section obliges each registering task to declare the list it edits, so reading every declarer as a creator rejected the very form the document requires. | 7.4.2, 7.7 clause 2, 7.7.1 |
-| 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in two buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
+| 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in separate buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
 | 10 | `structure` | The markup the other lints parse. A task body carrying a backtick with no partner on its own line, and a fenced block opened and never closed. **A parse failure is a finding, never a quiet degradation.** | 7.7 |
 
 `structure` runs FIRST. Every lint below it reads a parsed document, so a
@@ -73,7 +73,7 @@ Everything below the first fence in a task body was invisible.
 It was measured, not theorised. A warning count that falls as text is added is
 the signature of a scanner going blind, and it reads as an improvement.
 
-Two rules replace the regex, and both **widen** what is seen:
+The rules that replace the regex both **widen** what is seen:
 
 1. **A fence is a REGION, not a run of inline spans.** It yields no backticked
    name, because a backtick inside a fence is a literal character and delimits
@@ -149,7 +149,7 @@ the wrong task. A consumer verb reaches every name after it until a span that is
 not symbol-shaped, because a WRONG consumer resolves to no producer and is
 dropped in silence.
 
-**Three routes report CANDIDATES and never violations**, at WARNING and under
+**The routes below report CANDIDATES and never violations**, at WARNING and under
 `symbol-closure-candidate`:
 
 | The route | Why it is not an assertion |
@@ -185,7 +185,7 @@ reports it. A lint with no negative fixture is not done.
 | `neg_check_commands.md` | An `-R` nothing creates, a missing `--no-tests=error`, `--` forwarding, a `--target` nothing creates, an unstated registration. |
 | `neg_check_orphan_test.md` | A test file created and never invoked, in C++ and in Python. |
 | `neg_check_repos_and_paths.md` | A repository outside section 3.1, and a path two tasks claim with no owner. |
-| `pos_check_multiline_transcript.md` | **No defect.** It proves the two false positives do not occur: a multi-line check block, and a deliberate transcript counter-example. |
+| `pos_check_multiline_transcript.md` | **No defect.** It proves the false positives do not occur: a multi-line check block, and a deliberate transcript counter-example. |
 | `neg_counts.md` | A wrong track count, a wrong total, a wrong sum, a wrong conditional count, a wrong cross-track count. |
 | `neg_implicit_dependency.md` | An undeclared consumer of a created directory, and the undeclared edge that would close a cycle. |
 | `neg_registrar_unreachable.md` | A registrar and a creator outside the depending task's closure. |

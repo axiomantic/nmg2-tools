@@ -10,7 +10,7 @@ A list kept by hand in a comment is a claim with no mechanism behind it. A
 census built by grepping a couple of property names names a correct set of
 buckets over an INCOMPLETE set of readers. This file is the mechanism.
 
-Two things are computed here rather than restated:
+What is computed here rather than restated:
 
   * the ACCESSOR SET — every attribute through which `Files:` data leaves the
     parser. It is not typed out. It is grown to a fixed point from one seed,

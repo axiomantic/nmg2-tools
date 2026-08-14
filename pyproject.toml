@@ -17,13 +17,13 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.scripts]
-# `planlint` is the installed entry point. The three wrapper scripts the plan
+# `planlint` is the installed entry point. The wrapper scripts the plan
 # names are the same command with a different `--only` set, so the console
 # script is the one form that a fresh clone gets from `pip install .`.
 planlint = "planlint.cli:main"
 
 [tool.setuptools]
-# The layout is fixed. There are two packages. `nmg2_tools/` holds the
+# The layout is fixed. `nmg2_tools/` holds the
 # repository lints, and `planlint/` holds the plan lints. A package that this
 # list does not name is a package `pip install .` does not install.
 packages = ["nmg2_tools", "planlint"]

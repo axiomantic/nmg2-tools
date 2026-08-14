@@ -32,7 +32,7 @@ that is well-framed but semantically wrong passes this parser. That is a known,
 stated, accepted gap and a green T0 run over the synthesized corpus is not
 coverage of the G2 Demo corpus for exactly that reason.
 
-THE THREE FILE-AGAINST-WIRE DIFFERENCES (design section 15.7).
+THE FILE-AGAINST-WIRE DIFFERENCES (design section 15.7).
 
 1. The variation count is 9 in a file and 10 on the wire, and it affects
    0x4D and 0x65. A file carries 9; this parser reads the file, so it reads 9.

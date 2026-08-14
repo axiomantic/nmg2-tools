@@ -4,7 +4,7 @@ No Clavia-authored content reaches a public repository by any route. Section
 22.4 says "by any route" includes a continuous-integration job, and names
 uploading a build artifact as a breach.
 
-Section 7.8 gives the three steps:
+Section 7.8 gives the steps:
 
   * `no-private-submodule` — a `.gitmodules` entry naming the private repository,
     or any private URL under the organization.

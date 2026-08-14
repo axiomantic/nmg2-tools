@@ -298,7 +298,7 @@ class OwnerAgainstLaterWriterTest(unittest.TestCase):
         "Registered with `add_test(NAME t0_gamma ...)`.\n"
     )
 
-    # The same three writers, and DDD-1 reaches the owner through nothing at
+    # The same writers, and DDD-1 reaches the owner through nothing at
     # all. Its `Files:` line carries the registration the rule asks for, so the
     # only thing between it and a passing check is AAA-0, which it never waits
     # on.
@@ -344,7 +344,7 @@ class OwnerAgainstLaterWriterTest(unittest.TestCase):
 
     def test_a_writer_that_cannot_reach_the_owner_is_still_an_error(self):
         """The direction the repair must NOT weaken. Exactly one finding, and
-        it names the owner — not the two other writers of the same list."""
+        it names the owner — not the other writers of the same list."""
         self.assertEqual(
             [
                 (f.rule, f.task, f.severity, f.evidence)

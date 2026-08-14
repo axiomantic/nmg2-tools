@@ -216,8 +216,8 @@ def test_shipped_register_pch2_exception_row_is_scoped_to_g2_edit():
 #
 # The row scoping above closed the hole for a row that NAMES a repository. A
 # row that names none was still honoured in every repository, which is the
-# same hole with the field left out. The register is one file shared by seven
-# repositories, so the unqualified row is the wider hole, not the narrower
+# same hole with the field left out. The register is one file shared by every
+# repository, so the unqualified row is the wider hole, not the narrower
 # one. It now grants nothing at all.
 
 # The repositories that share `nmg2_tools/testdata/register.tsv`.

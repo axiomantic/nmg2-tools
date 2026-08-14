@@ -63,7 +63,7 @@ def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
         return "", ARTIFACT_UNSET_MESSAGE
 
     # A path that does not exist, a path the process cannot stat, and a path that
-    # exists but is not a directory all land here, and all three give the SAME
+    # exists but is not a directory all land here, and all of them give the SAME
     # message 2. `os.path.isdir` reports False rather than raising for every one
     # of them, so this function needs no exception handler to satisfy the
     # never-raises contract.

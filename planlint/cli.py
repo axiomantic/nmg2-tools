@@ -31,7 +31,7 @@ from planlint import (
 from planlint.document import PlanDocument
 
 # The order is the order the report prints. It runs from the structural lints to
-# the two that catch the classes careful reading kept missing.
+# the ones that catch the classes careful reading kept missing.
 #
 # `structure` is FIRST because every lint below it reads a parsed document. When
 # the markup is broken, the reader below it is reading the wrong text, and a

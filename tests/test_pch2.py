@@ -8,7 +8,7 @@ a fork. It depends on REPO-2 and TOOL-12 and on nothing else.
 
 WHAT A GREEN RUN HERE PROVES, AND WHAT IT DOES NOT. A green run proves that the
 parser handles every case the format specification names: framing, the CRC, the
-three file-against-wire differences and the malformed set. It proves NOTHING
+file-against-wire differences and the malformed set. It proves NOTHING
 about real-world patch variety, because nobody wrote this corpus from real
 patches. A construct a real patch uses that section 15.7 does not describe
 passes here and fails the T1 half against the G2 Demo corpus, which is private
@@ -16,7 +16,7 @@ and informational by tier. That gap is known, stated and accepted.
 
 THE NAMES ARE READ FROM THE MANIFEST, NEVER SPELLED OUT HERE. The synthesized
 corpus carries `MANIFEST.tsv`, which states which file is malformed and which
-named refusal its parser must raise. A parser test that carried the four names
+named refusal its parser must raise. A parser test that carried the names
 itself could not disagree with a corpus that changed shape; the sweep test
 below reads the manifest so that a drift between the corpus and this test is a
 failure instead.
@@ -163,7 +163,7 @@ def test_the_boundary_lengths_parse_zero_and_the_largest_committed_payload():
 
 
 # ---------------------------------------------------------------------------
-# The three file-against-wire differences. Design section 15.7.
+# The file-against-wire differences. Design section 15.7.
 # ---------------------------------------------------------------------------
 
 
@@ -285,7 +285,7 @@ def test_a_mutation_in_the_text_header_leaves_the_crc_valid():
 
 
 # ---------------------------------------------------------------------------
-# Structural refusals outside the corpus's four malformed files.
+# Structural refusals outside the corpus's malformed files.
 # ---------------------------------------------------------------------------
 
 
