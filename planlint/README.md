@@ -21,9 +21,8 @@ python3 -m planlint.cli --plan <plan.md> --repo <repository-path>
 python3 -m planlint.cli --plan <plan.md> --repo <path> --private
 ```
 
-Three wrapper scripts carry the names the plan gives them. Each migrates into a
-repository as a move, not a rewrite: the wrapper and the `planlint/` package go
-together and no code changes.
+Each wrapper script migrates into a repository as a move, not a rewrite: the
+wrapper and the `planlint/` package go together and no code changes.
 
 | Script | What it runs | Migrates to |
 |---|---|---|
@@ -40,8 +39,7 @@ together and no code changes.
 | 2 | The invocation is wrong: an unknown lint, a missing plan, or `payload` with no `--repo`. |
 
 **A lint that finds no input to examine exits non-zero.** `ctest -R` exits 0 when
-its pattern matches no test, and that measured behaviour cost this project about
-a hundred meaningless checks. Nothing to check is never a pass, so every lint
+its pattern matches no test. Nothing to check is never a pass, so every lint
 carries a `no-input` guard that reports the count it examined.
 
 Severity orders the report. It never excuses a finding from the exit code.
@@ -59,7 +57,7 @@ Severity orders the report. It never excuses a finding from the exit code.
 | 7 | `implicit` | A task that writes into or reads from an artifact another task creates, with no `Depends:` edge. The candidate whose missing edge would **close a cycle** is reported under its own rule. | — |
 | 8 | `registrar` | A task whose check runs `ctest -R <name>` has the task that CREATES the test source and the task that REGISTERS the directory inside its transitive dependency closure. **The registrar is the OWNER section 7.4.2 names, not every task that declares the list.** That section obliges each registering task to declare the list it edits, so reading every declarer as a creator rejected the very form the document requires. | 7.4.2, 7.7 clause 2, 7.7.1 |
 | 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in two buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
-| 10 | `structure` | The markup the other nine lints parse. A task body carrying a backtick with no partner on its own line, and a fenced block opened and never closed. **A parse failure is a finding, never a quiet degradation.** | 7.7 |
+| 10 | `structure` | The markup the other lints parse. A task body carrying a backtick with no partner on its own line, and a fenced block opened and never closed. **A parse failure is a finding, never a quiet degradation.** | 7.7 |
 
 `structure` runs FIRST. Every lint below it reads a parsed document, so a
 broken fence is the cause and everything else is the consequence.
@@ -72,12 +70,8 @@ one span and left two backticks over. **Every pairing after that point was
 inverted:** prose read as a quoted span, and every quoted name read as prose.
 Everything below the first fence in a task body was invisible.
 
-It was measured, not theorised. Adding transcripts to five task bodies of the
-real plan moved the warning count from **169 to 166** — DOWN, while three real
-`symbol-closure-candidate` findings went silent. A count that falls as text is
-added is the signature of a scanner going blind, and it reads as an improvement.
-Two task bodies, `SCH-12` and `PLG-10`, each held a qualified name and reported
-zero qualified spans.
+It was measured, not theorised. A warning count that falls as text is added is
+the signature of a scanner going blind, and it reads as an improvement.
 
 Two rules replace the regex, and both **widen** what is seen:
 
@@ -213,18 +207,14 @@ breaks one thing in `clean_plan.md`, once for each rule, and asserts the exact
 set of **rules** that go red.
 
 The unit is the RULE and not the lint. An earlier revision asserted which LINT
-went red. That revision was measured, and two whole `counts` rules could be dead
-code with the suite fully green, because the same mutation tripped a third rule
-in the same lint. The 14 mutations of that revision triggered 16 of the 31
-rules. Fifteen rules had no mutation, and the fifteen included
-`registrar-outside-closure` and `shared-path-without-owner`.
+went red, and a rule can be dead code with the suite fully green when the same
+mutation trips another rule inside the same lint.
 
-The nine document lints emit 38 rules and every one carries a mutation. A rule
-that reached the inventory as a VARIABLE would hide from the meta-test, so
+A rule that reached the inventory as a VARIABLE would hide from the meta-test, so
 `closure.run` builds each breach as a `Finding` at the point where its rule is
 known — the same reason `graph.build_edges` uses `dataclasses.replace`.
 
-The suite now asserts three properties:
+The suite now asserts:
 
 1. **Each mutation reddens exactly the rules named beside it.** Disable any one
    rule in any lint, and at least one subtest fails. The failure names the rule.
@@ -237,13 +227,10 @@ The suite now asserts three properties:
 The `payload` lint reads a repository tree and not the plan. Its equivalent is
 the pair of fixture trees `repo_public_good/` and `repo_public_bad/`.
 
-`tests/test_suite_integrity.py` asserts four properties of the suite itself. The
+`tests/test_suite_integrity.py` asserts properties of the suite itself. The
 `if __name__ == "__main__"` guard is the LAST statement of every test module,
-because a class below the guard is skipped when the file runs directly. Thirteen
-tests were in that position, and they were the tests that pin the path
-expansion. Every committed fixture also has a row in the table above.
-
-The two other properties close a defect this file once carried itself.
+because a class below the guard is skipped when the file runs directly. Every
+committed fixture also has a row in the table above.
 
 4. **No collected test returns a value.** A test that returns in place of an
    assertion verifies nothing. `pytest` collects it, prints
@@ -270,21 +257,21 @@ signal. It is not a gate.
 | # | The lints cannot see this | Why |
 |---|---|---|
 | 1 | **A registrar that does not exist at all, where section 7.4.2 names no owner for the list.** | `registrars_of()` returns an empty list when the document states no owner for the directory's `CMakeLists.txt` AND no task declares it. An empty list gives no finding. Delete the one task that creates such a test directory's `CMakeLists.txt`, and the lint reports clean. **Where section 7.4.2 DOES name an owner the class is closed**: the owner row states the registrar, so the lint keeps asking for it even when no `Files:` line carries the path. |
-| 2 | **Coverage is counted, never asserted.** | Every lint guards only `examined == 0`. Forty of 209 task blocks give zero commands, and the report still says how many commands it examined. A task with no command is invisible, not reported. |
-| 3 | **A two-space indent on a task's fields.** | The indent erases `Files:`, `Design:`, `Depends:` and `Check:` together. The header still parses and the task still counts. Four real defects in one task became invisible. |
-| 4 | **A dual-tier header turns off every T0 purity rule.** | Three rules read `task.tiers == {"T0"}`. A header that reads `— T0 and T1` is not that set, so the rules do not run. Section 5.2 rule 8 says the task is classified by its T0 half; the lint reads neither half. |
+| 2 | **Coverage is counted, never asserted.** | Every lint guards only `examined == 0`. A task with no command is invisible, not reported. |
+| 3 | **A two-space indent on a task's fields.** | The indent erases `Files:`, `Design:`, `Depends:` and `Check:` together. The header still parses and the task still counts, and the defects inside it become invisible. |
+| 4 | **A dual-tier header turns off every T0 purity rule.** | The purity rules read `task.tiers == {"T0"}`. A header that reads `— T0 and T1` is not that set, so the rules do not run. Section 5.2 rule 8 says the task is classified by its T0 half; the lint reads neither half. |
 | 5 | **A check written as a `$ `-prefixed shell session.** | A transcript fence is excluded, and the exclusion has precedence over the `Check:` block that holds it. Two characters exempt a command from every command rule. |
 | 6 | **A non-transcript fence between `Design:` and `Depends:`.** | Neither path reads it. `scoped_segments` excludes it as in-body, and the block text starts at `Check:`. |
 | 7 | **Nothing outside the plan file is read.** | Every upstream citation, every hardware fact, every design reference and every tier justification is unasserted. |
 | 8 | **The `-R` anchoring rule of section 7.7 is implemented nowhere.** | The anchors are stripped. No rule reports an argument that carries none. An unanchored argument that is also a prefix of a longer test sweeps tests outside its own closure. |
-| 9 | **A marker word on a `Depends:` line makes a real edge vanish.** | A sentence that opens with one of six markers is skipped, and no finding is reported — not even `depends-prose`. |
-| 10 | **The command vocabulary is seven program names.** | `g2TestConsole`, `nim`, `make` and `sh` are not commands. No rule applies to them, and they add nothing to the examined count. |
-| 11 | **The `implicit` lint is deliberately blind to CODE artifacts, and lint 9 reads code artifacts out of PROSE.** | `implicit` reads nine data suffixes and directories, single-claimant only, literal substring only. Lint 9 covers the code half — a symbol, a build target, a header or a gated build option one task must produce for another to compile — but only where the plan's OWN WORDS name it. The three defects this class produced were measured back into the real plan and all three redden. **What stays uncovered is stated below, and it is not small.** |
+| 9 | **A marker word on a `Depends:` line makes a real edge vanish.** | A sentence that opens with a marker is skipped, and no finding is reported — not even `depends-prose`. |
+| 10 | **The command vocabulary is a fixed list of program names.** | `g2TestConsole`, `nim`, `make` and `sh` are not commands. No rule applies to them, and they add nothing to the examined count. |
+| 11 | **The `implicit` lint is deliberately blind to CODE artifacts, and lint 9 reads code artifacts out of PROSE.** | `implicit` reads data suffixes and directories, single-claimant only, literal substring only. Lint 9 covers the code half — a symbol, a build target, a header or a gated build option one task must produce for another to compile — but only where the plan's OWN WORDS name it. **What stays uncovered is stated below, and it is not small.** |
 | 12 | **An unbounded dependency chain inside one wave.** | The wave rule compares `here < there`, so two tasks of equal order always pass. |
 | 13 | **The `Design:` field is parsed and read by no lint.** | A dangling design reference is invisible. |
 | 14 | **Table recognition is by exact header text and exact cell shape.** | Remove the bold from a milestone cell, and the row and its defects leave the scope in silence. The fixture register and the total row fail the same way. |
 | 15 | **Shared-path detection is exact-string only.** | A glob and a file that name one artifact never collide. Any owner row that ends in `/` silences every finding beneath it. |
-| 16 | **Test-file recognition is a naming convention over five suffixes.** | A test file named otherwise is exempt from the reverse direction. |
+| 16 | **Test-file recognition is a naming convention over a fixed suffix list.** | A test file named otherwise is exempt from the reverse direction. |
 
 ### What the closure heuristic cannot see
 
@@ -297,7 +284,7 @@ run is evidence about the plan's WORDS and never about its code.
 | 11b | **A producer the plan never names either.** | A name with no producer is DROPPED in silence — it is how `hardwareLib` and every other upstream name stay quiet. So a name both sides leave unattributed is invisible twice. |
 | 11c | **An unqualified name.** | `stateSize` resolves to a candidate and never to a violation, because two tasks can each declare one. A real defect on a bare name arrives at WARNING, in the bucket a reader may skim. |
 | 11d | **Anything outside a backticked span.** | A symbol written in plain prose is not a span, and no rule reads it. |
-| 11e | **A verb the list does not carry.** | Nine consumer verbs and seven producer verbs. `wraps`, `feeds`, `drives` and `owns` are not among them. |
+| 11e | **A verb the list does not carry.** | `wraps`, `feeds`, `drives` and `owns` are not among the consumer or producer verbs. |
 | 11f | **A qualified name whose head matches no file.** | `Config::testOverride` has no `config.h`, so it resolves to nothing. The file convention is the only route for a type, and a type declared in a differently-named header is outside it. |
 | 11g | **A build option that no task turns ON.** | The option rule fires only when an enabler EXISTS and is unreachable. An option declared OFF and never turned on is a different defect, and this lint reports it nowhere. |
 | 11h | **Ordering INSIDE one task.** | The unit is the task. A file this task writes late and reads early is not a closure question. |

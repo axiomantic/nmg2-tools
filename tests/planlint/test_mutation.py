@@ -4,14 +4,10 @@ Break one thing in the clean fixture and assert the exact set of RULES that go
 red. Not the lint that owns them — the rules.
 
 The distinction is the whole point of this file. An earlier revision asserted
-which LINT reddened, and it was measured that two whole `counts` rules could be
-dead code with the suite fully green, because the same mutation collaterally
-tripped a third rule inside the same lint. Fourteen mutations triggered 16 of
-the 31 rules; fifteen rules had no mutation at all, and the fifteen included
-`registrar-outside-closure` and `shared-path-without-owner` — the two rules the
-path-expansion edit exists to un-blind.
+which LINT reddened, and a rule can be dead code with the suite fully green when
+the same mutation collaterally trips another rule inside the same lint.
 
-Two properties are asserted here:
+The properties asserted here:
 
   * every mutation reddens EXACTLY the rules named beside it, so disabling any
     one rule makes at least one subtest fail, and the failure names the rule;
@@ -57,7 +53,7 @@ LINTS = {
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
 CLEAN_CHECK_TARGETS = fixture_path("clean_check_targets.txt")
 
-# The 40 rules the nine document lints emit. The list is here so that adding or
+# The rules the document lints emit. The list is here so that adding or
 # renaming a rule is a deliberate edit to this file and not a silent drift; the
 # meta-test reads the same set out of the lint source and compares.
 DOCUMENT_RULES = frozenset(
@@ -477,9 +473,6 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        """Coverage is measured per RULE, and four rules carry two mutations
-        each. Thus the deletion of one of those mutations keeps every other
-        assertion in this class green. This line makes that deletion loud."""
         self.assertEqual(len(MUTATIONS), 41)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):

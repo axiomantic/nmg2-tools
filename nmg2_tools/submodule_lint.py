@@ -15,11 +15,11 @@ check states it as a prohibition: the step "fails when a `.gitmodules` file in
 the repository names `nmg2-artifacts`, or names any URL under `axiomantic` that
 is private", and it requires the step to PASS on the `gearmulator` fork.
 
-The two cannot both hold. Measured against the real fork, `.gitmodules` there
-declares eight submodules and SIX of them are third-party public repositories
-the table does not list and never will: JUCE, cpp-terminal,
-clap-juce-extensions, RmlUi, freetype and lunasvg. Under the allow-list reading
-the step fails on that fork for ever, so the task could not pass its own check.
+The two cannot both hold. The `.gitmodules` of the real fork declares
+submodules that are third-party public repositories the table does not list and
+never will, among them JUCE, cpp-terminal, clap-juce-extensions, RmlUi, freetype
+and lunasvg. Under the allow-list reading the step fails on that fork for ever,
+so the task could not pass its own check.
 
 This module implements the PROHIBITION reading, which is the task gate:
 

@@ -255,10 +255,10 @@ def test_a_payload_longer_than_the_length_field_is_refused():
 
 
 def test_an_object_type_outside_a_byte_is_refused():
-    """BOTH ENDS OF THE RANGE. The guard is `0 <= type_ <= 0xFF` and only the
-    high end was tested, so a guard that had lost its lower half passed. A
-    negative type then escapes the NAMED refusal and dies inside `bytes([...])`
-    instead, which names no field and no rule."""
+    """BOTH ENDS OF THE RANGE. The guard is `0 <= type_ <= 0xFF`. Testing only
+    the high end lets a guard that has lost its lower half pass, and a negative
+    type then escapes the NAMED refusal and dies inside `bytes([...])` instead,
+    which names no field and no rule."""
     with pytest.raises(SynthPch2Error) as caught:
         build_object(0x100, b"")
 
@@ -324,10 +324,10 @@ def test_pack_bits_of_nothing_is_nothing():
 
 
 def test_a_value_that_does_not_fit_its_width_is_refused():
-    """BOTH ENDS OF THE RANGE. The guard is `0 <= value < (1 << width)` and only
-    the high end was tested. A negative value that escaped it would be shifted
-    into the accumulator and would set every bit ABOVE its own field, so the
-    fault would appear in a neighbouring field rather than in this one."""
+    """BOTH ENDS OF THE RANGE. The guard is `0 <= value < (1 << width)`. A
+    negative value that escaped it would be shifted into the accumulator and
+    would set every bit ABOVE its own field, so the fault would appear in a
+    neighbouring field rather than in this one."""
     with pytest.raises(SynthPch2Error) as caught:
         pack_bits([(3, 8)])
 
@@ -344,9 +344,9 @@ def test_a_value_that_does_not_fit_its_width_is_refused():
 
 
 def test_a_width_outside_one_to_thirty_two_is_refused():
-    """BOTH ENDS OF THE RANGE. Only the width 0 was tested, so a guard that had
-    lost `<= MAX_FIELD_WIDTH` passed, and `pack_bits([(33, 0)])` then returned
-    five bytes for a field the corpus states runs to 32 bits."""
+    """BOTH ENDS OF THE RANGE. Testing width 0 alone lets a guard that has lost
+    `<= MAX_FIELD_WIDTH` pass, and `pack_bits([(33, 0)])` then returns five
+    bytes for a field the corpus states runs to 32 bits."""
     with pytest.raises(SynthPch2Error) as caught:
         pack_bits([(0, 0)])
 

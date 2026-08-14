@@ -2,7 +2,7 @@
 
 Every count the plan states about itself must agree with its own rows. A plan
 that miscounts itself is a plan whose reader cannot tell a repair from a
-regression, and the previous revisions of this document miscounted three times.
+regression.
 
 The lint evaluates a claim only when the document states it. It never invents a
 claim, and it never reports a claim it did not find as a pass — an unstated

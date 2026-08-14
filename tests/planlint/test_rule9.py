@@ -114,8 +114,8 @@ class HalfATest(unittest.TestCase):
         self.assertEqual(rule9.run(plan(text)).findings, [])
 
     def test_a_prefix_allow_list_argument_is_not_a_registered_name(self):
-        """Section 7.7 allow-lists two `-R` arguments that are prefixes. Neither
-        is a registered name, so neither is rule 9's subject — and with nothing
+        """Section 7.7 allow-lists the `-R` arguments that are prefixes. None
+        is a registered name, so none is rule 9's subject — and with nothing
         else left to examine the lint reports `no-input` rather than a pass."""
         text = COMPLIANT.replace("^t0_alpha$", "t1_")
         result = rule9.run(plan(text))
@@ -135,7 +135,7 @@ class HalfATest(unittest.TestCase):
 class RegisteredNamesTest(unittest.TestCase):
     """`add_test(NAME <name>)` is not the only registration form, and a lint
     that reads only the literal one reports a false alarm the size of the real
-    finding. `source/dsp56kEmu/test/CMakeLists.txt` registers seven names
+    finding. `source/dsp56kEmu/test/CMakeLists.txt` registers its names
     through a wrapper function."""
 
     def test_the_literal_form_is_read(self):

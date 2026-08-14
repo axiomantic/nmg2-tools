@@ -6,15 +6,15 @@ it was inverted: text that is prose read as a quoted span, and every backticked
 name read as prose. Everything after the first fence in a task body was
 invisible to the lint.
 
-The defect is expensive in the direction that hides it. Adding transcripts to
-five task bodies of the real plan moved the warning count from 169 to 166 —
-DOWN, which reads as an improvement, while three real findings went silent.
+The defect is expensive in the direction that hides it: the warning count falls
+as transcripts are added, which reads as an improvement, while real findings go
+silent.
 
-The four shapes are pinned here:
+The shapes pinned here:
 
   * a body with a fence yields the same findings AFTER the fence as a body
     without one;
-  * five bodies gaining transcripts do not reduce the finding count;
+  * bodies gaining transcripts do not reduce the finding count;
   * the two real bodies that are blind today — the `SCH-12` shape and the
     `PLG-10` shape — report their qualified names again;
   * an unmatched INLINE backtick does not swallow the rest of the body either.
@@ -113,10 +113,9 @@ class FenceTransparencyTest(unittest.TestCase):
 
 
 class TranscriptRegressionTest(unittest.TestCase):
-    """The measured regression, in the shape it was measured in.
+    """The regression, in the shape it was measured in.
 
-    Five task bodies gained a transcript and the plan's warning count FELL by
-    three. A count that falls when text is added is the signature of a scanner
+    A finding count that falls when text is added is the signature of a scanner
     going blind, so the count is pinned here in both directions.
     """
 
@@ -145,11 +144,11 @@ class TranscriptRegressionTest(unittest.TestCase):
 
 
 class BlindBodyTest(unittest.TestCase):
-    """The two task bodies of the real plan that are blind today.
+    """Task bodies of the real plan that a fence-blind scanner cannot read.
 
-    Both carry a fence and both hold a qualified name after it. The lint
-    reports zero qualified spans in each, so the names are invisible. The
-    bodies are reproduced in the shape the plan writes them.
+    Each carries a fence and holds a qualified name after it. A blind scanner
+    reports no qualified span, so the names are invisible. The bodies are
+    reproduced in the shape the plan writes them.
     """
 
     SCH12 = (

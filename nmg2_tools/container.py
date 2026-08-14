@@ -81,9 +81,8 @@ number of bytes than the table declares. It is not a ceiling on the allocation:
 the bytes are already produced when the comparison runs, and `decompress` takes
 no maximum output size. The exposure is bounded and LINEAR: a length extension
 chain adds 255 for each byte it reads, so output grows to about 255 bytes for
-each byte of input and no further. Measured on this decompressor, 1,012 input
-bytes reach 255,038 output bytes, a ratio of 252. A small stream is therefore
-not explosive, and a large section is bounded by its own size times 255. Step 3
+each byte of input and no further. A small stream is therefore not explosive,
+and a large section is bounded by its own size times 255. Step 3
 is still the only bound there is, which is why it must be able to fail.
 
 WHAT THE CHECKSUM DOES AND DOES NOT DO. It is a plain sum, so it detects a

@@ -6,9 +6,9 @@ size above one and no self-loop.
 
 The `Depends:` parser is the part that matters most. A `Depends:` line holds
 identifiers, ranges and annotations, and a parser that harvests every identifier
-from the line makes an edge out of a scheduling note. That produced a false
-cycle once already, so an identifier that sits in prose is reported as prose and
-never becomes an edge.
+from the line makes an edge out of a scheduling note. That produces a false
+cycle, so an identifier that sits in prose is reported as prose and never
+becomes an edge.
 """
 
 import dataclasses

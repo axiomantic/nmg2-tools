@@ -172,11 +172,10 @@ def test_two_sections_load_in_table_order_and_the_plain_checksum_verifies():
     THE NAME SAYS ONE CHECKSUM AND NOT BOTH, BECAUSE ONLY ONE RUNS. Every
     section this builder writes is stored, so ``load_section`` takes the
     ``is_stored`` branch, and that branch never reaches the compressed-checksum
-    verification at all. An earlier form of this test was named for both and
-    could not have detected either, because it asserted only the parsed field
-    values: deleting the whole plain-checksum check left it green. The failure
-    half is asserted below, on the SECOND section, so a check that ran on the
-    first section alone is caught too."""
+    verification at all. A test that asserted only the parsed field values would
+    stay green with the whole plain-checksum check deleted. The failure half is
+    asserted below, on the SECOND section, so a check that runs on the first
+    section alone is caught too."""
     image = ContainerLayout(version=VERSION_1_62).build(
         [
             Cs2Section(tag="SRAM", load_address=0x20000800, data=SRAM_BYTES),
@@ -287,8 +286,8 @@ def test_a_section_that_holds_no_bytes_round_trips():
 
 
 def test_a_flipped_data_byte_makes_the_plain_checksum_fail():
-    """The check must be able to fail. Without this the two assertions above
-    would pass against a builder that wrote a constant checksum."""
+    """The check must be able to fail. Without it a builder that wrote a
+    constant checksum would satisfy the assertions above."""
     image = bytearray(
         ContainerLayout(version=VERSION_1_62).build(
             [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
@@ -312,11 +311,10 @@ def test_a_tag_that_is_not_four_ascii_characters_is_refused():
     """The tag is a fixed four-byte field. A shorter one would shift every
     field of the entry that follows it.
 
-    BOTH SIDES OF THE LENGTH, because the guard is an inequality and only one
-    side of it was tested. A guard that refused a SHORT tag alone leaves a long
-    one to the ``>4s`` pack format, which truncates it in silence: `CODES` would
-    be written as `CODE` and the image would name a section the caller never
-    asked for."""
+    BOTH SIDES OF THE LENGTH, because the guard is an inequality. A guard that
+    refused a SHORT tag alone leaves a long one to the ``>4s`` pack format,
+    which truncates it in silence: `CODES` would be written as `CODE` and the
+    image would name a section the caller never asked for."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=VERSION_1_62).build(
             [Cs2Section(tag="OS", load_address=0x30000400, data=CODE_BYTES)]
@@ -367,9 +365,9 @@ def test_an_image_with_no_section_is_refused():
 def test_a_version_that_does_not_fit_the_word_is_refused():
     """The field is 16 bits. A wider value would silently truncate.
 
-    BOTH ENDS OF THE RANGE. The guard is ``0 <= version <= MASK16`` and only
-    the high end was tested, so a guard that had lost its lower half passed.
-    A negative version then escapes the NAMED refusal and dies inside
+    BOTH ENDS OF THE RANGE. The guard is ``0 <= version <= MASK16``. Testing
+    only the high end lets a guard that has lost its lower half pass, and a
+    negative version then escapes the NAMED refusal and dies inside
     ``struct.pack`` instead, which names no field and no rule."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=0x10000).build(
@@ -393,9 +391,9 @@ def test_a_version_that_does_not_fit_the_word_is_refused():
 def test_a_load_address_that_does_not_fit_the_longword_is_refused():
     """The field is 32 bits, and the m68k address space is 32 bits.
 
-    BOTH ENDS OF THE RANGE, for the reason the version test gives: only the
-    high end was tested, and a negative load address that escaped the named
-    refusal would fail inside ``struct.pack`` with no field named."""
+    BOTH ENDS OF THE RANGE, for the reason the version test gives: a negative
+    load address that escaped the named refusal would fail inside
+    ``struct.pack`` with no field named."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=VERSION_1_62).build(
             [Cs2Section(tag="CODE", load_address=0x100000000, data=CODE_BYTES)]
@@ -425,10 +423,9 @@ def test_every_section_is_stored_because_this_repository_has_no_compressor():
     without a decision, because L1 pays one LZO1X decompression on every boot
     and a stored image does not.
 
-    EVERY SECTION, so the image holds MORE THAN ONE. An earlier form built a
-    single section, which cannot tell "every section is stored" from "the first
-    section is stored": a builder that stored section 0 and compressed the rest
-    satisfied it."""
+    EVERY SECTION, so the image holds MORE THAN ONE. A single section cannot
+    tell "every section is stored" from "the first section is stored": a builder
+    that stored section 0 and compressed the rest would satisfy it."""
     image = ContainerLayout(version=VERSION_1_62).build(
         [
             Cs2Section(tag="SRAM", load_address=0x20000800, data=SRAM_BYTES),

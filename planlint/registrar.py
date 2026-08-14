@@ -41,15 +41,15 @@ def closure(doc, ident, _edges=None):
 def creators_of(doc, name):
     """Every `(task, item)` whose `Files:` entry creates a name, in document order.
 
-    A LIST and not a first match. The first-match read ignored the directory,
-    so with two same-named test files in two directories the second was
-    invisible and the verdict depended on file position. The lint cannot tell
-    which source the name resolves to, so every candidate must be reachable and
-    none of them may be excused.
+    A LIST and not a first match. A first-match read ignores the directory, so
+    with two same-named test files in two directories the second is invisible
+    and the verdict depends on file position. The lint cannot tell which source
+    the name resolves to, so every candidate must be reachable and none of them
+    may be excused.
 
     An EMPTY name matches nothing. A `Files:` entry naming a directory has an
-    empty basename, and matching it resolved `-R ^$` to a task that creates no
-    test at all.
+    empty basename, and matching it would resolve `-R ^$` to a task that creates
+    no test at all.
     """
     if not name:
         return []
@@ -81,13 +81,10 @@ def registrars_of(doc, item):
     name the list on its own `Files:` line, because a registration is a change
     and section 1.1 defines `Files:` as what a task creates **or changes**.
     Reading each declarer as a creator therefore made the compliant form the
-    form this lint rejects, and each of eight writers a registrar the other
-    seven had to reach. **Measured on 2026-08-06: adding
-    `source/dsp56kEmu/test/CMakeLists.txt` to ONE dsp task's `Files:` line —
-    DSP-15's — moved the plan from 0 ERRORs to NINE
-    `registrar-outside-closure`**, one for each `-R` name in that directory.
-    That is why DSP-1 to DSP-6 never carried the declaration the rule asks of
-    them: the document was right and the tool was wrong.
+    form this lint rejects, and made every writer of a list a registrar that
+    every other writer had to reach. That is why the dsp tasks never carried the
+    declaration the rule asks of them: the document was right and the tool was
+    wrong.
 
     **The rule is not weakened, only aimed.** The owner must still sit inside
     the depending task's closure, and a task that reaches no owner is still an

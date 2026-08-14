@@ -2,7 +2,7 @@
 
 WHAT A MODULE DESCRIPTOR IS.
 
-The G2 firmware carries 194 DSP module descriptors, each naming three blobs of
+The G2 firmware carries DSP module descriptors, each naming three blobs of
 DSP data: an X workspace, a Y workspace and a P program. ``AGENTS.md`` section
 3.1 fixes the record layout, read as 32-bit big-endian longwords over a base
 ``B`` (the pointer-triple address minus 8):
@@ -20,8 +20,8 @@ DSP data: an X workspace, a Y workspace and a P program. ``AGENTS.md`` section
 WHY A SIGNATURE SCAN AND NOT A FIXED STRIDE.
 
 The descriptor table does not use a uniform stride. ``0x28`` is only the MODAL
-stride (124 of 193 gaps); large gaps where blob data is interleaved break the
-table, and a fixed-stride walk desynchronizes after only 15 records
+stride; large gaps where blob data is interleaved break the table, and a
+fixed-stride walk desynchronizes
 (``(0x30108094 - 0x300ED56C) / 0x28 = 2733.8``, not an integer). The reliable
 recovery is a *signature scan*: walk the image at 2-byte granularity and accept
 a record where the terminator ``0xFF000000`` sits at ``+0x14`` **together with**
@@ -29,9 +29,9 @@ an in-range P pointer at ``+0x10``.
 
 WHY 2-BYTE GRANULARITY (logbook trap 7.2).
 
-98 of the 194 blobs are stored at 2 mod 4. A sweep that tests only 4-byte
-alignment sees that noise and misses those records. 16-bit alignment is legal
-for a 68k ``move.l``, so the scan must test every even offset.
+Many blobs are stored at 2 mod 4. A sweep that tests only 4-byte alignment sees
+that noise and misses those records. 16-bit alignment is legal for a 68k
+``move.l``, so the scan must test every even offset.
 
 WHY THE P POINTER IS THE RANGE TEST.
 
@@ -44,7 +44,7 @@ descriptor.
 
 THE VALIDATION IDENTITY.
 
-``X_ptr + 4*(X_words + Y_words) == P_ptr`` holds for all 173 records that carry
+``X_ptr + 4*(X_words + Y_words) == P_ptr`` holds for every record that carries
 an X pointer, with zero exceptions. This confirms the field meanings and that
 blobs are stored 4 bytes per 24-bit word. Records with no X blob have
 ``x_ptr = 0`` and ``x_words = 0`` together -- a correctly encoded absence.

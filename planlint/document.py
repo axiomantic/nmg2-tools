@@ -39,11 +39,11 @@ RANGE = re.compile(r"^([A-Z]{2,6})-(\d+) +to +([A-Z]{2,6})-(\d+)$")
 
 TEST_SOURCE_SUFFIXES = (".cpp", ".c", ".cc", ".nim", ".py")
 
-# Section 1.1.1 rule B: inside the `gearmulator` fork three directories are
+# Section 1.1.1 rule B: inside the `gearmulator` fork some directories are
 # abbreviated, and the two spellings name ONE file. A lint that compares the
 # strings as written reads `g2Lib/test/t0_alloc.cpp` and
-# `source/nord/g2/g2Lib/test/CMakeLists.txt` as unrelated directories — which is
-# how 34 tasks came to write into a registrar directory none of them declared.
+# `source/nord/g2/g2Lib/test/CMakeLists.txt` as unrelated directories, so a task
+# can write into a registrar directory it never declared.
 PATH_PREFIXES = {
     "g2Lib/": "source/nord/g2/g2Lib/",
     "g2JucePlugin/": "source/nord/g2/g2JucePlugin/",
@@ -111,46 +111,25 @@ def expand_files_items(items):
 #
 # A consumer that does NONE of the three compares the marked spelling as written.
 #
-# The count is deliberately NOT stated here. It was stated here twice and was
-# wrong twice, and both times it failed the same way: it was built by grepping
-# two property names over a package that reaches this one `Files:` line through
-# SIX accessors. A list kept by hand in a comment is a claim with no mechanism
-# behind it. `tests/planlint/test_marker_census.py` is the mechanism. It grows
-# the accessor set to a fixed point from `files_text`, computes the census out
-# of this source, and asserts it against an explicit table, so a consumer added
-# to the package, or a consumer that changes its handling, fails a test that
-# NAMES the function. Read the census there and never restate it here.
+# No inventory of the consumers is stated here. A list kept by hand in a comment
+# is a claim with no mechanism behind it. `tests/planlint/test_marker_census.py`
+# is the mechanism. It grows the accessor set to a fixed point from `files_text`,
+# computes the census out of this source, and holds it against an explicit table,
+# so a consumer added to the package, or a consumer that changes its handling,
+# names the function it belongs to. Read the census there and never restate it
+# here.
 #
-# A reader that does neither can MISS a marked entry. Three measured examples.
-# `Task.test_files` reads the suffix of `tests/test_packaging.py@REPO-2` as
-# `.py@REPO-2`, which is not in `TEST_SOURCE_SUFFIXES`, so the entry is not a
-# test file and `test-file-never-invoked` says nothing about it.
-# `closure._scopes_of` tests `endswith("/CMakeLists.txt")`, which
-# `source/dsp56kEmu/test/CMakeLists.txt@DSP-0` fails, so `source/dsp56kEmu/test`
-# is absent from the scope set. `registrar.registrars_of` compares an UNMARKED
-# `<directory>/CMakeLists.txt` against `files_items`, so a marked declaration can
-# never match it.
-#
-# On the plan as it stands this costs almost nothing, and the exception is worth
-# stating exactly. All ten document lints were re-run on 2026-08-10 against a
-# copy whose producer strips the marker. No FINDING moves except
-# `shared-path-without-owner`, which goes from 1 to 9. One REPORT LINE moves with
-# no finding behind it: `implicit: clean (60 tracked artifacts examined)` becomes
-# `implicit: clean (59 tracked artifacts examined)`, because
-# `implicit.artifact_creators` loses `source/dsp56kEmu/test/CMakeLists.txt ->
-# DSP-0`. That path has ONE claimant today only because eight other writers spell
-# it `...@DSP-0`; strip the marker and it has nine, so it stops being an artifact
-# exactly one task creates. Do not read the consumers that do neither as live
-# breakage. Read them as the reason a NEW reader must strip or skip the marker
-# itself.
+# A reader that does neither can MISS a marked entry: a suffix test reads
+# `tests/test_packaging.py@REPO-2` as ending in `.py@REPO-2`, and an
+# `endswith("/CMakeLists.txt")` test fails on
+# `source/dsp56kEmu/test/CMakeLists.txt@DSP-0`. Read those consumers as the
+# reason a NEW reader must strip or skip the marker itself.
 #
 # The marker says two things, and both of them are read. It NAMES the path, so
 # the registration-list shape test splits it off and reads the list
 # underneath. And it says the entry is not a claim of OWNERSHIP — section 7.4.2,
 # verbatim: "A marked entry never raises `shared-path-without-owner`, because a
-# marked entry is not a claim." That reading is what `has_marker` serves. HOW
-# MANY functions read each is a COUNT, and this comment states no counts. The
-# census counts them.
+# marked entry is not a claim." That reading is what `has_marker` serves.
 MARKER = re.compile(r"@[A-Z]{2,6}-\d+$")
 
 
@@ -180,8 +159,7 @@ def strip_markup(text):
 # name read as prose. Everything after the first fence in a task body was
 # invisible.
 #
-# It was measured, not theorised: adding transcripts to five task bodies moved
-# the plan from 169 warnings to 166. The count fell while text was added, which
+# It was measured, not theorised. A warning count that falls while text is added
 # is the shape a scanner going blind always has, and it reads as an improvement.
 #
 # Two rules replace the regex, and both of them WIDEN what is seen:
@@ -731,9 +709,8 @@ class PlanDocument:
 
         An EMPTY name is never put into circulation. A `Files:` entry that names
         a DIRECTORY has an empty basename, and the empty string in the pool is
-        what let `ctest -R ^$` resolve: the anchors strip to nothing, the pool
-        answered yes, and the ERROR gate passed. A `Files:` line creates no name
-        that is nothing.
+        what lets `ctest -R ^$` resolve: the anchors strip to nothing and the
+        pool answers yes. A `Files:` line creates no name that is nothing.
         """
         pool = {}
         for task in self.tasks:

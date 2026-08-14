@@ -6,7 +6,7 @@ WHAT THE MAP IS FOR.
 Oracle Tier 1 diffs the emulated output of module ``N`` against the
 ``Compute()`` routine of module ``N``. Before that is possible, something must
 say which ``Compute()`` belongs to which descriptor. This module builds that
-binding: one row per module descriptor, carrying the eight columns that design
+binding: one row per module descriptor, carrying the columns that design
 section 18.9.2 names.
 
 THE JOIN IS A CHAIN, AND THE ORDER IS LOAD-BEARING.
@@ -22,8 +22,8 @@ patch-file and wire module type identifier. ``g2ools_name`` is ``msg/g2ools``
 ``Compute()`` routine in ``extracted/g2engine/p2_compute_index.txt``.
 
 The ``PANL`` ``FileName`` is carried as a column so a human can read the table,
-and it is used for exactly one thing: to RAISE a row's confidence. Only 73 of
-194 names match exactly (``AGENTS.md`` trap 7.5), and this design's own worked
+and it is used for exactly one thing: to RAISE a row's confidence. Many names
+do not match exactly (``AGENTS.md`` trap 7.5), and this design's own worked
 example is one of the mismatches -- ``LevCLevAdd`` is the file name and
 ``LvlAdd`` is the engine class. A row whose chain produced a ``Compute()``
 routine AND whose ``panl_filename`` equals a ``Compute()`` class name on its own
@@ -55,11 +55,11 @@ binding in place.
 
 WHAT THIS GENERATOR AUTHORS AND WHAT IT LIFTS.
 
-This module contains NO Clavia byte. It is a pure function of the five input
-tables, and it is written so that a test can drive every decision it makes with
+This module contains NO Clavia byte. It is a pure function of its input tables,
+and it is written so that a test can drive every decision it makes with
 synthetic data. The one link that is not yet proved by any committed artifact --
-``descriptor_index -> patch_type_id`` (design 18.9.3 says the counts agree at
-194 each side but a count is not a correspondence) -- is supplied as an input
+``descriptor_index -> patch_type_id`` (design 18.9.3 says the counts agree on
+each side, but a count is not a correspondence) -- is supplied as an input
 table, not derived or guessed here. Where that table is absent for a row, the
 row is ``unmapped`` with the reason in its evidence.
 """

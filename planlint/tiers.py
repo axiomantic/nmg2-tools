@@ -2,7 +2,7 @@
 
 Section 7.6 assertion 1: every task block carries a tier on its header line.
 Section 7.6 assertion 6: every T0 check runs with `NMG2_ARTIFACTS` unset, and a
-T0 task that waits on a T1 or T2 task is a defect unless it is one of the three
+T0 task that waits on a T1 or T2 task is a defect unless it is one of the
 production or trigger edges section 5.2 rule 7 names.
 Section 1.3 rule 8: a `Depends:` RANGE must not hold a task of a higher tier
 than the depending task, and must not hold a conditional task.
@@ -23,9 +23,8 @@ TIER_ORDER = {"T0": 0, "T1": 1, "T2": 2}
 # the marks; the spike, operator, deferred and upstream tasks run no test tier.
 DISPOSITIONS = ("OPERATOR", "THROWAWAY", "DEFERRED", "UPSTREAM", "NO TIER")
 
-# Section 5.2 rule 7 names the whole permitted set of T0-to-T1 edges: one
-# production edge and two trigger edges. Any fourth is a defect and this lint
-# names it.
+# Section 5.2 rule 7 names the whole permitted set of T0-to-T1 edges. Any edge
+# outside that set is a defect and this lint names it.
 T0_TO_T1_EXEMPT = frozenset({"ORC-1", "PERF-6", "PERF-7"})
 
 GATED = re.compile(r"NMG2_ARTIFACTS`?\s+(?:is\s+)?set\b", re.IGNORECASE)

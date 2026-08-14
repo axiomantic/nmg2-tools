@@ -4,10 +4,10 @@ The lint answers one question: when task A's work needs a symbol, a target, a
 header or a build option that task B produces, is B inside A's transitive
 dependency closure?
 
-Three real defects of this class reached the plan and all three were found by
-hand. The three `neg_hist_*` fixtures carry them in their PRE-REPAIR form,
-because the plan holds them repaired and a clean run against the repaired plan
-is evidence of nothing.
+Real defects of this class reached the plan, and they were found by hand. The
+`neg_hist_*` fixtures carry them in their PRE-REPAIR form, because the plan
+holds them repaired and a clean run against the repaired plan is evidence of
+nothing.
 """
 
 import unittest
@@ -110,8 +110,8 @@ class ConsumptionTest(unittest.TestCase):
 
 
 class SentenceBoundaryTest(unittest.TestCase):
-    """Both defects the revert check found when the three historical defects
-    were put back into the REAL plan rather than into a fixture."""
+    """The defects the revert check found when the historical defects were put
+    back into the REAL plan rather than into a fixture."""
 
     PLAN = (
         "**AAA-1 · The producer** — T0\n"
@@ -130,8 +130,7 @@ class SentenceBoundaryTest(unittest.TestCase):
         """`… rather than tidiness.** Its gate reads `X`` is TWO sentences. A
         splitter that wants whitespace straight after the stop reads it as one,
         and the hedge `rather than` then demotes a real violation to a
-        candidate. Measured on the real plan: REPO-9's defect reddened as a
-        candidate and not as the violation it is."""
+        candidate."""
         doc = PlanDocument.from_text(self.PLAN, name="inline")
 
         self.assertEqual(
@@ -141,7 +140,7 @@ class SentenceBoundaryTest(unittest.TestCase):
 
     def test_compares_is_a_consumer_verb(self):
         """The real plan writes `compares the `Scheduler::Config` the golden
-        render is constructed with`. A verb list without `compares` left that
+        render is constructed with`. A verb list without `compares` leaves that
         consumption with no verb, and a verb-less name is only a candidate."""
         doc = PlanDocument.from_text(
             self.PLAN.replace(
@@ -158,7 +157,7 @@ class SentenceBoundaryTest(unittest.TestCase):
 
 
 class HistoricalDefectTest(unittest.TestCase):
-    """The only evidence that this lint would have caught the three defects."""
+    """The evidence that this lint catches the historical defects."""
 
     def test_defect_1_the_link_on_a_target_cpu_1_exports_is_reported(self):
         self.assertEqual(

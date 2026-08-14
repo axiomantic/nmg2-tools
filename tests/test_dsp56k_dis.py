@@ -12,9 +12,6 @@ this repository declares no runtime dependency and this check must run in a
 public repository with no build step. The oracle therefore fixed the facts once,
 and the facts are pinned here as literals.
 
-THE ORACLE CORRECTED FOUR DECODES BEFORE THIS FILE WAS COMMITTED, which is the
-whole reason the plan asks for it.
-
 TRAP 7.10 IS THE REASON THIS FILE EXISTS IN THIS SHAPE. `AGENTS.md` section 8
 records that reading the `MOVEP` operand byte as the peripheral address produced
 `X:$FFFFA6`, `X:$FFFFA5` and `X:$FFFF9D`, which are plausible-looking and wrong.
@@ -157,8 +154,8 @@ def test_the_operand_window_is_the_sixty_four_words_from_ffffc0_to_ffffff():
 def test_an_operand_below_0x40_is_not_this_instruction():
     """MEASURED. The oracle decodes operand bytes 0x40 to 0xFF as `movep` and
     answers `dc` for 0x00 to 0x3F, so the top two bits are not spare and at
-    least one of them must be set. An earlier draft of this file required BIT 7
-    and the oracle refuted it: 0x7F decodes and 0x26 does not."""
+    least one of them must be set. BIT 7 is not required: 0x7F decodes and 0x26
+    does not."""
     assert decode([0x08F43F, 0]).text == "undecoded $08F43F"
     assert decode([0x08F426, 0]).text == "undecoded $08F426"
     assert decode([0x08F400, 0]).text == "undecoded $08F400"
@@ -231,20 +228,18 @@ def test_a_word_outside_the_covered_set_says_so_and_never_invents_a_mnemonic():
 
 
 def test_the_word_count_of_every_covered_instruction():
-    """EVERY, and the name is the contract. The covered set names eight
-    instructions and an earlier form of this test checked three of them, so
-    `rti`, `illegal`, `rts`, `jsr` and the Y-space `movep` carried no word
-    count at all and a stride error in any of them passed here.
+    """EVERY, and the name is the contract. An instruction this test leaves
+    out carries no word count at all, and a stride error in it passes here.
 
     A wrong word count desynchronizes every instruction after it, which is the
     failure a stride error produces in a walk."""
-    # The four one-word instructions the covered set names.
+    # The one-word instructions the covered set names.
     assert decode([0x000000]).words == (0x000000,)
     assert decode([0x000004]).words == (0x000004,)
     assert decode([0x000005]).words == (0x000005,)
     assert decode([0x00000C]).words == (0x00000C,)
 
-    # The four two-word instructions the covered set names.
+    # The two-word instructions the covered set names.
     assert decode([0x0AF080, 0x001234]).words == (0x0AF080, 0x001234)
     assert decode([0x0BF080, 0x001234]).words == (0x0BF080, 0x001234)
     assert decode([0x08F4A6, 0x123456]).words == (0x08F4A6, 0x123456)

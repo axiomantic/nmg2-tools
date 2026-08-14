@@ -7,8 +7,8 @@ Exit codes:
   2  the invocation itself is wrong: an unknown lint, a missing plan document,
      or a repository lint with no repository.
 
-`ctest -R` exiting 0 on no match cost this project about a hundred meaningless
-checks. This tool therefore never exits 0 on "nothing to check".
+`ctest -R` exits 0 when its pattern matches no test. This tool therefore never
+exits 0 on "nothing to check".
 """
 
 import argparse

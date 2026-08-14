@@ -21,10 +21,10 @@ class AnchoredRArgumentTest(unittest.TestCase):
     """Section 7.7: a non-allow-listed `-R` argument is anchored `^…$`.
 
     The anchors are what stop a task's gate sweeping tests outside its own
-    closure — `-R t_isp1181` matched three registered tests and
-    `-R mcf5307_conformance` matched five. The lint must read an anchored
-    argument as naming the test between the anchors, or every anchored check
-    in the plan reports `r-name-not-created` against a name that exists.
+    closure: an unanchored argument is a prefix and matches every registered
+    name that carries it. The lint must read an anchored argument as naming the
+    test between the anchors, or every anchored check in the plan reports
+    `r-name-not-created` against a name that exists.
     """
 
     def test_an_anchor_pair_is_stripped(self):
@@ -60,9 +60,8 @@ class AnchoredRArgumentTest(unittest.TestCase):
 
     def test_a_shell_quoted_anchor_pair_is_stripped(self):
         """`$` is a shell metacharacter, so quoting an anchored argument is the
-        natural way to write it. The unquoted read produced the name
-        `'^t0_alpha` and reported a false `r-name-not-created` against a test
-        that exists."""
+        natural way to write it. An unquoted read gives the name `'^t0_alpha`
+        and a false `r-name-not-created` against a test that exists."""
         self.assertEqual(
             checks.r_arguments("ctest --no-tests=error -R '^t0_alpha$'"), ["t0_alpha"]
         )
@@ -96,13 +95,13 @@ class AnchoredRArgumentTest(unittest.TestCase):
 
 
 class EmptyRArgumentTest(unittest.TestCase):
-    """`-R ^$` escaped the ERROR gate.
+    """`-R ^$` must not escape the ERROR gate.
 
-    `files_name_pool()` took `rsplit(".", 1)[0]` of every basename, and a
-    `Files:` entry naming a DIRECTORY has an empty basename, so the empty string
-    was a name the pool held. `-R ^$` therefore resolved, `checks` downgraded to
-    a WARNING and `registrar` went silent. An empty name is created by no
-    `Files:` line, and the fix says so.
+    `files_name_pool()` takes `rsplit(".", 1)[0]` of every basename, and a
+    `Files:` entry naming a DIRECTORY has an empty basename, so an unguarded
+    pool holds the empty string. `-R ^$` then resolves, `checks` downgrades to
+    a WARNING and `registrar` goes silent. An empty name is created by no
+    `Files:` line, and the pool says so.
     """
 
     def test_the_name_pool_holds_no_empty_name(self):
@@ -201,7 +200,7 @@ class CheckLintTest(unittest.TestCase):
         result = run("clean_plan.md")
 
         self.assertEqual(result.findings, [])
-        # Eight task checks and one milestone command.
+        # The task checks and the milestone command.
         self.assertEqual(result.examined, 9)
 
     def test_the_multiline_and_transcript_fixture_reports_nothing(self):
@@ -333,9 +332,9 @@ class AbbreviatedSharedPathTest(unittest.TestCase):
     """Section 7.4.2's criterion, with rules B and C expanded.
 
     Two tasks that spell one file two ways collide. A criterion that compares
-    the written strings reports nothing, which is the shape that let five real
-    collisions through — including `g2Lib/transportHub.cpp`, claimed by SCH-29
-    through a rule C ellipsis and by PROTO-10 in full.
+    the written strings reports nothing, which is the shape a real collision
+    hides behind — `g2Lib/transportHub.cpp`, claimed by SCH-29 through a rule C
+    ellipsis and by PROTO-10 in full.
     """
 
     def test_two_spellings_of_one_file_are_one_collision(self):
@@ -613,8 +612,8 @@ class MarkedSecondWriteTest(unittest.TestCase):
         )
 
     def test_the_whole_verdict_of_the_rule_on_this_fixture(self):
-        """The four cases above filter by path, so a finding naming a path none
-        of them names would escape all four. This one holds the complete
+        """The cases above filter by path, so a finding naming a path none of
+        them names would escape every one of them. This one holds the complete
         finding — rule, task, section, line, severity and evidence — against
         the complete list the lint produced."""
         result = run(self.FIXTURE)

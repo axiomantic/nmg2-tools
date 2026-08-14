@@ -103,8 +103,8 @@ ATTRIBUTION = re.compile(
 )
 # A full stop CLOSES a sentence even when a bold marker follows it. The plan
 # writes `… rather than tidiness.** Its gate reads …` and a splitter that wants
-# whitespace straight after the stop reads that as ONE sentence — which put the
-# hedge `rather than` in front of a plain consumption and demoted a real
+# whitespace straight after the stop reads that as ONE sentence, which puts the
+# hedge `rather than` in front of a plain consumption and demotes a real
 # violation to a candidate.
 SENTENCE_SPLIT = re.compile(r"(?<=\.)\*{0,2}\s+")
 
@@ -167,8 +167,8 @@ def mask_backticks(text):
     A FENCED block is blanked whole and yields no span. A fence is a quoted
     region — an inline span that runs over several lines — so a verb printed
     inside a transcript is no more a consumer verb than one inside backticks.
-    Reading a fence as a run of inline spans is defect L-5 and is what blinded
-    the lint to everything after the first fence in a task body.
+    Reading a fence as a run of inline spans is defect L-5: it blinds the lint
+    to everything after the first fence in a task body.
     """
     spans = []
     out = list(text)
@@ -223,8 +223,8 @@ def line_of(text, offset):
 
 
 # A word the plan writes in backticks that names no artifact of its own: a CMake
-# keyword, a C++ keyword, or a repository. A producer rule without this list
-# credited `STATIC` and `static_assert` to whichever task's sentence held them.
+# keyword, a C++ keyword, or a repository. Without this list a producer rule
+# credits `STATIC` and `static_assert` to whichever task's sentence holds them.
 NOT_A_SYMBOL = frozenset(
     {
         "STATIC", "SHARED", "MODULE", "OBJECT", "INTERFACE", "PUBLIC", "PRIVATE",

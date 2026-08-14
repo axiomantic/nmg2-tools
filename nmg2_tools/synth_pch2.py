@@ -9,9 +9,8 @@ base64. `nmg2_tools/testdata/pch2_synth/` is the only directory in any public
 repository of this project where a `*.pch2` file may live, and REPO-11's
 `no-clavia-payload` step enforces that.
 
-THE CORPUS IS REGENERATED, NEVER HAND-EDITED. `tests/test_synth_pch2.py`
-asserts that a fresh run reproduces every committed byte, so an edit made by
-hand fails the check.
+THE CORPUS IS REGENERATED, NEVER HAND-EDITED. A fresh run of the generator
+reproduces every committed byte, so an edit made by hand cannot survive.
 
 WHAT A GREEN RUN AGAINST THIS CORPUS PROVES, AND WHAT IT DOES NOT.
 
@@ -66,9 +65,9 @@ payload of 0xFFFF bytes. REPO-11's PAYLOAD-CEILING fails a committed file above
 65,536 bytes under `testdata/`, and 3 framing bytes plus 65,535 payload bytes
 already exceed it. **The two rules cannot both hold for a committed file.** The
 resolution: `length_boundaries.pch2` is exactly 65,536 bytes, which is the
-largest a committed file may be, and `tests/test_synth_pch2.py` drives the true
-0xFFFF boundary through `build_object` IN MEMORY, where no ceiling applies. The
-boundary is therefore exercised and nothing over the ceiling is committed.
+largest a committed file may be, and the true 0xFFFF boundary is reachable only
+through `build_object` IN MEMORY, where no ceiling applies. Nothing over the
+ceiling is committed.
 """
 
 from __future__ import annotations
@@ -85,7 +84,7 @@ CORPUS_DIRECTORY = pathlib.Path(__file__).resolve().parent / "testdata" / "pch2_
 SIZE_CEILING = 65_536
 
 # Section 15.7 names 0x21, 0x4D and 0x65. Design section 18's protocol row names
-# the other five bit-packed types. Sorted, so the tuple has one order.
+# the other bit-packed types. Sorted, so the tuple has one order.
 OBJECT_TYPES = (0x21, 0x4A, 0x4D, 0x52, 0x60, 0x62, 0x65, 0x69)
 
 # A type that no authority names. The malformed set uses it.
@@ -195,7 +194,7 @@ def build_file(body: bytes, *, crc_error: int = 0) -> bytes:
     """Return a whole file: text header, binary header, `body`, trailing CRC.
 
     `crc_error` is exclusive-or'd into the stored CRC. A non-zero value writes a
-    file whose CRC is wrong on purpose, which is one of the four malformed cases
+    file whose CRC is wrong on purpose, which is one of the malformed cases
     section 15.7 requires.
     """
     covered = BINARY_HEADER + body
@@ -322,7 +321,7 @@ def _manifest(files: Iterable[str]) -> bytes:
     """Return `MANIFEST.tsv`: one row for each corpus file.
 
     A malformed file names the refusal a parser must raise for it. Without this
-    the parser test would carry the four names itself, and a corpus that changed
+    a parser would have to carry the names itself, and a corpus that changed
     shape could no longer disagree with it.
     """
     rows = [

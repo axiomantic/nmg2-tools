@@ -34,12 +34,11 @@ class ClosureTest(unittest.TestCase):
 
 
 class CreatorsOfTest(unittest.TestCase):
-    """`creator_of()` returned the FIRST basename match in document order and
-    ignored the directory, so with two same-named test files the second was
-    invisible and the verdict depended on file position. The registrar half
-    already returned a list; the creator half returns one too, and every
-    candidate must be reachable — the lint cannot tell which source the name
-    resolves to, so it may excuse none of them.
+    """A creator lookup that returns the FIRST basename match in document order
+    ignores the directory, so with two same-named test files the second is
+    invisible and the verdict depends on file position. Both halves return a
+    list, and every candidate must be reachable — the lint cannot tell which
+    source the name resolves to, so it may excuse none of them.
     """
 
     TWO_CREATORS = (
@@ -136,7 +135,7 @@ class RegistrarLintTest(unittest.TestCase):
         result = run("clean_plan.md")
 
         self.assertEqual(result.findings, [])
-        # Seven `-R` arguments, one per task check that runs `ctest`. DDD-1 runs
+        # One `-R` argument per task check that runs `ctest`. DDD-1 runs
         # `pytest` and passes no `-R`. A milestone row is not a task and has no
         # dependency closure, so the registrar lint does not read one.
         self.assertEqual(result.examined, 7)
@@ -222,9 +221,8 @@ class AbbreviatedPathRegistrarTest(unittest.TestCase):
 
     BBB-1 writes `g2Lib/test/t0_short.cpp` and AAA-1 owns
     `source/nord/g2/g2Lib/test/CMakeLists.txt`. **The two spellings name one
-    directory.** Before the expansion the lint saw two unrelated directories,
-    found no registrar for BBB-1 at all, and reported clean — while 34 tasks in
-    the real plan sat in exactly that shape.
+    directory.** Without the expansion the lint sees two unrelated directories,
+    finds no registrar for BBB-1 at all, and reports clean.
     """
 
     def test_an_abbreviated_writer_reports_its_unreachable_registrar(self):
@@ -261,10 +259,9 @@ class OwnerAgainstLaterWriterTest(unittest.TestCase):
     the compliant line made each writer a registrar the other writers had to
     reach — and the form the document requires was the form the lint rejected.
 
-    Measured on the real plan on 2026-08-06: adding
-    `source/dsp56kEmu/test/CMakeLists.txt` to DSP-15's `Files:` line, which is
-    exactly what section 7.4.2 asks of it, moved the plan from 0 ERRORs to NINE
-    `registrar-outside-closure`.
+    Adding the registration list to a task's `Files:` line, which is exactly
+    what section 7.4.2 asks of it, therefore turned the plan red under the old
+    reading.
 
     The rule is not weakened to clear that: the OWNER must still be reachable,
     and `UnreachableOwner` below is the direction that must keep failing.
@@ -337,7 +334,7 @@ class OwnerAgainstLaterWriterTest(unittest.TestCase):
     def test_two_declared_second_writers_do_not_register_each_other(self):
         """BBB-1 and CCC-1 both declare the list, neither declares the other,
         and both reach the owner. This is the compliant form of section 7.4.2's
-        registration rule, and the lint reported four ERRORs against it."""
+        registration rule, and it must report nothing."""
         self.assertEqual(registrar.run(self.owned()).findings, [])
 
     def test_the_compliant_form_examines_both_names(self):

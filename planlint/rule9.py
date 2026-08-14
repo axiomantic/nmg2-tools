@@ -57,10 +57,10 @@ HALF B — cross-repository, and it is the half that catches BRD-21.
   publishes about itself.
 
   Scoping to complete tasks is not a softening. Most of this plan is unbuilt; a
-  half that reported every unwritten test would report 150 findings on day one,
-  and a lint that is red before any work is done is a lint an engineer turns
-  off. The defect this half exists for is a name whose task SHIPPED and whose
-  registration did not.
+  half that reported every unwritten test would be red before any work is done,
+  and a lint that is red on day one is a lint an engineer turns off. The defect
+  this half exists for is a name whose task SHIPPED and whose registration did
+  not.
 
   A registration is resolved STATICALLY, and a literal `add_test(NAME <name>` is
   not the only form. `source/dsp56kEmu/test/CMakeLists.txt` wraps it:
@@ -70,9 +70,9 @@ HALF B — cross-repository, and it is the half that catches BRD-21.
       endfunction()
       dsp56k_add_test(dsp56k_peripheral_type)
 
-  Seven dsp names are registered that way. A grep for the literal form reports
-  all seven as unregistered, which is a false alarm of exactly the size of the
-  real finding — so the wrapper is resolved rather than special-cased.
+  Names registered that way are invisible to a grep for the literal form, which
+  reports every one of them as unregistered — a false alarm of the same size as
+  the real finding. So the wrapper is resolved rather than special-cased.
 """
 
 import pathlib

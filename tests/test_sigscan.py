@@ -6,8 +6,8 @@ WHAT RUNS WHERE.
 The scanner itself is a pure function of image bytes and a load address, and is
 exercised here with SYNTHETIC images built in this file, so those tests run
 everywhere and need no Clavia byte. The end-to-end claim -- that the scan
-recovers all 194 records from the real ``CODE_30000400.bin`` and that the
-validation identity holds for all 173 records that carry an X pointer -- does
+recovers every record from the real ``CODE_30000400.bin`` and that the
+validation identity holds for every record that carries an X pointer -- does
 touch real Clavia bytes and is gated on ``NMG2_ARTIFACTS`` via the
 ``artifacts_dir`` fixture.
 
@@ -56,7 +56,7 @@ def _place(image: bytearray, offset: int, x_ptr, y_ptr, p_ptr, x_words, y_words,
 # Ungated: the scanner recovers records placed at non-uniform, non-0x28 gaps,
 # including records at 2 mod 4. A fixed-stride (0x28) walk and a 4-byte-only
 # walk both fail on this image. Logbook 3.1: "0x28 is only the MODAL stride",
-# and trap 7.2: 98 of 194 blobs are at 2 mod 4.
+# and trap 7.2: many blobs are at 2 mod 4.
 # ---------------------------------------------------------------------------
 
 def _synthetic_nonuniform():
@@ -154,8 +154,8 @@ def test_scan_reports_field_values():
 
 
 # ---------------------------------------------------------------------------
-# Gated: the real firmware image. 194 records, 173 carrying an X pointer, and
-# the validation identity holds for all of them with zero exceptions. Skip
+# Gated: the real firmware image. The validation identity holds for every
+# record that carries an X pointer, with zero exceptions. Skip
 # where NMG2_ARTIFACTS is unset, with section 18.5's reason, via the
 # `artifacts_dir` fixture.
 # ---------------------------------------------------------------------------
@@ -186,9 +186,9 @@ def test_scan_recovers_all_194_descriptors(artifacts_dir):
 
 
 def test_validation_identity_holds_for_every_record_with_an_x_pointer(artifacts_dir):
-    """X_ptr + 4*(X_words + Y_words) == P_ptr for all 173 records that carry an
-    X pointer, with zero exceptions. Logbook 3.1 fixes both the count and the
-    zero-exception requirement."""
+    """X_ptr + 4*(X_words + Y_words) == P_ptr for every record that carries an
+    X pointer, with zero exceptions. Logbook 3.1 fixes the zero-exception
+    requirement."""
     image = _load_code_image(artifacts_dir)
     recs = scan(image, BASE)
     with_x = [r for r in recs if r.carries_x]

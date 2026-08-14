@@ -6,11 +6,9 @@ ownership, so a consumer that reads `Files:` data strips the marker, skips the
 entry, or keeps the marker on purpose because it needs the `<OWNER-ID>`. Not
 every consumer does one of the three.
 
-That fact used to live in a hand-written comment in `planlint/document.py`. The
-comment was written three times and was wrong twice, and it failed the same way
-both times: it was built by grepping two property names, so it named a correct
-set of buckets over an INCOMPLETE set of readers. A list kept by hand in a
-comment is a claim with no mechanism behind it. This file is the mechanism.
+A list kept by hand in a comment is a claim with no mechanism behind it. A
+census built by grepping a couple of property names names a correct set of
+buckets over an INCOMPLETE set of readers. This file is the mechanism.
 
 Two things are computed here rather than restated:
 
@@ -20,8 +18,7 @@ Two things are computed here rather than restated:
     `Files:` field. Any member of `TaskBlock` or `PlanDocument` that reads an
     accessor is itself an accessor, because its result carries the same marked
     strings onward. `files_paths`, `test_files` and `files_name_pool` all enter
-    the set that way, and each one is a reader the two earlier grep-built
-    censuses missed;
+    the set that way, and a grep for property names reaches none of them;
   * the CENSUS — every function in the package that reads an accessor, with the
     handling it applies.
 
@@ -50,22 +47,19 @@ The five verdicts:
            the function reads `files_text`, the raw field text, and not a parsed
            item, and it is not itself an accessor.
 
-           This bucket names what is MEASURED and nothing further. It was called
-           MARKER-TOLERANT-BY-CONSTRUCTION, and that was a verdict the check
-           never reached: containment is not verified. A function whose body is
+           This bucket names what is MEASURED and nothing further. A name such
+           as MARKER-TOLERANT-BY-CONSTRUCTION would be a verdict the check never
+           reaches: containment is not verified. A function whose body is
            `return task.files_text == "..."` reads the raw text, is the OPPOSITE
-           of tolerant, and lands here. Under the old name such a function
-           arrived as an unnamed row that went red with a WRONG VERDICT already
-           filled in, and the cheapest way back to green was to paste that
-           verdict into the table below. The name now states the measurement, so
+           of tolerant, and lands here. The name states the measurement, so
            pasting it claims only what was measured.
 
            Tolerance is a property of the CONSUMER and not of the bucket. The
            marker is a SUFFIX — `MARKER` is anchored with `$`, which is asserted
            below — so the bare path remains a substring of the raw text and a
-           consumer that CONTAINS-tests it still finds the path. Both of today's
-           two members do contain-test. A new member has to be read before that
-           is believed of it.
+           consumer that CONTAINS-tests it still finds the path. Today's
+           members do contain-test. A new member has to be read before that is
+           believed of it.
 
 The limits of the method, stated so that no reader over-reads the result. There
 are three, and the first is OPEN.
@@ -83,9 +77,10 @@ are three, and the first is OPEN.
     so a read at MODULE level or in a CLASS body belongs to no function and
     yields no row. `ModuleScopeReadTest` below asserts that the package holds no
     such read, which keeps this limit latent instead of silent.
-  * The FILE SET. `module_sources` used to glob ONE level of the package and
-    skip `__init__.py`, so a subpackage, or a consumer written into an
-    `__init__.py`, was invisible. It now walks the tree and reads every module.
+  * The FILE SET. A glob over ONE level of the package that skipped
+    `__init__.py` would leave a subpackage, or a consumer written into an
+    `__init__.py`, invisible. `module_sources` walks the tree and reads every
+    module.
 
 Nothing here is fixed. The NEITHER consumers are a structural follow-up, not
 this file's business. This file makes them VISIBLE and keeps them counted. Their
@@ -105,7 +100,7 @@ PACKAGE = pathlib.Path(document.__file__).parent
 SEED = "files_text"
 
 # Every attribute through which `Files:` data leaves the parser, grown from the
-# seed. Six, not the four a grep for two property names finds.
+# seed.
 EXPECTED_ACCESSORS = frozenset(
     {
         "files_text",
@@ -150,12 +145,12 @@ EXPECTED_CENSUS = {
     "tiers.run": "READS-RAW-TEXT",
 }
 
-# The two item-level helpers the marker reading is named by. A helper takes ONE
+# The item-level helpers the marker reading is named by. A helper takes ONE
 # entry and reads no accessor of its own, so a function that calls it is handing
 # its entries over rather than ignoring them.
 MARKER_FUNCTIONS = {"STRIPS": "strip_marker", "SKIPS": "has_marker"}
 
-# The two property names both earlier censuses were grepped for.
+# The property names a grep-built census reaches.
 GREP_NAMES = frozenset({"files_items", "files_paths"})
 
 # The readers that method cannot reach. This is the ONLY place the set is
@@ -423,9 +418,8 @@ class MarkerSeedTest(unittest.TestCase):
         The bare path stays a substring, so the test still matches it.
 
         Both sides of the containment derive from the ONE marked spelling and
-        from the package. The line compared two string literals before, so no
-        change to `MARKER` or to `strip_marker` could redden it, and it was the
-        line that underwrote the whole READS-RAW-TEXT reading.
+        from the package, so a change to `MARKER` or to `strip_marker` reaches
+        this line. It is the line the whole READS-RAW-TEXT reading rests on.
         """
         marked = "a/b.cmake@DSP-0"
         raw = f"Files: `{marked}`, `c/d.txt`"
@@ -450,9 +444,6 @@ class AccessorClosureTest(unittest.TestCase):
         self.assertEqual(accessor_set(module_sources()), EXPECTED_ACCESSORS)
 
     def test_the_seed_alone_is_not_the_answer(self):
-        """An accessor set that collapsed to the seed would make the census
-        read `files_text` only, and every parsed-item consumer would vanish from
-        it silently. That is the shape of both earlier incomplete censuses."""
         found = accessor_set(module_sources())
 
         self.assertEqual(len(found), 6)
@@ -468,8 +459,8 @@ class AccessorClosureTest(unittest.TestCase):
 class ModuleScopeReadTest(unittest.TestCase):
     """The census carries one row per FUNCTION, so a read that belongs to no
     function has no row at all. Such a read is not reported as a wrong verdict.
-    It is not reported. `PATHS = [p for t in DOC.tasks for p in t.files_paths]`
-    at module scope produced zero rows and no failure.
+    It is not reported at all: `PATHS = [p for t in DOC.tasks for p in
+    t.files_paths]` at module scope yields no row and no failure.
 
     This asserts the package holds no such read, which is what keeps the scope
     limit of `functions_in` latent rather than silent.
@@ -490,8 +481,8 @@ class ModuleScopeReadTest(unittest.TestCase):
 class MarkerCensusTest(unittest.TestCase):
     """The census the package states, against the census this file expects."""
 
-    # The mapping is 21 rows. A truncated diff would hide the very row that
-    # moved, which is the failure this file exists to make loud.
+    # A truncated diff would hide the very row that moved, which is the
+    # failure this file exists to make loud.
     maxDiff = None
 
     def computed(self):
@@ -527,17 +518,16 @@ class MarkerCensusTest(unittest.TestCase):
         self.assertEqual(changed, {})
 
     def test_the_whole_mapping_is_the_expected_one(self):
-        """The two assertions above name a new consumer and a changed verdict
+        """The assertions above name a new consumer and a changed verdict
         separately, so a failure says which of the two happened. This one holds
         the mapping whole, so neither can be weakened without the other
         noticing."""
         self.assertEqual(self.computed(), EXPECTED_CENSUS)
 
     def test_the_counts_the_comment_no_longer_carries(self):
-        """`planlint/document.py` used to state these numbers in prose, and the
-        prose was wrong twice. They are counted from the source here instead, so
-        that moving a consumer between the buckets is a failure and not a
-        comment that quietly goes stale."""
+        """The numbers are counted from the source, so that moving a consumer
+        between the buckets is a failure and not a comment that quietly goes
+        stale."""
         found = self.computed()
         tally = {verdict: 0 for verdict in EXPECTED_CENSUS.values()}
         for verdict in found.values():
@@ -572,9 +562,8 @@ class MarkerCensusTest(unittest.TestCase):
         `attributes_read` only and never reads a verdict rule, so this is not a
         test agreeing with itself; `GREP_BLIND_READERS` remains the expectation.
 
-        No count appears in the name of this test. Two hand-typed lists stood
-        here and in the tally comment above, both labelled "four" and naming
-        DIFFERENT sets, whose union was five. The list is now written once.
+        No count appears in the name of this test, and the list is written
+        once.
         """
         trees = module_sources()
         accessors = accessor_set(trees)

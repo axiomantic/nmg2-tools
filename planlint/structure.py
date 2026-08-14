@@ -5,9 +5,8 @@ A parse failure must never present as a clean result.
 Defect L-5 is the reason this module exists. The backtick scanner paired ticks
 across a whole task body, so a fenced block — which opens with THREE of them —
 inverted every pairing after itself, and everything below the first fence in a
-body became invisible. The lint went blind and said nothing. Measured on the
-real plan: five task bodies gained a transcript and the warning count moved
-from 169 DOWN to 166, which reads as an improvement.
+body became invisible. The lint went blind and said nothing, and the warning
+count fell as text was added, which reads as an improvement.
 
 `planlint.document` now scans fences as REGIONS and reads an unmatched backtick
 as literal text, so neither shape can hide a name any more. That is the repair.
@@ -16,8 +15,7 @@ quietly with broken markup is one edit away from coping quietly with something
 it should not. Both breakages are therefore findings of their own.
 
   * `unmatched-backtick` — a task body carrying a backtick with no partner on
-    its own line. Every name after it was read as prose before the repair, and
-    the markup is wrong either way.
+    its own line. The markup is wrong whatever the scanner makes of it.
   * `unclosed-fence` — a fence opened and never closed. Section 7.7's whole
     fenced-block scope depends on knowing where a fence ends, and the parser
     reads a fence with no partner as no fence at all, so every boundary below

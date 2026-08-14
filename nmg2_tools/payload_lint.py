@@ -52,8 +52,8 @@ directory and covers every path beneath it. The optional third field is an
   unestablished. It grants NO size exemption: clause 3 still applies, so
   use ``public allow-listed`` for that and never assume one implies the
   other. It MUST carry the third ``repo`` field, because this register is
-  ONE file shared by all seven repositories: an unqualified row would except
-  the path in every one of them, and any repository could then silence
+  ONE file shared by every repository: an unqualified row would except
+  the path in all of them, and any repository could then silence
   clause 1 by choosing a directory name. The exception applies only when the
   caller passes a matching ``--repo``; an unidentified repository gets no
   exception, so the check fails CLOSED.
@@ -136,7 +136,7 @@ class RegisterEntry:
 
         A ``pch2-exception`` row applies ONLY in the repository it names, and
         it must name one. The register is one shared file, so a row that
-        names no repository would except the path in all seven and let any of
+        names no repository would except the path in all of them and let any of
         them silence this lint by choosing a directory name. Both an
         unqualified row (``self.repo`` is ``None``) and an unidentified
         caller (``repo`` is ``None``) therefore get no exception: this fails

@@ -3,9 +3,8 @@
 A task that writes into, or reads from, an artifact another task creates, where
 no `Depends:` edge exists.
 
-This is the class three rounds of careful reading kept missing, and it is
-invisible to Tarjan by construction: the edge was never declared, so no graph
-holds it. The instance that made the rule was REPO-15 writing into
+This is the class careful reading keeps missing, and it is invisible to Tarjan
+by construction: the edge was never declared, so no graph holds it. The instance that made the rule was REPO-15 writing into
 `axiomantic/nmg2-artifacts`, which REPO-4 creates, while REPO-4 declares
 REPO-15 — a real cycle with one of its two edges unwritten.
 

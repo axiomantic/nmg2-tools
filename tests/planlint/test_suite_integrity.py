@@ -5,8 +5,7 @@ cannot fail. Two ways were measured:
 
   * a class appended BELOW `if __name__ == "__main__": unittest.main()` runs
     under `pytest` and under `unittest discover`, and is skipped when the file
-    is run directly. Thirteen tests were in that position, and they were exactly
-    the tests that pin the path-expansion edit;
+    is run directly;
   * a fixture with no row in the README table is a fixture a reader cannot find,
     under a heading that reads "A lint with no negative fixture is not done".
 
@@ -29,12 +28,7 @@ README = ROOT / "planlint" / "README.md"
 
 
 def discover_test_modules():
-    """Every test module in this directory, sorted by path.
-
-    The name of this helper started with `test_`, so `pytest` collected it as
-    a test. It returned a value and asserted nothing, thus it could not fail.
-    `TestModuleDiscoveryTest` below now asserts what the callers need.
-    """
+    """Every test module in this directory, sorted by path."""
     return sorted(p for p in TESTS.glob("test_*.py"))
 
 
@@ -183,12 +177,9 @@ class ReadmeFixtureTableTest(unittest.TestCase):
 
 
 class TestModuleDiscoveryTest(unittest.TestCase):
-    """`discover_test_modules()` drives four assertions in this file. Each one
-    examines a list that is built from that scan. An empty scan makes all four
+    """`discover_test_modules()` drives the assertions in this file. Each one
+    examines a list that is built from that scan. An empty scan makes them all
     pass and verify nothing. Thus the scan itself is asserted here.
-
-    This is the assertion that `test_modules()` never made. That function had a
-    `test_` prefix, so `pytest` collected it, but it only returned a list.
     """
 
     def independent_scan(self):

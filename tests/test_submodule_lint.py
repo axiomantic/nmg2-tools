@@ -24,9 +24,9 @@ def test_public_sibling_passes():
 def test_third_party_repo_is_a_note_and_not_a_failure():
     """A repository outside the axiomantic organization does not fail the step.
 
-    The task's own check requires the step to PASS on the gearmulator fork, and
-    six of that fork's eight submodules are third-party public repositories the
-    plan's table does not list and never will.
+    The task's own check requires the step to PASS on the gearmulator fork,
+    whose submodules include third-party public repositories the plan's table
+    does not list and never will.
     """
     text = (
         '[submodule "weird"]\n'

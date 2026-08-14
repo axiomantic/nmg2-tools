@@ -149,7 +149,7 @@ def test_shipped_register_has_exactly_one_pch2_exception_row():
 
 # --- The pch2 exception is scoped to ONE repository -------------------------
 #
-# The register is a single file shared by all seven repositories. An
+# The register is a single file shared by every repository. An
 # unqualified `PatchTestFiles/` row would except that path in EVERY public
 # repository, so any repository could silence this lint by choosing a
 # directory name. The exception carries the repository it was granted for,
@@ -220,7 +220,7 @@ def test_shipped_register_pch2_exception_row_is_scoped_to_g2_edit():
 # repositories, so the unqualified row is the wider hole, not the narrower
 # one. It now grants nothing at all.
 
-# The seven repositories that share `nmg2_tools/testdata/register.tsv`.
+# The repositories that share `nmg2_tools/testdata/register.tsv`.
 SEVEN_REPOS = (
     "axiomantic/nmg2-tools",
     "axiomantic/G2-Edit",
@@ -242,7 +242,7 @@ def test_unqualified_pch2_exception_row_grants_no_exception_in_any_repository(
 ):
     """Fail closed: a row with no repository field excepts nothing, anywhere.
 
-    Checked against all seven repositories that share the register, and
+    Checked against every repository that shares the register, and
     against an unidentified caller.
     """
     rel = "PatchTestFiles/InheritedOne.pch2"

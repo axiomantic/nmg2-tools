@@ -47,8 +47,7 @@ not have and `pyproject.toml` declares no dependency that could supply one.
 difference is a boot cost, not a format: design section 7.5 records that L1 pays
 one LZO1X decompression of 530 KB on every boot. An image this builder produces
 does not pay it. A later builder that compresses is a decision for whoever needs
-the real boot cost, and `test_flashimage.py` asserts the stored form so that the
-decision cannot be made by accident.
+the real boot cost.
 """
 
 from __future__ import annotations

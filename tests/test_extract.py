@@ -18,7 +18,7 @@ a test that passes when the code is broken is worse than no test. The gated
 half cannot run in most environments, so the parsers need their own, ungated
 proof here.
 
-The four design-section-18.6 digests, exact.
+The design-section-18.6 digests, exact.
 """
 
 import hashlib
@@ -32,7 +32,7 @@ from nmg2_tools.container import load_sections, parse_header
 from nmg2_tools.pe import PeError
 from nmg2_tools.rsrc import RsrcError
 
-# The four SHA-256 digests design section 18.6 fixes, written out in full as
+# The SHA-256 digests design section 18.6 fixes, written out in full as
 # `artifacts.sha256` writes them, so a digest that drifts cannot pass.
 HASH_NMG2_OS = "b3a76b7db724d88e3f603e1f500cf873fd525d8015e35d4f985866a842751c3a"
 HASH_BOOT_LOADER = "d1b8e30804edbccae853b647e06ac20ae902fd6da05ade7b5d2090ce17c24d88"

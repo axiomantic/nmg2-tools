@@ -2,7 +2,7 @@
 
 WHAT RUNS WHERE.
 
-The generator is a pure function of five input tables and every decision it
+The generator is a pure function of its input tables and every decision it
 makes (the chain join, the corroboration rule, the word-count check, the
 port-shape check, the CSV layout) is proven HERE with SYNTHETIC data, so these
 tests run everywhere and need no Clavia byte. The gated half at the end drives
@@ -378,10 +378,10 @@ def test_write_csv_round_trips_through_to_csv_text(tmp_path, monkeypatch):
 # Gated: the real artifacts, through the artifacts_dir fixture.
 #
 # The structural facts a generator can assert without a reverse-engineered
-# descriptor_index -> patch_type_id correspondence: the row count (194 on both
-# the descriptor and editor sides -- design 18.9.3 says the counts agree), the
-# schema, the confidence vocabulary, determinism, and that the coverage counts
-# are internally consistent. Skip where NMG2_ARTIFACTS is unset.
+# descriptor_index -> patch_type_id correspondence: the row count (design
+# 18.9.3 says the descriptor and editor sides agree), the schema, the
+# confidence vocabulary, determinism, and that the coverage counts are
+# internally consistent. Skip where NMG2_ARTIFACTS is unset.
 # ---------------------------------------------------------------------------
 
 
@@ -439,7 +439,7 @@ def test_gated_real_artifacts_produce_a_well_formed_map(artifacts_dir):
     every row, and a coverage break-down that sums to the row count."""
     descriptors = _descriptors_from_csv(artifacts_dir)
     panl = _panl_from_json(artifacts_dir)
-    # 194 on the descriptor side and 194 on the editor side -- the counts agree.
+    # The descriptor side and the editor side -- the counts agree.
     assert len(descriptors) == 194
     assert len(panl) == 194
 

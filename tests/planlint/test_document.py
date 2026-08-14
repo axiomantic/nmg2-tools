@@ -269,9 +269,8 @@ class PathAbbreviationTest(unittest.TestCase):
     """Section 1.1.1 rules B and C.
 
     The plan writes one file two ways. A lint that compares the strings as
-    written reads the two spellings as unrelated paths, which is how 34 tasks
-    came to write into BRD-0's registrar directory with no declared edge and a
-    clean lint report.
+    written reads the two spellings as unrelated paths, so a task can write into
+    BRD-0's registrar directory with no declared edge and a clean lint report.
     """
 
     def test_rule_b_expands_the_three_abbreviated_prefixes(self):

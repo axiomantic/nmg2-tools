@@ -181,9 +181,8 @@ COMMAND_WORD = re.compile(r"\b(?:ctest|cmake|pytest|python3?|gh|cc|c\+\+)\b\s+\S
 COMMAND_LINE = re.compile(r"\b(?:ctest|cmake|pytest|python3?|gh)\b(?=\s+-).*$")
 R_ARGUMENT = re.compile(r"(?<![\w-])-R\s+(\S+)")
 # Section 7.7: every `-R` argument that is not on the prefix allow-list is
-# ANCHORED, because an unanchored argument is a prefix. `-R t_isp1181` matched
-# three registered tests and `-R mcf5307_conformance` matched five, so a task's
-# gate swept tests outside its own dependency closure. An anchored argument
+# ANCHORED, because an unanchored argument is a prefix, and a prefix sweeps
+# tests outside a task's own dependency closure. An anchored argument
 # names exactly one test, and the anchors are stripped before the name is
 # compared against the `Files:` pool.
 ANCHORS = re.compile(r"^\^(?P<name>.*?)\$$")
@@ -199,9 +198,9 @@ ADD_TEST = re.compile(r"add_test\(\s*NAME\s+([A-Za-z0-9_.\-]+)")
 PYTEST_PATH = re.compile(r"pytest\s+(\S+\.py)")
 AXIOMANTIC = re.compile(r"\baxiomantic/[A-Za-z0-9_.\-]+")
 
-# Section 7.7: two `-R` arguments are prefixes and not registered test names.
-# The list has exactly two entries, and an exemption in prose is what made the
-# previous revision's claim untestable.
+# Section 7.7 allow-lists the `-R` arguments that are prefixes rather than
+# registered test names. The list is written here, because an exemption kept in
+# prose is an exemption no test can hold anything against.
 PREFIX_ALLOW_LIST = frozenset({"t1_", "t2_oracle"})
 
 TRAILING = ".,;:`'\")]"
@@ -219,10 +218,8 @@ def commands_in(text):
     invocation written without backticks is still an invocation — and it is the
     one most likely to have lost a flag.
 
-    The spans are read by the fence-aware scanner. A stray backtick used to pair
-    with the next one on a LATER line, which removed the prose between them from
-    the remainder and hid whatever invocation that prose carried. An unmatched
-    backtick is literal text, so the remainder keeps every line it had.
+    The spans are read by the fence-aware scanner. An unmatched backtick is
+    literal text, so the remainder keeps every line it had.
     """
     out = []
     spans, _ = inline_code_spans(text)
@@ -248,8 +245,8 @@ def r_arguments(command):
     fails the pool lookup rather than being silently accepted.
 
     One matched pair of shell quotes is removed first. `-R '^t0_alpha$'` is the
-    same argument as `-R ^t0_alpha$`, and reading it as the name `'^t0_alpha`
-    reported a test that exists as a test no `Files:` line creates.
+    same argument as `-R ^t0_alpha$`; reading it as the name `'^t0_alpha` would
+    report a test that exists as a test no `Files:` line creates.
     """
     out = []
     for raw in R_ARGUMENT.findall(command):
@@ -597,8 +594,8 @@ def _shared_paths(doc):
 
     A path every writer marks therefore has no claimant here and this rule says
     nothing about it. Section 7.4.2 gives that case to
-    `second-write-no-owner-row` and `manifest-without-creator`, which are
-    REPO-14 condition 10 and are not built.
+    `second-write-no-owner-row` and `manifest-without-creator`, which this tool
+    does not implement.
     """
     claims = {}
     for task in doc.tasks:

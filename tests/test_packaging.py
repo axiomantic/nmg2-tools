@@ -6,9 +6,8 @@ therefore cannot import it. The list is asserted here so that adding a package
 directory without declaring it fails.
 
 The `plan_lint` module that this repository once carried is asserted ABSENT.
-It recovered 4 task blocks where `planlint` recovers 210, its `--` rule
-polarity was inverted against the behaviour of `ctest`, and it exited 0 when it
-parsed nothing. None of its rules survive.
+Its `--` rule polarity was inverted against the behaviour of `ctest`, and it
+exited 0 when it parsed nothing. None of its rules survive.
 """
 
 import pathlib
@@ -30,7 +29,7 @@ def test_pyproject_declares_the_planlint_console_script():
 
 
 def test_planlint_package_directory_holds_every_module_the_cli_imports():
-    """The eleven lint modules plus the four support modules. A module that the
+    """The lint modules plus the support modules. A module that the
     migration dropped makes `planlint.cli` fail to import; this names which."""
     committed = sorted(p.name for p in (ROOT / "planlint").glob("*.py"))
 

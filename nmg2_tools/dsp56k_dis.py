@@ -64,8 +64,7 @@ of that were measured against the oracle over all 256 operand values:
 
     ALSO IMPRECISE. Bit 7 is not required. The oracle decodes operand bytes
     0x40 to 0xFF and refuses 0x00 to 0x3F, so the rule is that at least one of
-    the top two bits is set. An earlier draft of this module required bit 7 and
-    the oracle refuted it.
+    the top two bits is set.
 
 Both corrections are recorded here rather than fixed in the plan, because the
 plan is not this task's to edit.

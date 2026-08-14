@@ -16,11 +16,11 @@ Design section 4.2, on the Python half:
 import os
 from typing import Optional
 
-# The THREE messages, WORD FOR WORD. Design section 4.2 fixes the wording and
-# section 18.5 builds the skip line on top of them. The three are distinct on
-# purpose: one message for two conditions told an operator with a wrong path that
-# their variable was unset, which is a message that sends them to the wrong
-# file. Echoing the variable value unchanged is the whole point of message 2.
+# The messages, WORD FOR WORD. Design section 4.2 fixes the wording and
+# section 18.5 builds the skip line on top of them. They are distinct on
+# purpose: one message covering two conditions tells an operator with a wrong
+# path that their variable is unset, which sends them to the wrong file.
+# Echoing the variable value unchanged is the whole point of message 2.
 ARTIFACT_UNSET_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
 ARTIFACT_ENVIRONMENT_VARIABLE = "NMG2_ARTIFACTS"
 
@@ -66,8 +66,7 @@ def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
     # exists but is not a directory all land here, and all three give the SAME
     # message 2. `os.path.isdir` reports False rather than raising for every one
     # of them, so this function needs no exception handler to satisfy the
-    # never-raises contract -- and a handler that can never fire would be a branch
-    # no test could drive.
+    # never-raises contract.
     if not os.path.isdir(value):
         return "", _message_no_directory(value)
 

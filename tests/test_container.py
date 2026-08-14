@@ -764,8 +764,8 @@ def test_one_junk_byte_past_the_end_marker_is_enough_to_refuse_the_section():
 
 
 def test_a_section_that_uses_every_declared_byte_is_accepted():
-    """The positive control for the two refusals above. Without it, a check
-    that refused EVERY section would pass both of them."""
+    """The positive control for the refusals above. Without it, a check that
+    refused EVERY section would pass them."""
     image = one_section_image(b"CODE", ABC_PLAIN, ABC_STREAM)
     section = parse_header(image).sections[0]
 
