@@ -490,5 +490,134 @@ class CrossTrackWrittenFigureTest(unittest.TestCase):
         self.assertEqual(result.examined, 3)
 
 
+class CrossWaveArrowTest(unittest.TestCase):
+    """The wave filter narrows the SUBJECT, and a wrong arrow target does not
+    respect that narrowing.
+
+    Every rule above judges an edge only when its two ends sit in one wave.
+    Eight arrows in the plan's own section 7.3 named a target the `Depends:`
+    graph does not hold, every one of them crossed a wave, and the lint
+    reported clean throughout while its operands were non-empty. A true pass
+    over a subject narrower than the defect is the shape this class widens.
+
+    ONE direction is widened and not both. Section 7.3's opening states that a
+    track's contract inputs are listed once for the track and are not repeated
+    per task, so the column OMITS cross-track graph edges BY DESIGN, in bulk. A
+    rule widened in that direction would report every one of them against a
+    document obeying its own stated convention, which is worse than no rule at
+    all. An arrow is the other direction: it is a claim about a `Depends:` line
+    whatever wave its two ends sit in, and a claim carries no licence to be
+    wrong outside a wave.
+
+    The last test in this class is the guard on that asymmetry.
+    """
+
+    def test_a_7_3_arrow_across_waves_that_no_depends_line_declares_is_reported(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n"
+            "| gamma | beta | CCC-1 → BBB-1 |\n"
+            "| alpha | beta | AAA-1 → BBB-1 |"
+        )
+
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.evidence)
+                for f in counts.run(doc).findings
+            ],
+            [
+                (
+                    "cross-track-edge-not-in-graph-across-waves",
+                    "AAA-1",
+                    "7.3 Track dependencies",
+                    16,
+                    "ERROR",
+                    "section 7.3's cross-track column lists AAA-1 → BBB-1, "
+                    "AAA-1 in wave 1 (order 1) and BBB-1 in wave 2 (order 2); "
+                    "AAA-1's `Depends:` line does not name BBB-1",
+                )
+            ],
+        )
+
+    def test_a_7_4_row_across_waves_that_no_depends_line_declares_is_reported(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            table=TABLE_7_4 + "| alpha | AAA-1 | beta | BBB-1 | behaviour |\n",
+        )
+
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.evidence)
+                for f in counts.run(doc).findings
+            ],
+            [
+                (
+                    "cross-track-row-7-4-not-in-graph-across-waves",
+                    "AAA-1",
+                    "7.4 What the graph really says",
+                    45,
+                    "ERROR",
+                    "section 7.4's table carries AAA-1 → BBB-1, AAA-1 in wave 1 "
+                    "(order 1) and BBB-1 in wave 2 (order 2); AAA-1's "
+                    "`Depends:` line does not name BBB-1",
+                )
+            ],
+        )
+
+    def test_an_arrow_across_waves_the_graph_holds_is_no_finding(self):
+        """`CCC-1 → AAA-1` is the inline document's wave-crossing edge and the
+        `Depends:` graph holds it. Stating it in both sites is correct, and a
+        rule that reported it would fire on the plan's own `usbhost` row, whose
+        every arrow crosses a wave by the row's own statement."""
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n"
+            "| gamma | beta | CCC-1 → BBB-1 |\n"
+            "| gamma | alpha | CCC-1 → AAA-1 |",
+            table=TABLE_7_4 + "| gamma | CCC-1 | alpha | AAA-1 | behaviour |\n",
+        )
+
+        self.assertEqual(counts.run(doc).findings, [])
+
+    def test_a_graph_edge_across_waves_that_neither_site_states_is_no_finding(self):
+        """The limit, asserted rather than described.
+
+        `CCC-1 → AAA-1` is in the graph and in neither table here, which is
+        exactly what section 7.3's track-level convention licenses. A widening
+        of the omission direction would redden this, and would redden the real
+        plan once for every track-level input it declines to repeat.
+        """
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |"
+        )
+
+        self.assertEqual(counts.run(doc).findings, [])
+
+    def test_an_end_the_wave_table_places_nowhere_is_still_held_to_the_graph(self):
+        """An identifier no wave row names has no order to compare, so every
+        in-wave rule is silent on it. That silence is what let a wrong arrow
+        target hide; here the arrow is judged anyway and the evidence says the
+        wave table places the end nowhere rather than inventing an order."""
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n"
+            "| gamma | beta | CCC-1 → BBB-1 |\n"
+            "| alpha | beta | AAA-3 → BBB-1 |",
+            table=TABLE_7_4,
+        )
+        doc.wave_of.pop("AAA-3")
+
+        self.assertEqual(
+            [(f.rule, f.task, f.evidence) for f in counts.run(doc).findings],
+            [
+                (
+                    "cross-track-edge-not-in-graph-across-waves",
+                    "AAA-3",
+                    "section 7.3's cross-track column lists AAA-3 → BBB-1, "
+                    "AAA-3 in no row of section 7.2's wave table and BBB-1 in "
+                    "wave 2 (order 2); AAA-3's `Depends:` line does not name "
+                    "BBB-1",
+                )
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

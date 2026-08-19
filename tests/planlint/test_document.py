@@ -405,5 +405,158 @@ class SectionAtTest(unittest.TestCase):
         self.assertEqual(doc.section_at(5), "1. First")
 
 
+class CrossTrackColumnProseTest(unittest.TestCase):
+    """Section 7.3's cell is a list of arrow groups and then, often, a
+    sentence about them.
+
+    The reader split the cell on `;` alone and then took every identifier after
+    the arrow as a target, so a sentence that followed the last group was
+    absorbed into it. That invented an edge out of every identifier the
+    sentence named, and the invented edges carried the source of a real one, so
+    nothing about them looked malformed.
+
+    `planlint.graph` already reads a `Depends:` line this way: edges come from
+    the first sentence and an identifier below it is an annotation. The same
+    rule is applied here, against the same document.
+    """
+
+    def cell(self, text):
+        doc = PlanDocument.from_text(
+            "### 7.3 Track dependencies\n"
+            "\n"
+            "| Track | Depends on | Cross-track task edges |\n"
+            "|---|---|---|\n"
+            f"| chain | sched | {text} |\n",
+            name="inline",
+        )
+        return [(row.source, row.target) for row in doc.cross_track_edges]
+
+    def test_a_sentence_after_an_arrow_group_states_no_edge(self):
+        self.assertEqual(
+            self.cell(
+                "CHN-9 → SCH-15, SCH-19. **CHN-1 reaches BRD-0 through SCH-4**, "
+                "which is a declared edge and not a second one."
+            ),
+            [("CHN-9", "SCH-15"), ("CHN-9", "SCH-19")],
+        )
+
+    def test_a_sentence_naming_the_source_states_no_self_loop(self):
+        """The absorbed sentence named the cell's own subject, so the reader
+        produced an edge from the source to itself. Every cross-track filter
+        drops a same-track edge, so the artifact was invisible to the rules
+        while sitting in the parsed rows."""
+        self.assertEqual(
+            self.cell(
+                '**CPU-29 → BRD-1.** **THIS CELL READ "none" UNTIL 2026-08-17**: '
+                "CPU-29 declares BRD-1 because it writes the memory map."
+            ),
+            [("CPU-29", "BRD-1")],
+        )
+
+    def test_an_em_dash_annotation_states_no_edge(self):
+        """The annotation is not always a new sentence.
+
+        Section 7.3's `int` row writes its note after an em dash, INSIDE the
+        sentence its last group opens, and the note names that group's own
+        source. A reader that cut at the full stop alone still produced the
+        self-loop, and every cross-track filter dropped it in silence — the
+        same shape as the sentence case, one delimiter further out.
+        """
+        self.assertEqual(
+            self.cell(
+                "INT-2 → DSP-14; **INT-3 → SCH-19** — **added 2026-08-19 with "
+                "INT-3.** It consumes the `sched` track from the `int` track."
+            ),
+            [("INT-2", "DSP-14"), ("INT-3", "SCH-19")],
+        )
+
+    def test_every_group_in_a_cell_and_every_target_in_a_group_is_read(self):
+        self.assertEqual(
+            self.cell("REPO-5 → BRD-0; REPO-9 → BRD-0, SCH-0, SCH-18, SCH-19"),
+            [
+                ("REPO-5", "BRD-0"),
+                ("REPO-9", "BRD-0"),
+                ("REPO-9", "SCH-0"),
+                ("REPO-9", "SCH-18"),
+                ("REPO-9", "SCH-19"),
+            ],
+        )
+
+    def test_a_qualifying_clause_inside_one_sentence_stops_no_target(self):
+        """The boundary is the SENTENCE and not the first word that is no
+        identifier. Section 7.3's `int` row carries a range, then a clause that
+        narrows it, then two more targets; a reader that stopped at `to` or at
+        `excluding` would drop what follows."""
+        self.assertEqual(
+            self.cell(
+                "INT-1 → CPU-1 to CPU-25, BRD-1 to BRD-22 excluding the T1 and "
+                "conditional members, TOOL-3, TOOL-4"
+            ),
+            [
+                ("INT-1", "CPU-1"),
+                ("INT-1", "CPU-25"),
+                ("INT-1", "BRD-1"),
+                ("INT-1", "BRD-22"),
+                ("INT-1", "TOOL-3"),
+                ("INT-1", "TOOL-4"),
+            ],
+        )
+
+
+class DoneMarkerTest(unittest.TestCase):
+    """A completion marker is read wherever it sits in a task body.
+
+    The plan's own section 24.6 records a census taken with a line-anchored
+    pattern. Markers written after a `Note: ` lead-in do not satisfy that
+    pattern, so the census undercounted and the shortfall presented as a
+    measurement. The parser reads the WIDE form and records whether each marker
+    satisfies the anchored one, so the next census reads one set and the
+    difference between the two is a finding rather than a silence.
+    """
+
+    def doc(self, body):
+        return PlanDocument.from_text(
+            "## 9. The tasks\n"
+            "\n"
+            "**DSP-2 · The two new DMA request sources** — T0\n"
+            "Files: `src/dma.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_dma`\n"
+            f"{body}\n",
+            name="inline",
+        )
+
+    def test_a_marker_that_opens_its_line_is_read_and_recorded_anchored(self):
+        doc = self.doc("**DONE on 2026-08-06, commit `51903e5c`.**")
+
+        self.assertEqual(
+            [(m.task, m.line, m.anchored, m.text) for m in doc.done_markers],
+            [("DSP-2", 7, True, "**DONE on 2026-08-06, commit `51903e5c`.**")],
+        )
+
+    def test_a_marker_behind_a_lead_in_is_read_and_recorded_unanchored(self):
+        doc = self.doc("Note: **DONE on 2026-08-06, commit `51903e5c`.**")
+
+        self.assertEqual(
+            [(m.task, m.line, m.anchored, m.text) for m in doc.done_markers],
+            [("DSP-2", 7, False, "Note: **DONE on 2026-08-06, commit `51903e5c`.**")],
+        )
+
+    def test_a_marker_in_a_table_row_is_no_task_level_marker(self):
+        """Section 24.6 row W3-20 states the exclusion and names the case that
+        makes it necessary: REPO-15's half-state rows carry a `**DONE` that
+        belongs to a half and not to the task."""
+        doc = self.doc(
+            "| Half | State | Evidence |\n"
+            "|---|---|---|\n"
+            "| The operator-gated extraction | **DONE** | one commit |"
+        )
+
+        self.assertEqual(doc.done_markers, [])
+
+    def test_a_document_with_no_marker_holds_none(self):
+        self.assertEqual(load_fixture("clean_plan.md").done_markers, [])
+
+
 if __name__ == "__main__":
     unittest.main()

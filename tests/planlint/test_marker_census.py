@@ -136,7 +136,7 @@ EXPECTED_CENSUS = {
     # ------------------------------------------------------------- implicit
     "implicit.artifact_creators": "NEITHER",
     # ------------------------------------------------------------ registrar
-    "registrar.creators_of": "NEITHER",
+    "registrar.creators_of": "SKIPS",
     "registrar.registrars_of": "NEITHER",
     # ---------------------------------------------------------------- rule9
     "rule9.creators_of": "STRIPS",
@@ -533,7 +533,7 @@ class MarkerCensusTest(unittest.TestCase):
         for verdict in found.values():
             tally[verdict] = tally.get(verdict, 0) + 1
 
-        # FOURTEEN NEITHER rows, COUNTED. The readers a grep for two property
+        # The NEITHER rows are COUNTED. The readers a grep for two property
         # names cannot reach are named ONCE, by `GREP_BLIND_READERS`, and are
         # derived rather than restated by the test below; they are not listed
         # again here. This comment states no list and no arithmetic, because a
@@ -546,9 +546,9 @@ class MarkerCensusTest(unittest.TestCase):
             {
                 "PARSES": 2,
                 "STRIPS": 2,
-                "SKIPS": 1,
+                "SKIPS": 2,
                 "READS-RAW-TEXT": 2,
-                "NEITHER": 14,
+                "NEITHER": 13,
             },
         )
 

@@ -20,12 +20,21 @@ it should not. Both breakages are therefore findings of their own.
     fenced-block scope depends on knowing where a fence ends, and the parser
     reads a fence with no partner as no fence at all, so every boundary below
     it is the wrong one.
+  * `done-marker-not-line-anchored` — a completion marker written behind a
+    lead-in. Section 24.6's census reads `^\\*\\*DONE`, and it anchors the
+    pattern for a reason it states: a `**DONE` inside a half-state table row
+    belongs to a half of a task. The anchor does that, and it also drops every
+    task-level marker written behind a lead-in, as a smaller number with
+    nothing to read as an error. Repairing a census leaves the next pattern
+    free to be wrong the same way; this removes the freedom, so a document this
+    lint passes is one on which the anchored form and the wide form of
+    `planlint.document` return the same set.
 
-Both are ERRORs. A document a lint cannot read correctly is not a document that
-passed.
+All three are ERRORs. A document a lint cannot read correctly is not a document
+that passed.
 """
 
-from planlint.document import FENCE, inline_code_spans
+from planlint.document import DONE_MARKER, FENCE, inline_code_spans
 from planlint.finding import ERROR, Finding, guard_no_input
 
 
@@ -87,6 +96,32 @@ def run(doc):
                     severity=ERROR,
                 )
             )
+
+    for marker in doc.done_markers:
+        if marker.anchored:
+            continue
+        task = doc.task(marker.task)
+        findings.append(
+            Finding(
+                rule="done-marker-not-line-anchored",
+                message=(
+                    "a completion marker does not open its line. A census "
+                    "anchored at the start of the line does not see it, and the "
+                    "shortfall arrives as a smaller number rather than as an "
+                    "error"
+                ),
+                task=marker.task,
+                section=task.section if task else "",
+                line=marker.line,
+                evidence=(
+                    f"line {marker.line} carries a `{DONE_MARKER}` marker that "
+                    f"does not open the line: `{marker.text}`. A census "
+                    "anchored at the start of the line reads this task as "
+                    "unmarked"
+                ),
+                severity=ERROR,
+            )
+        )
 
     opened = unclosed_fence_line(doc)
     if opened:

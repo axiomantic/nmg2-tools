@@ -130,6 +130,7 @@ def run(doc):
                     )
                 )
 
+    derived_any_wave = graph_cross_track_edges_any_wave(doc)
     derived = graph_cross_track_edges(doc)
     declared = declared_cross_track_edges(doc)
     tabled = table_cross_track_edges(doc)
@@ -139,6 +140,11 @@ def run(doc):
 
     findings.extend(_cross_track_table_set(doc, derived, tabled))
     examined += 1 if (derived or tabled or doc.cross_track_table) else 0
+
+    # The two stated sites are already counted as examined claims above. The
+    # widened reading is a second reading of the same two claims and not a
+    # third claim, so it adds no count.
+    findings.extend(_cross_wave_arrow_set(doc, derived_any_wave))
 
     findings.extend(_cross_track_claim(text, derived))
     examined += 1 if _cross_track_statement(text) else 0
@@ -168,13 +174,16 @@ def _in_one_wave(doc, source, target):
     return here is not None and there is not None and here[1] == there[1]
 
 
-def graph_cross_track_edges(doc):
+def graph_cross_track_edges_any_wave(doc):
     """`{(depender, dependency): line}` for every edge the `Depends:` GRAPH
-    holds whose two ends sit in different tracks and in one wave.
+    holds whose two ends sit in different tracks, in any wave.
 
     The line is the depending task's. An edge whose two ends share a track
-    crosses no track — a self-loop is that case — and an edge whose ends sit in
-    different waves is outside assertion 7's subject, so neither is here.
+    crosses no track — a self-loop is that case — so that one exclusion is
+    here and the wave is not.
+
+    An ARROW is held against this set. A row that states `A → B` is a claim
+    about A's `Depends:` line, and no wave excuses the claim from being true.
     """
     edges, _ = graph.build_edges(doc)
     out = {}
@@ -182,10 +191,22 @@ def graph_cross_track_edges(doc):
         for dependency in edges[task.ident]:
             if track_of(dependency) == task.track:
                 continue
-            if not _in_one_wave(doc, task.ident, dependency):
-                continue
             out[(task.ident, dependency)] = task.line
     return out
+
+
+def graph_cross_track_edges(doc):
+    """The same set narrowed to assertion 7's subject: both ends in one wave.
+
+    An edge whose ends sit in different waves is outside that subject. It is
+    not outside every subject — `_cross_wave_arrow_set` holds the stated form
+    of it against the wider set above.
+    """
+    return {
+        edge: line
+        for edge, line in graph_cross_track_edges_any_wave(doc).items()
+        if _in_one_wave(doc, *edge)
+    }
 
 
 def declared_cross_track_edges(doc):
@@ -223,9 +244,60 @@ def table_cross_track_edges(doc):
     return out
 
 
+def declared_cross_track_edges_across_waves(doc):
+    """Section 7.3's column, restricted to the rows the wave filter excludes.
+
+    Together with `declared_cross_track_edges` this partitions the column's
+    cross-track arrows, so an arrow is judged by exactly one rule and a reader
+    never gets the same edge reported twice.
+    """
+    return _edges_by_row(doc.cross_track_edges, doc, in_one_wave=False)
+
+
+def table_cross_track_edges_across_waves(doc):
+    """Section 7.4's table, restricted the same way, for the same reason."""
+    return _edges_by_row(doc.cross_track_table, doc, in_one_wave=False)
+
+
+def _edges_by_row(rows, doc, in_one_wave):
+    """`{(source, target): line}` for the rows on one side of the wave filter.
+
+    The line is the FIRST row that states the edge: an edge repeated across
+    rows is one edge. A row whose two ends share a track states no cross-track
+    edge and is on neither side.
+    """
+    out = {}
+    for row in rows:
+        if track_of(row.source) == track_of(row.target):
+            continue
+        if _in_one_wave(doc, row.source, row.target) is not in_one_wave:
+            continue
+        out.setdefault((row.source, row.target), row.line)
+    return out
+
+
 def _wave_phrase(doc, ident):
     label, order = doc.wave_of[ident]
     return f"both wave {label} (order {order})"
+
+
+def _wave_side(doc, ident):
+    placed = doc.wave_of.get(ident)
+    if placed is None:
+        return f"{ident} in no row of section 7.2's wave table"
+    label, order = placed
+    return f"{ident} in wave {label} (order {order})"
+
+
+def _wave_span(doc, source, target):
+    """Where the two ends sit, when they do not sit together.
+
+    An end the wave table places nowhere is named as such. That end is why the
+    span is spelled out per side rather than as one phrase: `_wave_phrase`
+    raises on it, and every in-wave rule is silent on it, which is one of the
+    ways a wrong arrow target stayed invisible.
+    """
+    return f"{_wave_side(doc, source)} and {_wave_side(doc, target)}"
 
 
 def _cross_track_set(doc, derived, declared):
@@ -326,6 +398,77 @@ def _cross_track_table_set(doc, derived, tabled):
                     f"section 7.4's table carries {source} → {target}, "
                     f"{_wave_phrase(doc, source)}; {source}'s `Depends:` line "
                     f"does not name {target}"
+                ),
+                severity=ERROR,
+            )
+        )
+    return findings
+
+
+def _cross_wave_arrow_set(doc, derived_any_wave):
+    """The two stated sites, held to the graph OUTSIDE assertion 7's subject.
+
+    The rules above judge an edge only when its two ends sit in one wave, so a
+    row that names a target the graph does not hold reports nothing as soon as
+    the edge crosses a wave. That is a true pass over a narrower subject and it
+    reads exactly like a clean one: the operands are non-empty and the count
+    agrees. It was the reading that let eight wrong arrow targets stand.
+
+    ONLY the direction that reads a STATED arrow is widened. Section 7.3's
+    opening lists a track's contract inputs once for the track and does not
+    repeat them per task, so the column omits cross-track graph edges in bulk
+    and by design; a rule widened the other way would report every one of those
+    omissions against a document obeying its own convention, and a rule that
+    fires on correct input is worse than no rule.
+
+    The limit, stated because the check does not establish what its name
+    suggests: this does NOT assert that either site is complete outside one
+    wave. It asserts only that what the two sites DO state is true.
+    """
+    findings = []
+    sections = {
+        (row.source, row.target): row.section for row in doc.cross_track_edges
+    }
+    declared = declared_cross_track_edges_across_waves(doc)
+    for source, target in sorted(set(declared) - set(derived_any_wave)):
+        findings.append(
+            Finding(
+                rule="cross-track-edge-not-in-graph-across-waves",
+                message=(
+                    "section 7.3's cross-track column states an edge across waves "
+                    "that no `Depends:` line declares"
+                ),
+                task=source,
+                section=sections.get((source, target), ""),
+                line=declared[(source, target)],
+                evidence=(
+                    f"section 7.3's cross-track column lists {source} → "
+                    f"{target}, {_wave_span(doc, source, target)}; {source}'s "
+                    f"`Depends:` line does not name {target}"
+                ),
+                severity=ERROR,
+            )
+        )
+
+    sections = {
+        (row.source, row.target): row.section for row in doc.cross_track_table
+    }
+    tabled = table_cross_track_edges_across_waves(doc)
+    for source, target in sorted(set(tabled) - set(derived_any_wave)):
+        findings.append(
+            Finding(
+                rule="cross-track-row-7-4-not-in-graph-across-waves",
+                message=(
+                    "section 7.4's table carries an edge across waves that no "
+                    "`Depends:` line declares"
+                ),
+                task=source,
+                section=sections.get((source, target), ""),
+                line=tabled[(source, target)],
+                evidence=(
+                    f"section 7.4's table carries {source} → {target}, "
+                    f"{_wave_span(doc, source, target)}; {source}'s `Depends:` "
+                    f"line does not name {target}"
                 ),
                 severity=ERROR,
             )

@@ -429,5 +429,116 @@ class OwnerAgainstLaterWriterTest(unittest.TestCase):
         )
 
 
+class MarkedSecondWriteTest(unittest.TestCase):
+    """Section 1.1.1 rule D: a MARKED `Files:` entry is not a claim of
+    ownership.
+
+    `<path>@<OWNER-ID>` says the file belongs to `<OWNER-ID>` and that this task
+    only changes it. The creator lookup compared the marked spelling as written
+    and matched on the stem anyway — `t0_beta.cpp@BBB-1` splits at the LAST dot
+    — so the second writer was read as the task that CREATES the source, and
+    the owner was then reported for not reaching its own second writer.
+
+    The repair a reader reaches for is to drop the marker, and it is wrong
+    twice: section 7.6 assertion 8 REQUIRES the marker on a second writer, and
+    an unmarked pair is two bare claimants, which section 7.4.2 condition 10
+    classes as the worse defect. The artifact is right and the signal is wrong.
+
+    Both directions are asserted. `has_marker` is what excuses the entry, so an
+    entry that carries NO marker is still a creation and still has to be
+    reachable — otherwise this trades a false positive for a false negative,
+    and the second class is the one nobody sees.
+    """
+
+    MARKED = (
+        "### 7.4.2 Every shared file has one owner\n"
+        "\n"
+        "| Path | Owner |\n"
+        "|---|---|\n"
+        "| `alpha/test/CMakeLists.txt` | **AAA-0** |\n"
+        "| `alpha/test/t0_beta.cpp` | **BBB-1** |\n"
+        "\n"
+        "## 9. The tasks\n"
+        "\n"
+        "**AAA-0 · The registrar** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`\n"
+        "Design: 1\n"
+        "Depends: none\n"
+        "Check: `cmake -S . -B build` succeeds and the configured tree holds "
+        "`build/alpha/test/CTestTestfile.cmake`.\n"
+        "\n"
+        "**BBB-1 · The owner of the test source** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`, `alpha/test/t0_beta.cpp`\n"
+        "Design: 2\n"
+        "Depends: AAA-0\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_beta$`. "
+        "Registered with `add_test(NAME t0_beta ...)`.\n"
+        "\n"
+        "**CCC-1 · The declared second writer of that source** — T0\n"
+        "Files: `alpha/test/CMakeLists.txt`, `alpha/test/t0_gamma.cpp`, "
+        "`alpha/test/t0_beta.cpp@BBB-1`\n"
+        "Design: 3\n"
+        "Depends: AAA-0, BBB-1\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_gamma$`. "
+        "Registered with `add_test(NAME t0_gamma ...)`.\n"
+    )
+
+    # The one character that carries rule D, removed. Nothing else moves, so
+    # the marker is the only thing the pair of documents differs by.
+    UNMARKED = MARKED.replace(
+        "`alpha/test/t0_beta.cpp@BBB-1`", "`alpha/test/t0_beta.cpp`"
+    )
+
+    def marked(self):
+        return PlanDocument.from_text(self.MARKED, name="inline")
+
+    def unmarked(self):
+        return PlanDocument.from_text(self.UNMARKED, name="inline")
+
+    def test_a_marked_entry_creates_nothing(self):
+        self.assertEqual(
+            [
+                (task.ident, item)
+                for task, item in registrar.creators_of(self.marked(), "t0_beta")
+            ],
+            [("BBB-1", "alpha/test/t0_beta.cpp")],
+        )
+
+    def test_the_owner_is_not_reported_for_failing_to_reach_its_second_writer(self):
+        self.assertEqual(registrar.run(self.marked()).findings, [])
+
+    def test_the_marked_document_examines_both_names(self):
+        """An empty examination would make the assertion above pass while
+        reading nothing at all."""
+        self.assertEqual(registrar.run(self.marked()).examined, 2)
+
+    def test_an_unmarked_second_write_is_still_a_creation(self):
+        self.assertEqual(
+            [
+                (task.ident, item)
+                for task, item in registrar.creators_of(self.unmarked(), "t0_beta")
+            ],
+            [("BBB-1", "alpha/test/t0_beta.cpp"), ("CCC-1", "alpha/test/t0_beta.cpp")],
+        )
+
+    def test_an_unmarked_second_write_outside_the_closure_is_still_reported(self):
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.severity, f.evidence)
+                for f in registrar.run(self.unmarked()).findings
+            ],
+            [
+                (
+                    "creator-outside-closure",
+                    "BBB-1",
+                    ERROR,
+                    "-R t0_beta needs CCC-1, which creates "
+                    "`alpha/test/t0_beta.cpp`; CCC-1 is not in BBB-1's "
+                    "dependency closure",
+                )
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

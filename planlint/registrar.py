@@ -19,6 +19,7 @@ without editing.
 """
 
 from planlint import checks, graph
+from planlint.document import has_marker
 from planlint.finding import ERROR, Finding, guard_no_input
 
 
@@ -50,12 +51,31 @@ def creators_of(doc, name):
     An EMPTY name matches nothing. A `Files:` entry naming a directory has an
     empty basename, and matching it would resolve `-R ^$` to a task that creates
     no test at all.
+
+    A MARKED entry creates nothing. Section 1.1.1 rule D says a marked entry is
+    not a claim of ownership: `<path>@<OWNER-ID>` names the file's owner and
+    declares that THIS task only changes it. The marker sits after the suffix,
+    so `t0_beta.cpp@BBB-1` still splits to the stem `t0_beta` and the second
+    writer was read as the creator — which reported the OWNER for not reaching
+    its own second writer, on the one form section 7.6 assertion 8 requires.
+
+    SKIP and not STRIP, for the reason `checks._shared_paths` skips: the owner
+    declares the file on a line of its own, so skipping loses no creator, while
+    stripping would put the second writer back into the answer under a
+    different spelling. Where NO unmarked entry names the file, the lookup is
+    empty and `registrar-unknown` reports it — loudly, and as the defect it is.
+
+    An UNMARKED second write is untouched. It is a bare claim of ownership over
+    a file another task also claims, and it stays a creation that has to be
+    reachable.
     """
     if not name:
         return []
     out = []
     for task in doc.tasks:
         for item in task.files_items:
+            if has_marker(item):
+                continue
             base = item.rsplit("/", 1)[-1]
             if not base:
                 continue

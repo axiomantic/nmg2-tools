@@ -98,8 +98,10 @@ DOCUMENT_RULES = frozenset(
         "cross-track-edge-count-mismatch",
         "cross-track-edge-missing-from-7-4",
         "cross-track-edge-not-in-graph",
+        "cross-track-edge-not-in-graph-across-waves",
         "cross-track-edge-undeclared",
         "cross-track-row-7-4-not-in-graph",
+        "cross-track-row-7-4-not-in-graph-across-waves",
         "total-count-mismatch",
         "total-is-not-the-sum",
         "track-count-mismatch",
@@ -117,6 +119,7 @@ DOCUMENT_RULES = frozenset(
         "symbol-producer-unreachable",
         "target-producer-unreachable",
         # structure
+        "done-marker-not-line-anchored",
         "unclosed-fence",
         "unmatched-backtick",
     }
@@ -132,7 +135,10 @@ MUTATIONS = [
         "reports a second result.**",
         "Depends: CCC-1. **CONDITIONAL: this task exists only if the probe "
         "reports a second result.**",
-        {"dependency-cycle"},
+        # The edit takes AAA-2 off CCC-2's line, and section 7.3's column still
+        # states `CCC-2 → AAA-2`. Those two ends sit in different waves, so the
+        # in-wave rule is silent and the across-waves one is what sees it.
+        {"dependency-cycle", "cross-track-edge-not-in-graph-across-waves"},
     ),
     (
         "a task naming itself",
@@ -198,7 +204,13 @@ MUTATIONS = [
         "a T0 task waiting on a T1 task",
         "Depends: CCC-2, AAA-2.",
         "Depends: CCC-2, BBB-1.",
-        {"t0-depends-t1"},
+        # AAA-2 comes off CCC-1's line, and both stated sites still carry
+        # `CCC-1 → AAA-2` across a wave boundary.
+        {
+            "t0-depends-t1",
+            "cross-track-edge-not-in-graph-across-waves",
+            "cross-track-row-7-4-not-in-graph-across-waves",
+        },
     ),
     (
         "a Depends range swallowing a higher tier",
@@ -353,6 +365,19 @@ MUTATIONS = [
         "| Beta | BBB-1 | Delta | DDD-1 | behaviour | **2 → 2, inside one wave** |",
         {"cross-track-row-7-4-not-in-graph"},
     ),
+    (
+        "a section 7.3 row for an edge across waves no `Depends:` line declares",
+        "| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |",
+        "| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |\n| Epsilon | Alpha | EEE-1 → AAA-1 |",
+        {"cross-track-edge-not-in-graph-across-waves"},
+    ),
+    (
+        "a section 7.4 row for an edge across waves no `Depends:` line declares",
+        "| Gamma | CCC-1 | Alpha | AAA-2 | behaviour | 3 → 2 |",
+        "| Gamma | CCC-1 | Alpha | AAA-2 | behaviour | 3 → 2 |\n"
+        "| Epsilon | EEE-1 | Alpha | AAA-1 | behaviour | 4 → 1 |",
+        {"cross-track-row-7-4-not-in-graph-across-waves"},
+    ),
     # ---------------------------------------------------------------- anchors
     (
         "an anchored restatement of a figure the graph no longer holds",
@@ -445,6 +470,12 @@ MUTATIONS = [
         "The suite carries a failing case of its own. The forwarding flag is "
         "spelled `--group.",
         {"unmatched-backtick"},
+    ),
+    (
+        "a completion marker written behind a lead-in",
+        "`add_test(NAME t0_eta ...)`.",
+        "`add_test(NAME t0_eta ...)`.\nNote: **DONE on 2026-01-01, commit `0000000`.**",
+        {"done-marker-not-line-anchored"},
     ),
     (
         "a fenced block opened and never closed",
@@ -542,10 +573,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 48)
+        self.assertEqual(len(MUTATIONS), 51)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 49)
+        self.assertEqual(len(rules_the_lints_emit()), 52)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

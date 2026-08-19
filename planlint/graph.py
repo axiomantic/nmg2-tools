@@ -14,7 +14,7 @@ becomes an edge.
 import dataclasses
 import re
 
-from planlint.document import RANGE, strip_markup
+from planlint.document import RANGE, sentences, strip_markup
 from planlint.finding import ERROR, Finding, guard_no_input
 
 IDENT_ONLY = re.compile(r"^[A-Z]{2,6}-\d+$")
@@ -27,11 +27,6 @@ IDENT_ANY = re.compile(r"\b[A-Z]{2,6}-\d+\b")
 MARKERS = ("PENDING", "CONDITIONAL", "WAVE", "OPERATOR", "THROWAWAY", "BLOCKED-ON-DESIGN")
 
 
-def _sentences(text):
-    parts = re.split(r"(?<=\.)\s+", text.strip())
-    return [p for p in parts if p.strip()]
-
-
 def parse_depends(text):
     """Split a `Depends:` value into declared edges and prose findings.
 
@@ -42,7 +37,7 @@ def parse_depends(text):
     if not plain or plain.lower().rstrip(".") in ("none", "nothing"):
         return [], []
 
-    sentences = _sentences(plain)
+    parts = sentences(plain)
     edges = []
     findings = []
     seen = set()
@@ -52,7 +47,7 @@ def parse_depends(text):
             seen.add(ident)
             edges.append(ident)
 
-    for item in sentences[0].split(","):
+    for item in parts[0].split(","):
         item = item.strip().rstrip(".").strip()
         if not item:
             continue
@@ -101,7 +96,7 @@ def parse_depends(text):
                 )
             )
 
-    for sentence in sentences[1:]:
+    for sentence in parts[1:]:
         stripped = sentence.strip()
         if stripped.upper().startswith(MARKERS):
             continue
@@ -142,11 +137,11 @@ def depends_ranges(text):
     licence, and it must not swallow a higher tier or a conditional task.
     """
     plain = strip_markup(text)
-    sentences = _sentences(plain)
-    if not sentences:
+    parts = sentences(plain)
+    if not parts:
         return {}
     out = {}
-    for item in sentences[0].split(","):
+    for item in parts[0].split(","):
         item = item.strip().rstrip(".").strip()
         match = RANGE.match(item)
         if not match:

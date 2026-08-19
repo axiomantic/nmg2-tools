@@ -92,6 +92,81 @@ class UnclosedFenceTest(unittest.TestCase):
         )
 
 
+class DoneMarkerFormTest(unittest.TestCase):
+    """A completion marker a line-anchored pattern cannot see.
+
+    Section 24.6 row W3-20 takes a marker census with `/^\\*\\*DONE/` and states
+    why the anchor is there: it must read task-level markers only and never a
+    `**DONE` inside a half-state table row. The anchor does that, and it also
+    misses every task-level marker written behind a lead-in — silently, as a
+    smaller number.
+
+    Repairing the count would leave the next pattern free to be wrong the same
+    way. This rule removes the freedom: a marker the anchored form misses is a
+    finding, so a document this lint passes is a document on which the anchored
+    form and the wide form return the same set.
+    """
+
+    def doc(self, body):
+        return PlanDocument.from_text(
+            "## 9. The tasks\n"
+            "\n"
+            "**DSP-2 · The two new DMA request sources** — T0\n"
+            "Files: `src/dma.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_dma`\n"
+            f"{body}\n",
+            name="inline",
+        )
+
+    def test_a_marker_that_does_not_open_its_line_is_reported(self):
+        result = structure.run(
+            self.doc("Note: **DONE on 2026-08-06, commit `51903e5c`.**")
+        )
+
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.evidence)
+                for f in result.findings
+            ],
+            [
+                (
+                    "done-marker-not-line-anchored",
+                    "DSP-2",
+                    "9. The tasks",
+                    7,
+                    "ERROR",
+                    "line 7 carries a `**DONE` marker that does not open the "
+                    "line: `Note: **DONE on 2026-08-06, commit `51903e5c`.**`. "
+                    "A census anchored at the start of the line reads this "
+                    "task as unmarked",
+                )
+            ],
+        )
+
+    def test_a_marker_that_opens_its_line_is_not_reported(self):
+        result = structure.run(self.doc("**DONE on 2026-08-06, commit `51903e5c`.**"))
+
+        self.assertEqual(result.findings, [])
+
+    def test_a_marker_inside_a_table_row_is_not_reported(self):
+        """The exclusion W3-20 states in its own words. REPO-15's half-state
+        rows carry a `**DONE` that belongs to a half of the task, and a rule
+        that reported them would fire on the one case the anchor exists for."""
+        result = structure.run(
+            self.doc(
+                "| Half | State | Evidence |\n"
+                "|---|---|---|\n"
+                "| The operator-gated extraction | **DONE** | one commit |"
+            )
+        )
+
+        self.assertEqual(result.findings, [])
+
+    def test_the_clean_plan_reports_no_marker_finding(self):
+        self.assertEqual(run("clean_plan.md").findings, [])
+
+
 class NoInputTest(unittest.TestCase):
     def test_a_document_with_no_task_block_is_a_hard_error(self):
         result = structure.run(

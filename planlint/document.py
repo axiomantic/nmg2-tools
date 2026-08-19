@@ -37,6 +37,15 @@ TABLE_RULE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 MILESTONE_CELL = re.compile(r"^\*\*(M\d+)\*\*$")
 RANGE = re.compile(r"^([A-Z]{2,6})-(\d+) +to +([A-Z]{2,6})-(\d+)$")
 
+# Section 1.4's completion marker, as the plan writes it. The census of section
+# 24.6 anchors this at the start of a line; `_scan_done_markers` does not, and
+# `planlint.structure` reports the difference.
+DONE_MARKER = "**DONE"
+
+# The plan opens an annotation with an em dash. A task header does too, which is
+# why `TASK_HEADER` carries one; here it ends a list of identifiers.
+EM_DASH = "—"
+
 TEST_SOURCE_SUFFIXES = (".cpp", ".c", ".cc", ".nim", ".py")
 
 # Section 1.1.1 rule B: inside the `gearmulator` fork some directories are
@@ -153,6 +162,24 @@ def strip_markup(text):
     text = text.replace("**", "")
     text = text.replace("`", "")
     return " ".join(text.split())
+
+
+def sentences(text):
+    """`text` split at a full stop that whitespace follows.
+
+    The plan writes a list of identifiers and then, often, a sentence about the
+    list. A `Depends:` line does it and so does a section 7.3 cell, and a
+    reader that harvests every identifier below the list makes an edge out of
+    the sentence. Both readers therefore take the list from the FIRST sentence
+    and read what follows as prose, out of one splitter, so that the two agree
+    about the same document.
+
+    The stop must be followed by whitespace, so `2026-08-17` and `§7.4.2` split
+    nothing. A sentence with no identifier in it is not the subject here: it
+    yields no edge either way.
+    """
+    parts = re.split(r"(?<=\.)\s+", text.strip())
+    return [part for part in parts if part.strip()]
 
 
 # ------------------------------------------------------- the backtick scanner
@@ -272,6 +299,23 @@ class FixtureRow:
 
 
 @dataclasses.dataclass(frozen=True)
+class DoneMarker:
+    """One completion marker inside a task body.
+
+    `anchored` records whether the marker OPENS its line, which is the form the
+    section 24.6 census pattern requires. The distinction is recorded and not
+    enforced here: this reader's job is to find every marker whatever its
+    spelling, and `planlint.structure` is what reports one an anchored pattern
+    would miss.
+    """
+
+    task: str
+    line: int
+    text: str
+    anchored: bool
+
+
+@dataclasses.dataclass(frozen=True)
 class CrossTrackRow:
     """One edge section 7.3's cross-track column states."""
 
@@ -385,6 +429,7 @@ class PlanDocument:
         self.owned_paths = {}
         self.cross_track_edges = []
         self.cross_track_table = []
+        self.done_markers = []
         self.count_rows = []
         self.stated_total_tasks = None
         self._parse()
@@ -406,6 +451,7 @@ class PlanDocument:
         self._scan_fences()
         self._scan_headings()
         self._scan_tasks()
+        self._scan_done_markers()
         self._scan_tables()
 
     def _scan_fences(self):
@@ -494,6 +540,35 @@ class PlanDocument:
             self._fill_fields(task, index + 1, end)
             self.tasks.append(task)
             self._by_ident[ident] = task
+
+    def _scan_done_markers(self):
+        """Every completion marker a task body carries, however it is spelled.
+
+        The scan is WIDE on purpose. Section 24.6's census reads `^\\*\\*DONE`,
+        and the anchor is there for a reason it states: a `**DONE` inside a
+        half-state table row belongs to a half of a task and not to the task.
+        The anchor does that, and it also drops every task-level marker written
+        behind a lead-in — as a smaller number, with nothing to read as an
+        error. This reader keeps both kinds and records which form each is in.
+
+        Two exclusions and no third: a fenced block is a quotation, and a table
+        row is the case the anchor exists for.
+        """
+        for task in self.tasks:
+            for offset, text in enumerate(task.body_text.split("\n")):
+                if DONE_MARKER not in text:
+                    continue
+                index = task.line + offset - 1
+                if self._in_fence(index) or TABLE_ROW.match(text):
+                    continue
+                self.done_markers.append(
+                    DoneMarker(
+                        task=task.ident,
+                        line=index + 1,
+                        text=text,
+                        anchored=text.startswith(DONE_MARKER),
+                    )
+                )
 
     def _fill_fields(self, task, start, end):
         """Read the four fields. `Check:` is a BLOCK and runs to `end`."""
@@ -671,6 +746,25 @@ class PlanDocument:
     def _read_cross_track_table(self, body, section):
         """Section 7.3: `A -> B, C; D -> E` is three edges, not two tokens.
 
+        The target list ends at the SENTENCE or at an EM DASH, whichever comes
+        first. A cell states its groups and then explains them, and a reader
+        that took every identifier below the arrow absorbed the explanation
+        into the last group: the explanation's identifiers became targets of a
+        real source, so the invented edges were the shape of true ones and
+        nothing about them read as malformed. The cell that says an edge
+        "reaches BRD-0 through SCH-4" produced that edge, and a cell whose note
+        names its own subject produced a self-loop that every cross-track
+        filter then dropped in silence.
+
+        Both delimiters are needed and both are the plan's own typography: the
+        note follows a full stop in some cells and an em dash in others, and
+        each spelling produced a self-loop of its own.
+
+        The LIMIT: a note joined to the list by neither — by `and`, say — is
+        still absorbed. What defends the reader there is that the invented edge
+        must then also survive the cross-track and cross-wave rules, which now
+        hold every stated arrow against the graph.
+
         The row LINE and the section are carried on every edge. A finding that
         says the column states an edge the graph does not hold has to send a
         reader to the row that states it, and the heading of section 7.3 is
@@ -687,7 +781,9 @@ class PlanDocument:
                 if not sources:
                     continue
                 source = sources[-1]
-                for target in re.findall(r"[A-Z]{2,6}-\d+", tail):
+                listed = sentences(tail)
+                stated = listed[0].partition(EM_DASH)[0] if listed else ""
+                for target in re.findall(r"[A-Z]{2,6}-\d+", stated):
                     self.cross_track_edges.append(
                         CrossTrackRow(
                             source=source,
