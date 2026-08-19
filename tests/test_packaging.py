@@ -35,6 +35,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
 
     assert committed == [
         "__init__.py",
+        "anchors.py",
         "checks.py",
         "cli.py",
         "closure.py",
@@ -52,7 +53,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
     ]
 
 
-def test_planlint_cli_exposes_the_eleven_lints():
+def test_planlint_cli_exposes_the_twelve_lints():
     from planlint import cli
 
     # `structure` runs FIRST. Every lint below it reads a parsed document, so
@@ -65,6 +66,7 @@ def test_planlint_cli_exposes_the_eleven_lints():
         "tiers",
         "checks",
         "counts",
+        "anchors",
         "implicit",
         "registrar",
         "rule9",
@@ -78,6 +80,7 @@ def test_planlint_cli_exposes_the_eleven_lints():
         "tiers",
         "checks",
         "counts",
+        "anchors",
         "implicit",
         "registrar",
         "rule9",

@@ -443,6 +443,15 @@ class PlanDocument:
             if match:
                 self._headings.append((index, match.group("text")))
 
+    def section_at(self, line):
+        """The heading a 1-based LINE number sits under.
+
+        A `Finding` carries a 1-based line, so a lint that builds one out of a
+        line rather than out of a task block needs this form and not the
+        0-based index the parser uses internally.
+        """
+        return self._section_at(line - 1)
+
     def _section_at(self, index):
         found = ""
         for line_index, text in self._headings:

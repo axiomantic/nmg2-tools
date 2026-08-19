@@ -388,5 +388,22 @@ class PathAbbreviationTest(unittest.TestCase):
         self.assertFalse(doc.has_owner("source/nord/g2/g2Lib/shared.cpp"))
 
 
+class SectionAtTest(unittest.TestCase):
+    """The heading a line sits under, by the 1-based line number a `Finding`
+    carries. A finding built from a line and not from a task block needs it."""
+
+    def test_a_line_number_yields_the_heading_it_sits_under(self):
+        doc = load_fixture("clean_plan.md")
+
+        self.assertEqual(doc.section_at(44), "7.3 The cross-track edges")
+        self.assertEqual(doc.section_at(109), "9. The tasks")
+
+    def test_a_line_above_every_heading_sits_under_no_section(self):
+        doc = PlanDocument.from_text("preamble\n\n## 1. First\n\nbody\n", name="inline")
+
+        self.assertEqual(doc.section_at(1), "")
+        self.assertEqual(doc.section_at(5), "1. First")
+
+
 if __name__ == "__main__":
     unittest.main()

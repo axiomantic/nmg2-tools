@@ -26,6 +26,7 @@ import unittest
 from tests.planlint.support import fixture_path
 
 from planlint import (
+    anchors,
     checks,
     closure,
     counts,
@@ -40,6 +41,7 @@ from planlint.document import PlanDocument
 
 LINTS = {
     "structure": structure.run,
+    "anchors": anchors.run,
     "graph": graph.run,
     "waves": waves.run,
     "tiers": tiers.run,
@@ -58,6 +60,11 @@ CLEAN_CHECK_TARGETS = fixture_path("clean_check_targets.txt")
 # meta-test reads the same set out of the lint source and compares.
 DOCUMENT_RULES = frozenset(
     {
+        # anchors
+        "derived-figure-stale",
+        "derived-figure-unanchored",
+        "derived-figure-unknown-key",
+        "derived-figure-unparsed",
         # graph
         "dependency-cycle",
         "depends-prose",
@@ -200,6 +207,7 @@ MUTATIONS = [
         "Check: `ctest --test-dir build --no-tests=error -R t1_gamma`",
         {
             "range-holds-higher-tier",
+            "derived-figure-stale",
             "cross-track-edge-count-mismatch",
             "cross-track-edge-not-in-graph",
             "cross-track-edge-undeclared",
@@ -345,6 +353,25 @@ MUTATIONS = [
         "| Beta | BBB-1 | Delta | DDD-1 | behaviour | **2 → 2, inside one wave** |",
         {"cross-track-row-7-4-not-in-graph"},
     ),
+    # ---------------------------------------------------------------- anchors
+    (
+        "an anchored restatement of a figure the graph no longer holds",
+        "-->two of them.",
+        "-->three of them.",
+        {"derived-figure-stale"},
+    ),
+    (
+        "an anchored token that is no number this tool reads",
+        "-->two of them.",
+        "-->several of them.",
+        {"derived-figure-unparsed"},
+    ),
+    (
+        "an anchor whose key names a figure the tool does not compute",
+        "derived: cross-track-edge-count -->two",
+        "derived: cross-track-edge-kount -->two",
+        {"derived-figure-unknown-key", "derived-figure-unanchored"},
+    ),
     # --------------------------------------------------------------- implicit
     (
         "an artifact read with no declared edge",
@@ -373,6 +400,7 @@ MUTATIONS = [
         "Depends: none\nCheck: `ctest --test-dir build --no-tests=error -R t1_gamma`",
         {
             "registrar-outside-closure",
+            "derived-figure-stale",
             "cross-track-edge-count-mismatch",
             "cross-track-edge-not-in-graph",
             "cross-track-row-7-4-not-in-graph",
@@ -466,7 +494,7 @@ def rules_the_lints_emit():
     out = set()
     for module in (
         graph, waves, tiers, checks, counts, implicit, registrar, closure,
-        structure,
+        structure, anchors,
     ):
         out |= rules_in_source(module)
     return out
@@ -514,16 +542,16 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 45)
+        self.assertEqual(len(MUTATIONS), 48)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 45)
+        self.assertEqual(len(rules_the_lints_emit()), 49)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
             "graph": graph, "waves": waves, "tiers": tiers, "checks": checks,
             "counts": counts, "implicit": implicit, "registrar": registrar,
-            "closure": closure, "structure": structure,
+            "closure": closure, "structure": structure, "anchors": anchors,
         }
         self.assertEqual(
             sorted(

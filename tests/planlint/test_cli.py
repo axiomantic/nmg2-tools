@@ -26,6 +26,23 @@ class ExitCodeTest(unittest.TestCase):
         self.assertIn("graph: clean", text)
         self.assertIn("ALL LINTS CLEAN", text)
 
+    def test_the_anchors_lint_runs_in_the_default_set_and_states_its_count(self):
+        code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertEqual(code, 0)
+        self.assertIn("anchors: clean (1 anchored figures examined)", text)
+
+    def test_a_stale_anchored_figure_exits_non_zero_and_names_the_rule(self):
+        """The whole path, end to end: a written figure that disagrees with the
+        derivation reaches the exit code and the report line a caller acts on."""
+        code, text = run(
+            ["--plan", str(fixture_path("neg_anchors.md")), "--only", "anchors"]
+        )
+
+        self.assertEqual(code, 1)
+        self.assertIn("[ERROR] derived-figure-stale", text)
+        self.assertIn("RESULT: findings reported. See each rule above.", text)
+
     def test_a_plan_with_a_cycle_exits_non_zero(self):
         code, text = run(["--plan", str(fixture_path("neg_graph_cycle.md"))])
 

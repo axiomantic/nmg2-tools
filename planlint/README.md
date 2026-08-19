@@ -59,6 +59,8 @@ Severity orders the report. It never excuses a finding from the exit code.
 | 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in separate buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
 | 10 | `structure` | The markup the other lints parse. A task body carrying a backtick with no partner on its own line, and a fenced block opened and never closed. **A parse failure is a finding, never a quiet degradation.** | 7.7 |
 
+| 11 | `anchors` | Every ANCHORED prose restatement of a figure the tool derives equals the derived value. The anchor is an HTML comment beside the written number, so the check reads the restatements a plan MARKS and never scans prose for numbers. It also reports the anchor count, a key it cannot compute, a token it cannot read, and a derived figure no anchor names at all. | 7.6 assertion 7 |
+
 `structure` runs FIRST. Every lint below it reads a parsed document, so a
 broken fence is the cause and everything else is the consequence.
 
@@ -95,6 +97,52 @@ It stays visible, and `structure` reports it under `unclosed-fence`.
 The scanner is `planlint.document.inline_code_spans`. `closure`, `checks` and
 the `Files:` and table readers of `document` all read through it, so no consumer
 carries a second, private notion of what a quoted span is.
+
+### What the anchor deliberately does not reach — lint 11
+
+A figure the tool DERIVES may also be written out in prose, and until this lint
+the prose was invisible: the derivation was right, the derived value was pinned
+at both of its sites, and three separate sentences still restated a number the
+graph had stopped holding. A stale claim read exactly like a current one.
+
+The prose is reached through an ANCHOR:
+
+```
+<!-- derived: cross-track-edge-count -->Fifteen cross-track edges ...
+```
+
+The anchor is an HTML comment. Measured against `markdown-it-py` 4.2.0 in
+CommonMark mode: with raw HTML enabled the anchor reaches the output as a
+comment and the paragraph reads exactly as it would without it, and with raw
+HTML disabled it is escaped and the reader sees it. The plan's renderer passes
+raw HTML through. The checked token is the run of letters and digits
+IMMEDIATELY after the closing `-->`, so one anchor marks exactly one figure and
+the marking is decidable. English number words are read as well as digits, from
+the bounded list `counts.WORDS`; a token outside it is REPORTED and never
+skipped.
+
+**The alternative was a scan for numbers, and it is rejected because it cannot
+decide what it is looking at.** `W3` holds a digit and states no figure, and a
+pattern cannot tell the two apart without reading the sentence. The same class
+has been paid for in this project by an alternation that named four log levels
+and excluded a fifth spelling, and by a `^### ` locator run against blocks whose
+headings are bold lines. What such a scanner buys is COMPLETENESS, and
+completeness is not what makes a check trustworthy — a confident wrong answer
+is worse than a narrow right one.
+
+**So the trade is completeness for decidability, and it is DECLARED rather than
+hidden.** Three mechanisms declare it:
+
+  * the lint reports how many anchors it examined, on a clean run as well as a
+    red one, so an anchor set that silently shrinks is visible in the report;
+  * an empty anchor set is a hard error through the `no-input` guard, so a lint
+    that found nothing to check never reads as "all clear";
+  * a derived key that NO anchor names is its own finding, so registering a new
+    derived figure without anchoring its prose is loud.
+
+**What it does not reach: an unanchored sentence.** A number typed into prose
+with no anchor beside it is outside this lint entirely, and no rule reports it.
+That is the residual, and it is the price of never reporting a false one.
 
 ### How the check lint reads the document
 
@@ -175,7 +223,7 @@ reports it. A lint with no negative fixture is not done.
 
 | Fixture | The defect it carries |
 |---|---|
-| `clean_plan.md` | None. The baseline every lint must report clean. It also carries, on purpose, the shapes a mutation needs: an abbreviated path and a canonical one that name one file, an anchored `-R` argument, a shell-quoted anchored argument, a directory owner row and a file owner row, an exported build target with a reachable consumer, a header with a reachable consumer, a qualified type name a check reads, and a build option one task declares OFF and another turns ON. |
+| `clean_plan.md` | None. The baseline every lint must report clean. It also carries, on purpose, the shapes a mutation needs: an abbreviated path and a canonical one that name one file, an anchored `-R` argument, a shell-quoted anchored argument, a directory owner row and a file owner row, an exported build target with a reachable consumer, a header with a reachable consumer, a qualified type name a check reads, a build option one task declares OFF and another turns ON, and an anchored restatement of the derived cross-track edge count. |
 | `neg_graph_cycle.md` | Two tasks waiting on each other. |
 | `neg_graph_self_loop.md` | A task naming itself. |
 | `neg_graph_unknown_dep.md` | An undefined identifier, and a range running past the last task. |
@@ -186,6 +234,7 @@ reports it. A lint with no negative fixture is not done.
 | `neg_check_orphan_test.md` | A test file created and never invoked, in C++ and in Python. |
 | `neg_check_repos_and_paths.md` | A repository outside section 3.1, and a path two tasks claim with no owner. |
 | `pos_check_multiline_transcript.md` | **No defect.** It proves the false positives do not occur: a multi-line check block, and a deliberate transcript counter-example. |
+| `neg_anchors.md` | An anchored figure the graph no longer holds, an anchor marking a word that is no number, and an anchor naming a key the tool does not compute. The fourth rule — a derived key NO anchor names — cannot co-occur with these in one document, so it is asserted against documents built in the test. |
 | `neg_counts.md` | A wrong track count, a wrong total, a wrong sum, a wrong conditional count, a wrong cross-track count, an in-wave cross-track edge section 7.3 omits, a section 7.3 row no `Depends:` line declares, and NO section 7.4 table at all. |
 | `neg_implicit_dependency.md` | An undeclared consumer of a created directory, and the undeclared edge that would close a cycle. |
 | `neg_registrar_unreachable.md` | A registrar and a creator outside the depending task's closure. |
@@ -272,6 +321,7 @@ signal. It is not a gate.
 | 14 | **Table recognition is by exact header text and exact cell shape.** | Remove the bold from a milestone cell, and the row and its defects leave the scope in silence. The fixture register and the total row fail the same way. |
 | 15 | **Shared-path detection is exact-string only.** | A glob and a file that name one artifact never collide. Any owner row that ends in `/` silences every finding beneath it. |
 | 16 | **Test-file recognition is a naming convention over a fixed suffix list.** | A test file named otherwise is exempt from the reverse direction. |
+| 17 | **A restatement of a derived figure that carries no anchor.** | Lint 11 reads anchored restatements only. An unanchored number in prose is outside it, deliberately: the scan that would reach it cannot tell the `3` of `W3` from a figure. The anchor count in the report is what keeps the residual visible. |
 
 ### What the closure heuristic cannot see
 

@@ -16,6 +16,7 @@ import pathlib
 import sys
 
 from planlint import (
+    anchors,
     checks,
     closure,
     counts,
@@ -44,6 +45,7 @@ DOCUMENT_LINTS = {
     "tiers": tiers.run,
     "checks": checks.run,
     "counts": counts.run,
+    "anchors": anchors.run,
     "implicit": implicit.run,
     "registrar": registrar.run,
     "rule9": rule9.run,

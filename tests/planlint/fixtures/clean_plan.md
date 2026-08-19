@@ -55,7 +55,7 @@ Assertion 7. There are two edges in the column below whose source and whose targ
 The same edges, stated a second time with what each one is. A row whose two ends
 share a track crosses no track, and a row whose two ends sit in different waves
 is outside assertion 7's subject; one of each is here, so that dropping either
-filter reddens this document.
+filter reddens this document. The graph holds <!-- derived: cross-track-edge-count -->two of them.
 
 | From (track) | Task | To (track) | Task | Kind | Where the recut puts it |
 |---|---|---|---|---|---|
