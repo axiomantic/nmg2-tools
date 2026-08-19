@@ -102,14 +102,21 @@ carries a second, private notion of what a quoted span is.
 
 A figure the tool DERIVES may also be written out in prose, and until this lint
 the prose was invisible: the derivation was right, the derived value was pinned
-at both of its sites, and three separate sentences still restated a number the
-graph had stopped holding. A stale claim read exactly like a current one.
+at both of its sites, and two separate sentences still restated a number the
+graph had stopped holding — one said eleven and one said ten while the graph
+held sixteen. A stale claim read exactly like a current one. Both were corrected
+and both now carry an anchor.
 
 The prose is reached through an ANCHOR:
 
 ```
-<!-- derived: cross-track-edge-count -->Fifteen cross-track edges ...
+... it is one of the <!-- derived: cross-track-edge-count -->sixteen edges
+section 7.6 assertion 7 counts.
 ```
+
+That is section 14.3's sentence, one of the two. It is a restatement because its
+SUBJECT is the edge set assertion 7 counts, and not merely because it holds a
+number.
 
 The anchor is an HTML comment. Measured against `markdown-it-py` 4.2.0 in
 CommonMark mode: with raw HTML enabled the anchor reaches the output as a
@@ -143,6 +150,24 @@ hidden.** Three mechanisms declare it:
 **What it does not reach: an unanchored sentence.** A number typed into prose
 with no anchor beside it is outside this lint entirely, and no rule reports it.
 That is the residual, and it is the price of never reporting a false one.
+
+**The counter-example: what an anchor must NOT be attached to.** A third
+sentence was considered at the same pass and deliberately left alone. Section
+7.4 opens with *"Fifteen cross-track edges exist inside or around what was one
+wave, and five of them are header reads"*, and it is not a restatement of the
+derived figure. Its subject is section 7.4's OWN table — 27 rows, 12 of which
+name a header — and its predicate reads "inside **or around**" one wave, which
+keeps the wave-crossing rows assertion 7's "crosses a track inside one wave"
+excludes. **Anchoring it would have obliged the writer to type "Sixteen" there
+to get a green run, and the lint would then hold a claim about a 27-row table
+VERIFIED at the derived 16.** A false claim wearing a verified costume is worse
+than the stale claim it replaces, and it is the harder one to find later. So the
+sentence stays unanchored and its 15/5 stays stale, until it is deleted or a
+second derived key measures the table itself. **Deciding which sentences are
+restatements is the half of this lint no mechanism performs**, and getting it
+wrong in this direction is worse than leaving a sentence outside the lint: an
+unanchored stale sentence is only unchecked, while a wrongly anchored one is
+reported clean.
 
 ### How the check lint reads the document
 
@@ -321,7 +346,7 @@ signal. It is not a gate.
 | 14 | **Table recognition is by exact header text and exact cell shape.** | Remove the bold from a milestone cell, and the row and its defects leave the scope in silence. The fixture register and the total row fail the same way. |
 | 15 | **Shared-path detection is exact-string only.** | A glob and a file that name one artifact never collide. Any owner row that ends in `/` silences every finding beneath it. |
 | 16 | **Test-file recognition is a naming convention over a fixed suffix list.** | A test file named otherwise is exempt from the reverse direction. |
-| 17 | **A restatement of a derived figure that carries no anchor.** | Lint 11 reads anchored restatements only. An unanchored number in prose is outside it, deliberately: the scan that would reach it cannot tell the `3` of `W3` from a figure. The anchor count in the report is what keeps the residual visible. |
+| 17 | **A restatement of a derived figure that carries no anchor.** | Lint 11 reads anchored restatements only. An unanchored number in prose is outside it, deliberately: the scan that would reach it cannot tell the `3` of `W3` from a figure. The anchor count in the report is what keeps the residual visible. **The lint also cannot tell whether a sentence a human anchored is a restatement at all**; the counter-example under "What the anchor deliberately does not reach" is the near-miss where an anchor on the wrong sentence would have stamped a false claim VERIFIED. |
 
 ### What the closure heuristic cannot see
 

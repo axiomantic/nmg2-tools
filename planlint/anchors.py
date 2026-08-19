@@ -8,7 +8,12 @@ number. A stale claim then reads exactly like a current one.
 
 The prose is reached through an ANCHOR and never through a scan for numbers.
 
-    <!-- derived: cross-track-edge-count -->Fifteen cross-track edges ...
+    ... it is one of the <!-- derived: cross-track-edge-count -->sixteen edges
+    section 7.6 assertion 7 counts.
+
+That is section 14.3's own sentence, and it is a restatement of the derived
+figure rather than a sentence that merely holds a number: its subject IS the
+edge set assertion 7 counts.
 
 The anchor is an HTML comment. A renderer that passes raw HTML through emits it
 as a comment and contributes no visible text, which is what the plan's renderer
@@ -23,6 +28,19 @@ what makes a check trustworthy: a confident wrong answer costs more than a
 narrow right one. The trade is DECLARED rather than hidden, and the declaration
 is mechanical: the lint reports how many anchors it examined, so an anchor set
 that shrinks to nothing is a hard error and never a quiet pass.
+
+WHAT AN ANCHOR MUST NOT BE ATTACHED TO is the judgement no rule here makes, and
+the near-miss is the reason it is written down. Section 7.4 opens with "Fifteen
+cross-track edges exist inside or around what was one wave, and five of them
+are header reads". That sentence is NOT a restatement of this figure. Its
+subject is section 7.4's OWN table — 27 rows, 12 of which name a header — and
+its predicate reads "inside OR AROUND" one wave, so it deliberately keeps the
+wave-crossing rows assertion 7's "crosses a track inside one wave" excludes.
+Anchoring it would have obliged the writer to type "Sixteen" there for a green
+run, and the lint would then hold a claim about a 27-row table VERIFIED at the
+derived 16 — a false claim wearing a verified costume, which is worse than the
+stale claim it replaced. It stays unanchored and 15/5 stays stale, until it is
+deleted or a second derived key measures the table itself.
 """
 
 import dataclasses
