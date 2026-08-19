@@ -64,6 +64,11 @@ def canonical_path(item):
     return item
 
 
+def track_of(ident):
+    """The track an identifier names. `BRD-23` is track `BRD`."""
+    return ident.partition("-")[0]
+
+
 def expand_files_items(items):
     """A `Files:` list with rules B and C applied, in order.
 
@@ -266,6 +271,16 @@ class FixtureRow:
     line: int
 
 
+@dataclasses.dataclass(frozen=True)
+class CrossTrackRow:
+    """One edge section 7.3's cross-track column states."""
+
+    source: str
+    target: str
+    line: int
+    section: str
+
+
 @dataclasses.dataclass
 class TaskBlock:
     ident: str
@@ -438,10 +453,10 @@ class PlanDocument:
                     end = heading_index
                     break
             ident = match.group("ident")
-            track, _, number = ident.partition("-")
+            _, _, number = ident.partition("-")
             task = TaskBlock(
                 ident=ident,
-                track=track,
+                track=track_of(ident),
                 number=int(number),
                 name=match.group("name").strip(),
                 tier_text=(match.group("tier") or "").strip(),
@@ -529,7 +544,7 @@ class PlanDocument:
             elif header[:2] == ["path", "owner"]:
                 self._read_owner_table(body)
             elif len(header) > 2 and header[2].startswith("cross-track"):
-                self._read_cross_track_table(body)
+                self._read_cross_track_table(body, table["section"])
 
     def _read_wave_table(self, body):
         for line, cells in body:
@@ -626,9 +641,15 @@ class PlanDocument:
             return None
         return self.task(found.group(1))
 
-    def _read_cross_track_table(self, body):
-        """Section 7.3: `A -> B, C; D -> E` is three edges, not two tokens."""
-        for _, cells in body:
+    def _read_cross_track_table(self, body, section):
+        """Section 7.3: `A -> B, C; D -> E` is three edges, not two tokens.
+
+        The row LINE and the section are carried on every edge. A finding that
+        says the column states an edge the graph does not hold has to send a
+        reader to the row that states it, and the heading of section 7.3 is
+        written differently in the plan and in the fixtures.
+        """
+        for line, cells in body:
             for group in strip_markup(cells[2]).split(";"):
                 head, arrow, tail = group.partition("\u2192")
                 if not arrow:
@@ -640,7 +661,14 @@ class PlanDocument:
                     continue
                 source = sources[-1]
                 for target in re.findall(r"[A-Z]{2,6}-\d+", tail):
-                    self.cross_track_edges.append((source, target))
+                    self.cross_track_edges.append(
+                        CrossTrackRow(
+                            source=source,
+                            target=target,
+                            line=line,
+                            section=section,
+                        )
+                    )
 
     def _read_counts_table(self, body):
         for line, cells in body:

@@ -26,9 +26,7 @@ class CountsLintTest(unittest.TestCase):
         result = run("clean_plan.md")
 
         self.assertEqual(result.findings, [])
-        # Five track rows, the total row, the conditional-task count and the
-        # cross-track edge count.
-        self.assertEqual(result.examined, 8)
+        self.assertEqual(result.examined, 9)
 
     def test_every_miscount_is_reported_and_nothing_else(self):
         result = run("neg_counts.md")
@@ -43,7 +41,22 @@ class CountsLintTest(unittest.TestCase):
                 (
                     "cross-track-edge-count-mismatch",
                     "section 7.6 assertion 7 says 3 cross-track edges inside one wave; "
-                    "section 7.3's column holds 1 (BBB-1 → CCC-1)",
+                    "the `Depends:` graph holds 2 (BBB-1 → AAA-2; CCC-1 → AAA-2)",
+                ),
+                (
+                    "cross-track-edge-not-in-graph",
+                    "section 7.3's cross-track column lists BBB-1 → CCC-1, both wave "
+                    "2 (order 2); BBB-1's `Depends:` line does not name CCC-1",
+                ),
+                (
+                    "cross-track-edge-undeclared",
+                    "BBB-1 → AAA-2, both wave 2 (order 2); section 7.3's cross-track "
+                    "column does not list it",
+                ),
+                (
+                    "cross-track-edge-undeclared",
+                    "CCC-1 → AAA-2, both wave 2 (order 2); section 7.3's cross-track "
+                    "column does not list it",
                 ),
                 (
                     "total-count-mismatch",
@@ -70,8 +83,270 @@ class CountsLintTest(unittest.TestCase):
 
         self.assertEqual(
             [(f.rule, f.message) for f in result.findings],
-            [("no-input", "the counts lint examined 0 stated counts")],
+            [("no-input", "the counts lint examined 0 stated claims")],
         )
+
+
+WAVE_TABLE = """### 7.2 The waves
+
+| Wave | Order | The tasks in it |
+|---|---|---|
+| 1 | 1 | AAA-1 |
+| 2 | 2 | AAA-2, AAA-3, BBB-1, CCC-1 |
+"""
+
+TASKS = """## 9. The tasks
+
+**AAA-1 · The first** — T0
+Depends: none
+Check: `ctest --test-dir build --no-tests=error -R t0_alpha`.
+
+**AAA-2 · The second** — T0
+Depends: AAA-1
+Check: `ctest --test-dir build --no-tests=error -R t0_beta`.
+
+**AAA-3 · The third** — T0
+Depends: AAA-2
+Check: `ctest --test-dir build --no-tests=error -R t0_gamma`.
+
+**BBB-1 · The fourth** — T0
+Depends: AAA-2
+Check: `ctest --test-dir build --no-tests=error -R t0_delta`.
+
+**CCC-1 · The fifth** — T0
+Depends: BBB-1, AAA-1
+Check: `ctest --test-dir build --no-tests=error -R t0_epsilon`.
+"""
+
+
+def inline(column, statement=None):
+    """A document whose section 7.3 column is the only claim under test.
+
+    The graph carries one intra-track edge inside wave 2 (AAA-3 → AAA-2), one
+    cross-track edge that crosses a wave (CCC-1 → AAA-1), and two cross-track
+    edges inside wave 2 (BBB-1 → AAA-2 and CCC-1 → BBB-1). Only the last two
+    belong to the derived set.
+    """
+    middle = "" if statement is None else statement + "\n\n"
+    text = (
+        "# Inline plan\n\n"
+        + WAVE_TABLE
+        + "\n### 7.3 Track dependencies\n\n"
+        + "| Track | Depends on | Cross-track task edges |\n|---|---|---|\n"
+        + column
+        + "\n\n"
+        + middle
+        + TASKS
+    )
+    return PlanDocument.from_text(text, name="inline")
+
+
+class CrossTrackDerivationTest(unittest.TestCase):
+    """The set comes from the `Depends:` graph. Section 7.3's column is the
+    other operand and never the source."""
+
+    def test_the_graph_yields_every_in_wave_edge_that_crosses_a_track(self):
+        doc = load_fixture("clean_plan.md")
+
+        self.assertEqual(
+            counts.graph_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 87, ("DDD-1", "AAA-2"): 106},
+        )
+
+    def test_section_7_3_yields_the_same_set_out_of_its_own_column(self):
+        doc = load_fixture("clean_plan.md")
+
+        self.assertEqual(
+            counts.declared_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 48, ("DDD-1", "AAA-2"): 49},
+        )
+
+    def test_an_edge_whose_two_ends_share_a_track_is_no_cross_track_edge(self):
+        doc = inline(
+            "| alpha | nothing | AAA-3 → AAA-2 |\n| beta | alpha | BBB-1 → AAA-2 |"
+        )
+
+        self.assertEqual(
+            counts.declared_cross_track_edges(doc), {("BBB-1", "AAA-2"): 15}
+        )
+        self.assertEqual(
+            counts.graph_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 31, ("CCC-1", "BBB-1"): 35},
+        )
+
+    def test_a_self_loop_in_the_column_is_no_cross_track_edge(self):
+        doc = inline(
+            "| alpha | nothing | AAA-3 → AAA-3 |\n| beta | alpha | BBB-1 → AAA-2 |"
+        )
+
+        self.assertEqual(
+            counts.declared_cross_track_edges(doc), {("BBB-1", "AAA-2"): 15}
+        )
+
+    def test_an_edge_the_column_states_twice_is_one_edge(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | BBB-1 → AAA-2 |"
+        )
+
+        self.assertEqual(
+            counts.declared_cross_track_edges(doc), {("BBB-1", "AAA-2"): 14}
+        )
+
+    def test_an_edge_that_crosses_a_wave_is_outside_the_set_on_both_sides(self):
+        doc = inline("| beta | alpha | BBB-1 → AAA-1 |")
+
+        self.assertEqual(counts.declared_cross_track_edges(doc), {})
+        self.assertEqual(
+            counts.graph_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 30, ("CCC-1", "BBB-1"): 34},
+        )
+
+
+class CrossTrackSetTest(unittest.TestCase):
+    """Section 7.6 assertion 13: the set derived from the graph equals section
+    7.3's column exactly. A set is compared against a set, in both directions."""
+
+    def test_an_edge_the_graph_holds_and_the_column_omits_is_reported(self):
+        doc = inline("| beta | alpha | BBB-1 → AAA-2 |")
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            [(f.rule, f.task, f.section, f.line, f.evidence) for f in result.findings],
+            [
+                (
+                    "cross-track-edge-undeclared",
+                    "CCC-1",
+                    "9. The tasks",
+                    34,
+                    "CCC-1 → BBB-1, both wave 2 (order 2); section 7.3's "
+                    "cross-track column does not list it",
+                )
+            ],
+        )
+
+    def test_an_edge_the_column_holds_and_the_graph_does_not_is_reported(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n"
+            "| gamma | beta | CCC-1 → BBB-1; CCC-1 → AAA-2 |"
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            [(f.rule, f.task, f.section, f.line, f.evidence) for f in result.findings],
+            [
+                (
+                    "cross-track-edge-not-in-graph",
+                    "CCC-1",
+                    "7.3 Track dependencies",
+                    15,
+                    "section 7.3's cross-track column lists CCC-1 → AAA-2, both "
+                    "wave 2 (order 2); CCC-1's `Depends:` line does not name AAA-2",
+                )
+            ],
+        )
+
+    def test_both_directions_are_reported_from_one_run(self):
+        doc = inline("| gamma | beta | CCC-1 → AAA-2 |")
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            sorted((f.rule, f.evidence) for f in result.findings),
+            [
+                (
+                    "cross-track-edge-not-in-graph",
+                    "section 7.3's cross-track column lists CCC-1 → AAA-2, both "
+                    "wave 2 (order 2); CCC-1's `Depends:` line does not name AAA-2",
+                ),
+                (
+                    "cross-track-edge-undeclared",
+                    "BBB-1 → AAA-2, both wave 2 (order 2); section 7.3's "
+                    "cross-track column does not list it",
+                ),
+                (
+                    "cross-track-edge-undeclared",
+                    "CCC-1 → BBB-1, both wave 2 (order 2); section 7.3's "
+                    "cross-track column does not list it",
+                ),
+            ],
+        )
+
+    def test_a_column_whose_every_row_crosses_a_wave_is_still_an_examined_claim(self):
+        """Both operands are empty and the claim still HELD. A lint that
+        counted no input here would report a hard error over a document it
+        checked and found consistent."""
+        doc = PlanDocument.from_text(
+            "# Inline plan\n\n"
+            "### 7.2 The waves\n\n"
+            "| Wave | Order | The tasks in it |\n|---|---|---|\n"
+            "| 1 | 1 | AAA-1 |\n| 2 | 2 | BBB-1 |\n\n"
+            "### 7.3 Track dependencies\n\n"
+            "| Track | Depends on | Cross-track task edges |\n|---|---|---|\n"
+            "| beta | alpha | BBB-1 \u2192 AAA-1 |\n\n"
+            "## 9. The tasks\n\n"
+            "**AAA-1 \u00b7 The first** \u2014 T0\nDepends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_alpha`.\n\n"
+            "**BBB-1 \u00b7 The second** \u2014 T0\nDepends: AAA-1\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_beta`.\n",
+            name="inline",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(counts.graph_cross_track_edges(doc), {})
+        self.assertEqual(counts.declared_cross_track_edges(doc), {})
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.examined, 1)
+
+    def test_the_set_claim_is_an_examined_input_of_its_own(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |"
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.examined, 1)
+        self.assertEqual(result.examined_label, "stated claims")
+
+
+class CrossTrackWrittenFigureTest(unittest.TestCase):
+    """Assertion 7's number is held against the count the GRAPH yields."""
+
+    def test_the_written_figure_is_compared_against_the_derived_count(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            statement="There are three edges, and each one crosses a track inside one wave.",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            [(f.rule, f.section, f.line, f.evidence) for f in result.findings],
+            [
+                (
+                    "cross-track-edge-count-mismatch",
+                    "7.6 The dependency and wave check",
+                    17,
+                    "section 7.6 assertion 7 says 3 cross-track edges inside one "
+                    "wave; the `Depends:` graph holds 2 (BBB-1 → AAA-2; "
+                    "CCC-1 → BBB-1)",
+                )
+            ],
+        )
+
+    def test_a_figure_that_matches_the_derived_count_is_no_finding(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            statement="There are two edges, and each one crosses a track inside one wave.",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.examined, 2)
 
 
 if __name__ == "__main__":

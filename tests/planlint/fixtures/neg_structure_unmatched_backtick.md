@@ -43,12 +43,12 @@ declared OFF by one task and turned ON by another.
 
 Assertion 7. There are two edges in the column below whose source and whose target sit in one wave, and each of the two crosses a track inside one wave.
 
-| Source | Target | Cross-track edges |
+| Track | Depends on | Cross-track task edges |
 |---|---|---|
-| Alpha | Beta | AAA-2 → BBB-1 |
-| Alpha | Delta | AAA-2 → DDD-1 |
-| Alpha | Gamma | AAA-2 → CCC-1, CCC-2 |
-| Gamma | Epsilon | CCC-1 → EEE-1; CCC-2 → EEE-1 |
+| Beta | Alpha | BBB-1 → AAA-2 |
+| Delta | Alpha | DDD-1 → AAA-2 |
+| Gamma | Alpha | CCC-1 → AAA-2; CCC-2 → AAA-2 |
+| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |
 
 ### 7.4.2 Every shared file has one owner
 

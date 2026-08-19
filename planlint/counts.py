@@ -1,17 +1,26 @@
 """Lint 6 — self-consistency.
 
-Every count the plan states about itself must agree with its own rows. A plan
-that miscounts itself is a plan whose reader cannot tell a repair from a
+Every claim the plan states about itself must agree with what the plan holds. A
+plan that miscounts itself is a plan whose reader cannot tell a repair from a
 regression.
 
 The lint evaluates a claim only when the document states it. It never invents a
 claim, and it never reports a claim it did not find as a pass — an unstated
-count is simply not a claim, and the run-level guard reports a document that
-states no count at all as a hard error.
+claim is simply not a claim, and the run-level guard reports a document that
+states no claim at all as a hard error.
+
+The cross-track claims need a DERIVATION and not a second reading. Section 7.6
+assertion 13 states that the cross-track edge set derived from the graph equals
+section 7.3's column exactly, so `planlint.graph` supplies one operand: the
+`Depends:` parser there refuses to make an edge out of an identifier sitting in
+prose, and a rule that built its own set out of section 7.3's column would be
+reading the document twice and the graph never.
 """
 
 import re
 
+from planlint import graph
+from planlint.document import track_of
 from planlint.finding import ERROR, Finding, guard_no_input
 
 WORDS = {
@@ -121,10 +130,16 @@ def run(doc):
                     )
                 )
 
-    findings.extend(_cross_track_claim(doc, text, lambda: None))
+    derived = graph_cross_track_edges(doc)
+    declared = declared_cross_track_edges(doc)
+
+    findings.extend(_cross_track_set(doc, derived, declared))
+    examined += 1 if (derived or declared or doc.cross_track_edges) else 0
+
+    findings.extend(_cross_track_claim(text, derived))
     examined += 1 if _cross_track_statement(text) else 0
 
-    return guard_no_input("counts", findings, examined, "stated counts", "counts lint")
+    return guard_no_input("counts", findings, examined, "stated claims", "counts lint")
 
 
 def _cross_track_statement(text):
@@ -138,35 +153,139 @@ def _cross_track_statement(text):
     return None
 
 
-def _cross_track_claim(doc, text, _unused):
+def _in_one_wave(doc, source, target):
+    """Whether both ends sit in one wave.
+
+    An end the section 7.2 wave table places nowhere has no order to compare,
+    so it is outside this subject; `planlint.waves` is what reports it.
+    """
+    here = doc.wave_of.get(source)
+    there = doc.wave_of.get(target)
+    return here is not None and there is not None and here[1] == there[1]
+
+
+def graph_cross_track_edges(doc):
+    """`{(depender, dependency): line}` for every edge the `Depends:` GRAPH
+    holds whose two ends sit in different tracks and in one wave.
+
+    The line is the depending task's. An edge whose two ends share a track
+    crosses no track — a self-loop is that case — and an edge whose ends sit in
+    different waves is outside assertion 7's subject, so neither is here.
+    """
+    edges, _ = graph.build_edges(doc)
+    out = {}
+    for task in doc.tasks:
+        for dependency in edges[task.ident]:
+            if track_of(dependency) == task.track:
+                continue
+            if not _in_one_wave(doc, task.ident, dependency):
+                continue
+            out[(task.ident, dependency)] = task.line
+    return out
+
+
+def declared_cross_track_edges(doc):
+    """The same set, read out of section 7.3's cross-track column.
+
+    The line is the FIRST row that states the edge, and the exclusions are the
+    ones above: an edge repeated across rows is one edge, and a row whose two
+    ends share a track states no cross-track edge.
+    """
+    out = {}
+    for row in doc.cross_track_edges:
+        if track_of(row.source) == track_of(row.target):
+            continue
+        if not _in_one_wave(doc, row.source, row.target):
+            continue
+        out.setdefault((row.source, row.target), row.line)
+    return out
+
+
+def _wave_phrase(doc, ident):
+    label, order = doc.wave_of[ident]
+    return f"both wave {label} (order {order})"
+
+
+def _cross_track_set(doc, derived, declared):
+    """Section 7.6 assertion 13, in both directions.
+
+    A check that reported only what the column omits would pass a column that
+    states an edge no `Depends:` line declares, and section 7.3's own `cpu` row
+    records that reading as the one a parser and a reader disagree about.
+    """
+    findings = []
+    sections = {
+        (row.source, row.target): row.section for row in doc.cross_track_edges
+    }
+    for source, target in sorted(set(derived) - set(declared)):
+        task = doc.task(source)
+        findings.append(
+            Finding(
+                rule="cross-track-edge-undeclared",
+                message=(
+                    "an edge crosses a track inside one wave and section 7.3's "
+                    "cross-track column does not list it"
+                ),
+                task=source,
+                section=task.section if task else "",
+                line=derived[(source, target)],
+                evidence=(
+                    f"{source} → {target}, {_wave_phrase(doc, source)}; "
+                    "section 7.3's cross-track column does not list it"
+                ),
+                severity=ERROR,
+            )
+        )
+    for source, target in sorted(set(declared) - set(derived)):
+        findings.append(
+            Finding(
+                rule="cross-track-edge-not-in-graph",
+                message=(
+                    "section 7.3's cross-track column states an edge inside one "
+                    "wave that no `Depends:` line declares"
+                ),
+                task=source,
+                section=sections.get((source, target), ""),
+                line=declared[(source, target)],
+                evidence=(
+                    f"section 7.3's cross-track column lists {source} → "
+                    f"{target}, {_wave_phrase(doc, source)}; {source}'s "
+                    f"`Depends:` line does not name {target}"
+                ),
+                severity=ERROR,
+            )
+        )
+    return findings
+
+
+def _cross_track_claim(text, derived):
     """Section 7.6 assertion 7 states how many cross-track edges live inside one
-    wave. Section 7.3's column is what the number must agree with."""
+    wave. The GRAPH is what the number must agree with.
+
+    Section 7.3's column was the other operand until this revision and it
+    cannot be one: the number and the column are two readings of the same
+    document, and the column is the very thing assertion 13 holds against the
+    graph.
+    """
     statement = _cross_track_statement(text)
     if statement is None:
         return []
     stated, line = statement
-    inside = [
-        (source, target)
-        for source, target in doc.cross_track_edges
-        if source in doc.wave_of
-        and target in doc.wave_of
-        and doc.wave_of[source][1] == doc.wave_of[target][1]
-    ]
-    if stated == len(inside):
+    if stated == len(derived):
         return []
-    listed = "; ".join(f"{a} → {b}" for a, b in inside) or "none"
+    listed = "; ".join(f"{a} → {b}" for a, b in sorted(derived)) or "none"
     return [
         Finding(
             rule="cross-track-edge-count-mismatch",
             message=(
                 "section 7.6 assertion 7 states a number of cross-track edges inside "
-                "one wave that section 7.3's column does not hold"
+                "one wave that the `Depends:` graph does not hold"
             ),
             section="7.6 The dependency and wave check",
             line=line,
             evidence=(
                 f"section 7.6 assertion 7 says {stated} cross-track edges inside one "
-                f"wave; section 7.3's column holds {len(inside)} ({listed})"
+                f"wave; the `Depends:` graph holds {len(derived)} ({listed})"
             ),
             severity=ERROR,
         )

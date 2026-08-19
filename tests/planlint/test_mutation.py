@@ -89,6 +89,8 @@ DOCUMENT_RULES = frozenset(
         # counts
         "conditional-count-mismatch",
         "cross-track-edge-count-mismatch",
+        "cross-track-edge-not-in-graph",
+        "cross-track-edge-undeclared",
         "total-count-mismatch",
         "total-is-not-the-sum",
         "track-count-mismatch",
@@ -194,7 +196,12 @@ MUTATIONS = [
         "Depends: AAA-2\nCheck: `ctest --test-dir build --no-tests=error -R t1_gamma`",
         "Depends: DDD-1 to DDD-2\n"
         "Check: `ctest --test-dir build --no-tests=error -R t1_gamma`",
-        {"range-holds-higher-tier"},
+        {
+            "range-holds-higher-tier",
+            "cross-track-edge-count-mismatch",
+            "cross-track-edge-not-in-graph",
+            "cross-track-edge-undeclared",
+        },
     ),
     (
         "a Depends range swallowing a conditional task",
@@ -304,10 +311,22 @@ MUTATIONS = [
         {"conditional-count-mismatch"},
     ),
     (
-        "a cross-track edge count section 7.3's column does not hold",
+        "a cross-track edge count the `Depends:` graph does not hold",
         "There are two edges",
         "There are three edges",
         {"cross-track-edge-count-mismatch"},
+    ),
+    (
+        "an in-wave cross-track edge struck out of section 7.3's column",
+        "| Delta | Alpha | DDD-1 → AAA-2 |",
+        "| Delta | Alpha | — |",
+        {"cross-track-edge-undeclared"},
+    ),
+    (
+        "a section 7.3 row for an edge no `Depends:` line declares",
+        "| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |",
+        "| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |\n| Beta | Delta | BBB-1 → DDD-1 |",
+        {"cross-track-edge-not-in-graph"},
     ),
     # --------------------------------------------------------------- implicit
     (
@@ -335,7 +354,11 @@ MUTATIONS = [
         "a registrar moved out of the depending task's closure",
         "Depends: AAA-2\nCheck: `ctest --test-dir build --no-tests=error -R t1_gamma`",
         "Depends: none\nCheck: `ctest --test-dir build --no-tests=error -R t1_gamma`",
-        {"registrar-outside-closure"},
+        {
+            "registrar-outside-closure",
+            "cross-track-edge-count-mismatch",
+            "cross-track-edge-not-in-graph",
+        },
     ),
     # ---------------------------------------------------------------- closure
     (
@@ -473,10 +496,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 41)
+        self.assertEqual(len(MUTATIONS), 43)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 41)
+        self.assertEqual(len(rules_the_lints_emit()), 43)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
