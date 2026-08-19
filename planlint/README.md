@@ -21,6 +21,22 @@ python3 -m planlint.cli --plan <plan.md> --repo <repository-path>
 python3 -m planlint.cli --plan <plan.md> --repo <path> --private
 ```
 
+**The full-coverage invocation is `--plan <plan.md> --repo <repo> --private`.**
+Omitting `--repo` does not trim the report by a line — it drops the `payload`
+lint, which reads every committed file in the tree, thousands of them on a real
+repository. An error count from a run with no `--repo` is therefore not
+comparable with one from a run that had it. That is why the report enumerates a
+lint it did not run, as `payload: SKIPPED — no --repo given`, and why the
+verdict then reads `SELECTED LINTS CLEAN` and never `ALL LINTS CLEAN`.
+`--private` is the right flag for a private repository: the boundary `payload`
+guards is the PUBLIC one, so its findings do not apply and it reports clean over
+the same file count.
+
+**The notice covers the DEFAULT run only.** `--only` reports just the lints it
+names and says nothing about the rest, because the caller's own command line is
+the record of what they asked for. The silent narrowing this guards against is
+the one a missing flag performs.
+
 Each wrapper script migrates into a repository as a move, not a rewrite: the
 wrapper and the `planlint/` package go together and no code changes.
 

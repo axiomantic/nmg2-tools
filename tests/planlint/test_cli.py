@@ -4,12 +4,16 @@ Exit 0 is clean. Any finding exits non-zero. A lint that found no input to
 examine exits non-zero too: nothing to check is never a pass.
 """
 
+import argparse
 import io
+import re
 import unittest
 
 from tests.planlint.support import fixture_path
 
 from planlint import cli
+
+SECTION = re.compile(r"^(?P<name>[a-z0-9]+): (?P<rest>.*)$")
 
 
 def run(argv):
@@ -18,13 +22,47 @@ def run(argv):
     return code, out.getvalue()
 
 
+def section_names(text):
+    """The lint each section line names, in report order."""
+    out = []
+    for line in text.splitlines():
+        match = SECTION.match(line)
+        if match and match.group("name") != "planlint":
+            out.append(match.group("name"))
+    return out
+
+
+def section_line(text, name):
+    """The one section line for `name`, or "" when the report has none."""
+    for line in text.splitlines():
+        match = SECTION.match(line)
+        if match and match.group("name") == name:
+            return line
+    return ""
+
+
+def result_line(text):
+    for line in text.splitlines():
+        if line.startswith("RESULT:"):
+            return line
+    return ""
+
+
 class ExitCodeTest(unittest.TestCase):
     def test_a_clean_plan_exits_zero(self):
+        """This invocation gives no `--repo`, so the payload lint does not run.
+        The verdict says CLEAN of the lints that ran and names the one that did
+        not; `ALL LINTS CLEAN` here would be a claim about a lint this run never
+        exercised."""
         code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
 
         self.assertEqual(code, 0)
         self.assertIn("graph: clean", text)
-        self.assertIn("ALL LINTS CLEAN", text)
+        self.assertEqual(
+            result_line(text),
+            "RESULT: SELECTED LINTS CLEAN. 1 lint SKIPPED (payload). "
+            "A skipped lint is not a clean lint.",
+        )
 
     def test_the_anchors_lint_runs_in_the_default_set_and_states_its_count(self):
         code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
@@ -142,6 +180,165 @@ class ExitCodeTest(unittest.TestCase):
 
             self.assertEqual(code, 0)
             self.assertIn("checks: clean", text)
+
+
+class SkippedLintVisibilityTest(unittest.TestCase):
+    """A lint that did not run must say so.
+
+    Measured against the plan at `nmg2-artifacts`: `--plan P` reported 41 ERROR
+    findings and never named the payload lint; `--plan P --repo R --private`
+    reported the same 41 and `payload: clean (3064 committed files examined)`.
+    The run that never exercised the lint and the run in which it passed over
+    3,064 files printed the same count and the same verdict. Every pass on this
+    project took the first number as its baseline without knowing which of the
+    two it held.
+    """
+
+    def test_a_default_run_with_no_repo_enumerates_every_lint(self):
+        """The report is a roll call, not a list of what happened to run. A lint
+        missing from it is a lint whose result the reader cannot infer."""
+        code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(section_names(text), cli.ALL_LINTS)
+
+    def test_a_lint_that_did_not_run_names_itself_and_the_missing_flag(self):
+        code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertEqual(
+            section_line(text, "payload"),
+            "payload: SKIPPED — no --repo given; the lint did not run and its "
+            "result is unknown",
+        )
+
+    def test_the_verdict_does_not_claim_all_lints_clean_when_one_was_skipped(self):
+        code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            result_line(text),
+            "RESULT: SELECTED LINTS CLEAN. 1 lint SKIPPED (payload). "
+            "A skipped lint is not a clean lint.",
+        )
+
+    def test_a_run_with_findings_and_a_skip_states_both(self):
+        code, text = run(["--plan", str(fixture_path("neg_graph_cycle.md"))])
+
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            result_line(text),
+            "RESULT: findings reported. See each rule above. "
+            "1 lint SKIPPED (payload). A skipped lint is not a clean lint.",
+        )
+
+    def test_a_run_in_which_every_lint_ran_says_nothing_about_a_skip(self):
+        """The negative input. A notice that fires when nothing was skipped
+        trains a reader to skim past the one that matters."""
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--repo", str(fixture_path("repo_public_good")),
+            ]
+        )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(section_names(text), cli.ALL_LINTS)
+        self.assertEqual(
+            section_line(text, "payload"), "payload: clean (6 committed files examined)"
+        )
+        self.assertNotIn("SKIPPED", text)
+        self.assertEqual(result_line(text), "RESULT: ALL LINTS CLEAN")
+
+    def test_a_narrowed_run_reports_only_what_it_named(self):
+        """`--only` is the caller's own record of what they asked for, so the
+        lints it leaves out are not a silent narrowing and get no notice."""
+        code, text = run(
+            ["--plan", str(fixture_path("clean_plan.md")), "--only", "graph"]
+        )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(section_names(text), ["graph"])
+        self.assertNotIn("SKIPPED", text)
+        self.assertEqual(result_line(text), "RESULT: ALL LINTS CLEAN")
+
+    def test_a_skip_does_not_move_the_exit_code(self):
+        """The skip is announced, never scored. Making it a finding would change
+        what a caller's `if planlint; then` means, and that is a separate
+        decision from making the skip visible."""
+        skipped = run(["--plan", str(fixture_path("clean_plan.md"))])[0]
+        ran = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--repo", str(fixture_path("repo_public_good")),
+            ]
+        )[0]
+
+        self.assertEqual((skipped, ran), (0, 0))
+
+
+class LintRegistryTest(unittest.TestCase):
+    """The same trap, one level up: a future optional lint that nobody registers.
+
+    The reason a lint did not run is a byproduct of the decision not to run it,
+    so no second list can fall out of step with the first. What remains is a
+    lint that leaves the default run through neither route, and that is what
+    `validate_lint_registry` refuses.
+    """
+
+    def test_the_shipped_registry_accounts_for_every_lint(self):
+        cli.validate_lint_registry()
+
+    def test_a_lint_that_neither_always_runs_nor_declares_a_requirement_raises(self):
+        with self.assertRaises(cli.LintRegistryError) as caught:
+            cli.validate_lint_registry(
+                all_lints=["graph", "ghost"],
+                always_run=("graph",),
+                requirements={},
+            )
+
+        self.assertEqual(
+            str(caught.exception),
+            "lint 'ghost' neither runs unconditionally nor declares what it "
+            "requires, so a run that omits it could not name the reason",
+        )
+
+    def test_a_requirement_for_a_lint_that_does_not_exist_raises(self):
+        with self.assertRaises(cli.LintRegistryError) as caught:
+            cli.validate_lint_registry(
+                all_lints=["graph"],
+                always_run=("graph",),
+                requirements={"ghost": cli.Requirement("--ghost", lambda args: True)},
+            )
+
+        self.assertEqual(
+            str(caught.exception),
+            "a requirement is registered for 'ghost', which is not a lint",
+        )
+
+    def test_a_future_optional_lint_gets_its_skip_line_from_what_it_declares(self):
+        """Nothing in the reporting code knows this lint's name or its flag."""
+        selected, skipped = cli.default_selection(
+            argparse.Namespace(ghost=None),
+            all_lints=["graph", "ghost"],
+            requirements={
+                "ghost": cli.Requirement("--ghost-tree", lambda args: bool(args.ghost))
+            },
+        )
+
+        self.assertEqual(selected, ["graph"])
+        self.assertEqual(skipped, {"ghost": "no --ghost-tree given"})
+
+    def test_a_satisfied_requirement_selects_the_lint_and_skips_nothing(self):
+        selected, skipped = cli.default_selection(
+            argparse.Namespace(ghost="/somewhere"),
+            all_lints=["graph", "ghost"],
+            requirements={
+                "ghost": cli.Requirement("--ghost-tree", lambda args: bool(args.ghost))
+            },
+        )
+
+        self.assertEqual(selected, ["graph", "ghost"])
+        self.assertEqual(skipped, {})
 
 
 if __name__ == "__main__":

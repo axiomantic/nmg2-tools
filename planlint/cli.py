@@ -9,11 +9,18 @@ Exit codes:
 
 `ctest -R` exits 0 when its pattern matches no test. This tool therefore never
 exits 0 on "nothing to check".
+
+A lint the default run leaves out is announced and not scored: the exit code is
+what the lints that RAN reported, and the verdict line names the ones that did
+not, because a report silent about a lint reads exactly like one in which that
+lint passed.
 """
 
 import argparse
+import dataclasses
 import pathlib
 import sys
+import typing
 
 from planlint import (
     anchors,
@@ -53,6 +60,78 @@ DOCUMENT_LINTS = {
 }
 REPOSITORY_LINTS = ("payload",)
 ALL_LINTS = list(DOCUMENT_LINTS) + list(REPOSITORY_LINTS)
+
+
+@dataclasses.dataclass(frozen=True)
+class Requirement:
+    """What an invocation must supply before a lint has anything to read."""
+
+    flag: str
+    satisfied: typing.Callable
+
+    def unmet_because(self):
+        return f"no {self.flag} given"
+
+
+# A lint the default run may leave out declares here what it needs. This table
+# is the ONLY route out of the default set, and it is also where the report gets
+# the reason it prints, so the two cannot drift: a lint that skips silently
+# would have to skip through a route that does not exist.
+LINT_REQUIREMENTS = {
+    "payload": Requirement("--repo", lambda args: bool(args.repo)),
+}
+
+
+class LintRegistryError(Exception):
+    """The registry cannot account for a lint. Raised at import, never caught."""
+
+
+def validate_lint_registry(all_lints=None, always_run=None, requirements=None):
+    """Every lint either always runs or declares what it requires.
+
+    A lint that does neither is the defect one level up: it would leave the
+    default run whenever its input was absent, with nothing to print as the
+    reason. This raises rather than reports, because a caller cannot repair it
+    and a report on stdout would be one more line to skim past.
+    """
+    all_lints = ALL_LINTS if all_lints is None else all_lints
+    always_run = DOCUMENT_LINTS if always_run is None else always_run
+    requirements = LINT_REQUIREMENTS if requirements is None else requirements
+
+    for name in all_lints:
+        if name not in always_run and name not in requirements:
+            raise LintRegistryError(
+                f"lint '{name}' neither runs unconditionally nor declares what "
+                "it requires, so a run that omits it could not name the reason"
+            )
+    for name in requirements:
+        if name not in all_lints:
+            raise LintRegistryError(
+                f"a requirement is registered for '{name}', which is not a lint"
+            )
+
+
+validate_lint_registry()
+
+
+def default_selection(args, all_lints=None, requirements=None):
+    """`(selected, skipped)` for a run that named no `--only`.
+
+    `skipped` maps a lint to why it did not run. The reason is a byproduct of
+    the decision and not a second list written beside it.
+    """
+    all_lints = ALL_LINTS if all_lints is None else all_lints
+    requirements = LINT_REQUIREMENTS if requirements is None else requirements
+
+    selected = []
+    skipped = {}
+    for name in all_lints:
+        requirement = requirements.get(name)
+        if requirement is None or requirement.satisfied(args):
+            selected.append(name)
+        else:
+            skipped[name] = requirement.unmet_because()
+    return selected, skipped
 
 
 def build_parser():
@@ -103,12 +182,15 @@ def main(argv=None, stream=None):
     stream = stream or sys.stdout
     args = build_parser().parse_args(argv)
 
-    # The payload lint reads a repository tree, so it joins the default run only
-    # when a tree is given. Naming it explicitly with no `--repo` is an error and
-    # never a quiet skip.
-    selected = args.only or (
-        list(DOCUMENT_LINTS) + (list(REPOSITORY_LINTS) if args.repo else [])
-    )
+    # A lint the default run leaves out is ANNOUNCED, because a report that says
+    # nothing about it reads exactly like one in which it passed. `--only` is
+    # the caller's own record of what they asked for, so what it leaves out is
+    # not a silent narrowing and carries no notice. Naming a lint explicitly
+    # with its requirement unmet stays an error and never becomes a skip.
+    if args.only:
+        selected, skipped = args.only, {}
+    else:
+        selected, skipped = default_selection(args)
     unknown = [name for name in selected if name not in ALL_LINTS]
     if unknown:
         stream.write(
@@ -145,6 +227,12 @@ def main(argv=None, stream=None):
 
     failed = False
     for name in ALL_LINTS:
+        if name in skipped:
+            stream.write(
+                f"{name}: SKIPPED — {skipped[name]}; the lint did not run and "
+                "its result is unknown\n\n"
+            )
+            continue
         if name not in selected:
             continue
         if name in DOCUMENT_LINTS:
@@ -166,10 +254,24 @@ def main(argv=None, stream=None):
         stream.write("\n")
         failed = failed or result.failed
 
+    # A skip changes the verdict's WORDING and never its exit code. Scoring it
+    # would change what `if planlint; then` means for every existing caller,
+    # which is a separate decision from making the skip visible.
+    notice = ""
+    if skipped:
+        noun = "lint" if len(skipped) == 1 else "lints"
+        notice = (
+            f" {len(skipped)} {noun} SKIPPED ({', '.join(skipped)}). "
+            "A skipped lint is not a clean lint."
+        )
+
     if failed:
-        stream.write("RESULT: findings reported. See each rule above.\n")
+        stream.write(f"RESULT: findings reported. See each rule above.{notice}\n")
         return 1
-    stream.write("RESULT: ALL LINTS CLEAN\n")
+    stream.write(
+        f"RESULT: {'SELECTED LINTS CLEAN.' if skipped else 'ALL LINTS CLEAN'}"
+        f"{notice}\n"
+    )
     return 0
 
 
