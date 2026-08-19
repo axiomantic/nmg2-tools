@@ -50,6 +50,28 @@ Assertion 7. There are two edges in the column below whose source and whose targ
 | Gamma | Alpha | CCC-1 → AAA-2; CCC-2 → AAA-2 |
 | Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |
 
+### 7.4 What the graph really says about Wave 2
+
+The same edges, stated a second time with what each one is. A row whose two ends
+share a track crosses no track, and a row whose two ends sit in different waves
+is outside assertion 7's subject; one of each is here, so that dropping either
+filter reddens this document.
+
+| From (track) | Task | To (track) | Task | Kind | Where the recut puts it |
+|---|---|---|---|---|---|
+| Beta | BBB-1 | Alpha | AAA-2 | header | **2 → 2, inside one wave** |
+| Delta | DDD-2 | Delta | DDD-1 | registrar | **2 → 2, inside one wave** |
+| Gamma | CCC-1 | Alpha | AAA-2 | behaviour | 3 → 2 |
+
+### 7.4.1 Wave 4 is not two independent tracks either
+
+The subsection carries the rest of the same table, and its header is the same
+one short of the last column.
+
+| From (track) | Task | To (track) | Task | Kind |
+|---|---|---|---|---|
+| Delta | DDD-1 | Alpha | AAA-2 | oracle |
+
 ### 7.4.2 Every shared file has one owner
 
 A row whose path ends in `/` is a DIRECTORY row and owns every path beneath it.

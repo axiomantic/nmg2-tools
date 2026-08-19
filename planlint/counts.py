@@ -132,9 +132,13 @@ def run(doc):
 
     derived = graph_cross_track_edges(doc)
     declared = declared_cross_track_edges(doc)
+    tabled = table_cross_track_edges(doc)
 
     findings.extend(_cross_track_set(doc, derived, declared))
     examined += 1 if (derived or declared or doc.cross_track_edges) else 0
+
+    findings.extend(_cross_track_table_set(doc, derived, tabled))
+    examined += 1 if (derived or tabled or doc.cross_track_table) else 0
 
     findings.extend(_cross_track_claim(text, derived))
     examined += 1 if _cross_track_statement(text) else 0
@@ -201,6 +205,24 @@ def declared_cross_track_edges(doc):
     return out
 
 
+def table_cross_track_edges(doc):
+    """The same set again, read out of section 7.4's table.
+
+    Assertion 7 names TWO sites and the column is only one of them, so this is
+    a third operand and not a second reading of the second. The exclusions are
+    the ones above, applied to a table whose rows mostly cross a wave: section
+    7.4's subject is wider than assertion 7's.
+    """
+    out = {}
+    for row in doc.cross_track_table:
+        if track_of(row.source) == track_of(row.target):
+            continue
+        if not _in_one_wave(doc, row.source, row.target):
+            continue
+        out.setdefault((row.source, row.target), row.line)
+    return out
+
+
 def _wave_phrase(doc, ident):
     label, order = doc.wave_of[ident]
     return f"both wave {label} (order {order})"
@@ -251,6 +273,59 @@ def _cross_track_set(doc, derived, declared):
                     f"section 7.3's cross-track column lists {source} → "
                     f"{target}, {_wave_phrase(doc, source)}; {source}'s "
                     f"`Depends:` line does not name {target}"
+                ),
+                severity=ERROR,
+            )
+        )
+    return findings
+
+
+def _cross_track_table_set(doc, derived, tabled):
+    """Section 7.6 assertion 7's SECOND site, in both directions.
+
+    Assertion 7 asks for each edge in two places and a check that read one of
+    them would report a plan complete while the other still omitted the edge.
+    Section 7.4's own history is the argument: its table carried a row section
+    7.3's column did not, five times over, and only prose noticed.
+    """
+    findings = []
+    sections = {
+        (row.source, row.target): row.section for row in doc.cross_track_table
+    }
+    for source, target in sorted(set(derived) - set(tabled)):
+        task = doc.task(source)
+        findings.append(
+            Finding(
+                rule="cross-track-edge-missing-from-7-4",
+                message=(
+                    "an edge crosses a track inside one wave and section 7.4's "
+                    "table does not carry it"
+                ),
+                task=source,
+                section=task.section if task else "",
+                line=derived[(source, target)],
+                evidence=(
+                    f"{source} → {target}, {_wave_phrase(doc, source)}; "
+                    "section 7.4's table does not carry it"
+                ),
+                severity=ERROR,
+            )
+        )
+    for source, target in sorted(set(tabled) - set(derived)):
+        findings.append(
+            Finding(
+                rule="cross-track-row-7-4-not-in-graph",
+                message=(
+                    "section 7.4's table carries an edge inside one wave that no "
+                    "`Depends:` line declares"
+                ),
+                task=source,
+                section=sections.get((source, target), ""),
+                line=tabled[(source, target)],
+                evidence=(
+                    f"section 7.4's table carries {source} → {target}, "
+                    f"{_wave_phrase(doc, source)}; {source}'s `Depends:` line "
+                    f"does not name {target}"
                 ),
                 severity=ERROR,
             )

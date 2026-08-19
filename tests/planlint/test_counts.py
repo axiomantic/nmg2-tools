@@ -26,7 +26,7 @@ class CountsLintTest(unittest.TestCase):
         result = run("clean_plan.md")
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.examined, 9)
+        self.assertEqual(result.examined, 10)
 
     def test_every_miscount_is_reported_and_nothing_else(self):
         result = run("neg_counts.md")
@@ -42,6 +42,16 @@ class CountsLintTest(unittest.TestCase):
                     "cross-track-edge-count-mismatch",
                     "section 7.6 assertion 7 says 3 cross-track edges inside one wave; "
                     "the `Depends:` graph holds 2 (BBB-1 → AAA-2; CCC-1 → AAA-2)",
+                ),
+                (
+                    "cross-track-edge-missing-from-7-4",
+                    "BBB-1 → AAA-2, both wave 2 (order 2); section 7.4's table "
+                    "does not carry it",
+                ),
+                (
+                    "cross-track-edge-missing-from-7-4",
+                    "CCC-1 → AAA-2, both wave 2 (order 2); section 7.4's table "
+                    "does not carry it",
                 ),
                 (
                     "cross-track-edge-not-in-graph",
@@ -119,13 +129,23 @@ Check: `ctest --test-dir build --no-tests=error -R t0_epsilon`.
 """
 
 
-def inline(column, statement=None):
+TABLE_7_4 = (
+    "| beta | BBB-1 | alpha | AAA-2 | header |\n"
+    "| gamma | CCC-1 | beta | BBB-1 | behaviour |\n"
+)
+
+
+def inline(column, statement=None, table=TABLE_7_4):
     """A document whose section 7.3 column is the only claim under test.
 
     The graph carries one intra-track edge inside wave 2 (AAA-3 → AAA-2), one
     cross-track edge that crosses a wave (CCC-1 → AAA-1), and two cross-track
     edges inside wave 2 (BBB-1 → AAA-2 and CCC-1 → BBB-1). Only the last two
     belong to the derived set.
+
+    Section 7.4's table comes LAST so that a test which varies it moves no line
+    number the other tests assert. It defaults to the derived set exactly, so a
+    test that says nothing about section 7.4 gets no finding from it.
     """
     middle = "" if statement is None else statement + "\n\n"
     text = (
@@ -137,6 +157,9 @@ def inline(column, statement=None):
         + "\n\n"
         + middle
         + TASKS
+        + "\n### 7.4 What the graph really says\n\n"
+        + "| From (track) | Task | To (track) | Task | Kind |\n|---|---|---|---|---|\n"
+        + table
     )
     return PlanDocument.from_text(text, name="inline")
 
@@ -150,7 +173,7 @@ class CrossTrackDerivationTest(unittest.TestCase):
 
         self.assertEqual(
             counts.graph_cross_track_edges(doc),
-            {("BBB-1", "AAA-2"): 87, ("DDD-1", "AAA-2"): 106},
+            {("BBB-1", "AAA-2"): 109, ("DDD-1", "AAA-2"): 128},
         )
 
     def test_section_7_3_yields_the_same_set_out_of_its_own_column(self):
@@ -160,6 +183,35 @@ class CrossTrackDerivationTest(unittest.TestCase):
             counts.declared_cross_track_edges(doc),
             {("BBB-1", "AAA-2"): 48, ("DDD-1", "AAA-2"): 49},
         )
+
+    def test_section_7_4_yields_the_same_set_out_of_its_own_table(self):
+        """The same two filters, applied to the second table.
+
+        The fixture's table carries a same-track row and a wave-crossing row
+        beside the two real edges, so dropping either filter changes this set.
+        """
+        doc = load_fixture("clean_plan.md")
+
+        self.assertEqual(
+            counts.table_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 62, ("DDD-1", "AAA-2"): 73},
+        )
+
+    def test_an_edge_section_7_4_states_twice_is_one_edge_at_its_first_row(self):
+        """Section 7.4's table may state one edge twice, and the line a finding
+        carries has to send a reader to the FIRST row that states it."""
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            table=TABLE_7_4 + "| beta | BBB-1 | alpha | AAA-2 | header |\n",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            counts.table_cross_track_edges(doc),
+            {("BBB-1", "AAA-2"): 43, ("CCC-1", "BBB-1"): 44},
+        )
+        self.assertEqual(result.findings, [])
 
     def test_an_edge_whose_two_ends_share_a_track_is_no_cross_track_edge(self):
         doc = inline(
@@ -308,7 +360,96 @@ class CrossTrackSetTest(unittest.TestCase):
         result = counts.run(doc)
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.examined, 1)
+        self.assertEqual(result.examined, 2)
+        self.assertEqual(result.examined_label, "stated claims")
+
+
+class CrossTrackTableSetTest(unittest.TestCase):
+    """Assertion 7's OTHER site. The same derived set is held against section
+    7.4's table, in both directions, exactly as it is against 7.3's column."""
+
+    def test_an_edge_the_graph_holds_and_section_7_4_omits_is_reported(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            table="| beta | BBB-1 | alpha | AAA-2 | header |\n",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            [(f.rule, f.task, f.section, f.line, f.evidence) for f in result.findings],
+            [
+                (
+                    "cross-track-edge-missing-from-7-4",
+                    "CCC-1",
+                    "9. The tasks",
+                    35,
+                    "CCC-1 → BBB-1, both wave 2 (order 2); section 7.4's table "
+                    "does not carry it",
+                )
+            ],
+        )
+
+    def test_a_section_7_4_row_no_depends_line_declares_is_reported(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            table=TABLE_7_4 + "| gamma | CCC-1 | alpha | AAA-2 | behaviour |\n",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            [(f.rule, f.task, f.section, f.line, f.evidence) for f in result.findings],
+            [
+                (
+                    "cross-track-row-7-4-not-in-graph",
+                    "CCC-1",
+                    "7.4 What the graph really says",
+                    45,
+                    "section 7.4's table carries CCC-1 → AAA-2, both wave 2 "
+                    "(order 2); CCC-1's `Depends:` line does not name AAA-2",
+                )
+            ],
+        )
+
+    def test_both_directions_are_reported_from_one_run(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |",
+            table="| gamma | CCC-1 | alpha | AAA-2 | behaviour |\n",
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(
+            sorted((f.rule, f.evidence) for f in result.findings),
+            [
+                (
+                    "cross-track-edge-missing-from-7-4",
+                    "BBB-1 → AAA-2, both wave 2 (order 2); section 7.4's table "
+                    "does not carry it",
+                ),
+                (
+                    "cross-track-edge-missing-from-7-4",
+                    "CCC-1 → BBB-1, both wave 2 (order 2); section 7.4's table "
+                    "does not carry it",
+                ),
+                (
+                    "cross-track-row-7-4-not-in-graph",
+                    "section 7.4's table carries CCC-1 → AAA-2, both wave 2 "
+                    "(order 2); CCC-1's `Depends:` line does not name AAA-2",
+                ),
+            ],
+        )
+
+    def test_the_table_claim_is_an_examined_input_of_its_own(self):
+        doc = inline(
+            "| beta | alpha | BBB-1 → AAA-2 |\n| gamma | beta | CCC-1 → BBB-1 |"
+        )
+
+        result = counts.run(doc)
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.examined, 2)
         self.assertEqual(result.examined_label, "stated claims")
 
 
@@ -346,7 +487,7 @@ class CrossTrackWrittenFigureTest(unittest.TestCase):
         result = counts.run(doc)
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.examined, 2)
+        self.assertEqual(result.examined, 3)
 
 
 if __name__ == "__main__":

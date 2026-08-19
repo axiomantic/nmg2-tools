@@ -32,7 +32,7 @@ class TaskBlockParseTest(unittest.TestCase):
 
         self.assertEqual(
             (task.track, task.number, task.line, task.section),
-            ("BBB", 1, 87, "9. The tasks"),
+            ("BBB", 1, 109, "9. The tasks"),
         )
 
     def test_tier_text_splits_into_a_tier_set(self):
@@ -244,6 +244,53 @@ class TableTest(unittest.TestCase):
         self.assertEqual(
             doc.repositories,
             {"axiomantic/artifacts": "PRIVATE", "axiomantic/core": "PUBLIC"},
+        )
+
+    def test_section_7_4_table_rows_carry_both_ends_the_line_and_the_section(self):
+        """Section 7.4's table and section 7.4.1's are ONE table read twice.
+
+        The subsection's header is section 7.4's one column short, and the
+        plan states in its own words that the edge it carries is one section
+        7.6 assertion 7 counts. A reader that took the six-column form alone
+        would report that edge missing from a table the plan deliberately put
+        it in.
+        """
+        doc = load_fixture("clean_plan.md")
+
+        self.assertEqual(
+            [(r.source, r.target, r.line, r.section) for r in doc.cross_track_table],
+            [
+                ("BBB-1", "AAA-2", 62, "7.4 What the graph really says about Wave 2"),
+                ("DDD-2", "DDD-1", 63, "7.4 What the graph really says about Wave 2"),
+                ("CCC-1", "AAA-2", 64, "7.4 What the graph really says about Wave 2"),
+                ("DDD-1", "AAA-2", 73,
+                 "7.4.1 Wave 4 is not two independent tracks either"),
+            ],
+        )
+
+    def test_section_7_4_row_naming_no_bare_identifier_states_no_edge(self):
+        """A cell holding prose is not an edge, and a row too short to have a
+        TO cell is not one either.
+
+        Without the first guard the reader harvests `the board track` as an
+        endpoint; without the second it reads past the end of a short row and
+        raises. Both rows are here so that dropping either guard is visible.
+        """
+        doc = PlanDocument.from_text(
+            "### 7.4 What the graph really says\n"
+            "\n"
+            "| From (track) | Task | To (track) | Task | Kind |\n"
+            "|---|---|---|---|---|\n"
+            "| sched | SCH-0 | board | the board track | header |\n"
+            "| sched | see the note below | board | BRD-0 | header |\n"
+            "| sched | SCH-4 | board |\n"
+            "| sched | SCH-9 | board | BRD-0 | header |\n",
+            name="inline",
+        )
+
+        self.assertEqual(
+            [(r.source, r.target, r.line) for r in doc.cross_track_table],
+            [("SCH-9", "BRD-0", 8)],
         )
 
     def test_fixture_register_rows_carry_path_owner_repository_and_visibility(self):

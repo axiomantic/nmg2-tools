@@ -281,6 +281,21 @@ class CrossTrackRow:
     section: str
 
 
+@dataclasses.dataclass(frozen=True)
+class CrossTrackTableRow:
+    """One edge section 7.4's table states, and section 7.4.1's.
+
+    The two are ONE table under one heading tree: 7.4.1's header is 7.4's
+    without the last column, and 7.4 says in its own words that the edge 7.4.1
+    carries is one section 7.6 assertion 7 counts.
+    """
+
+    source: str
+    target: str
+    line: int
+    section: str
+
+
 @dataclasses.dataclass
 class TaskBlock:
     ident: str
@@ -369,6 +384,7 @@ class PlanDocument:
         self.fixture_register = []
         self.owned_paths = {}
         self.cross_track_edges = []
+        self.cross_track_table = []
         self.count_rows = []
         self.stated_total_tasks = None
         self._parse()
@@ -545,6 +561,8 @@ class PlanDocument:
                 self._read_owner_table(body)
             elif len(header) > 2 and header[2].startswith("cross-track"):
                 self._read_cross_track_table(body, table["section"])
+            elif header[:5] == ["from (track)", "task", "to (track)", "task", "kind"]:
+                self._read_cross_track_edge_table(body, table["section"])
 
     def _read_wave_table(self, body):
         for line, cells in body:
@@ -669,6 +687,31 @@ class PlanDocument:
                             section=section,
                         )
                     )
+
+    def _read_cross_track_edge_table(self, body, section):
+        """Section 7.4's table: the FROM task is column 2, the TO task column 4.
+
+        The direction is the same one section 7.3's column points, and it was
+        settled against the plan rather than against the column titles: read as
+        written, every one of section 7.4's in-wave rows matches an edge the
+        `Depends:` graph holds, and read backwards not one of them does. The
+        FROM task is therefore the DEPENDING task, exactly as in `A -> B`.
+        """
+        for line, cells in body:
+            if len(cells) < 4:
+                continue
+            source = strip_markup(cells[1])
+            target = strip_markup(cells[3])
+            if not (IDENT.fullmatch(source) and IDENT.fullmatch(target)):
+                continue
+            self.cross_track_table.append(
+                CrossTrackTableRow(
+                    source=source,
+                    target=target,
+                    line=line,
+                    section=section,
+                )
+            )
 
     def _read_counts_table(self, body):
         for line, cells in body:

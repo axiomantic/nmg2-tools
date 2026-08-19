@@ -89,8 +89,10 @@ DOCUMENT_RULES = frozenset(
         # counts
         "conditional-count-mismatch",
         "cross-track-edge-count-mismatch",
+        "cross-track-edge-missing-from-7-4",
         "cross-track-edge-not-in-graph",
         "cross-track-edge-undeclared",
+        "cross-track-row-7-4-not-in-graph",
         "total-count-mismatch",
         "total-is-not-the-sum",
         "track-count-mismatch",
@@ -201,6 +203,8 @@ MUTATIONS = [
             "cross-track-edge-count-mismatch",
             "cross-track-edge-not-in-graph",
             "cross-track-edge-undeclared",
+            "cross-track-edge-missing-from-7-4",
+            "cross-track-row-7-4-not-in-graph",
         },
     ),
     (
@@ -328,6 +332,19 @@ MUTATIONS = [
         "| Epsilon | Gamma | EEE-1 → CCC-1, CCC-2 |\n| Beta | Delta | BBB-1 → DDD-1 |",
         {"cross-track-edge-not-in-graph"},
     ),
+    (
+        "an in-wave cross-track edge struck out of section 7.4's table",
+        "| Beta | BBB-1 | Alpha | AAA-2 | header |",
+        "| Beta | — | Alpha | AAA-2 | header |",
+        {"cross-track-edge-missing-from-7-4"},
+    ),
+    (
+        "a section 7.4 row for an edge no `Depends:` line declares",
+        "| Gamma | CCC-1 | Alpha | AAA-2 | behaviour | 3 → 2 |",
+        "| Gamma | CCC-1 | Alpha | AAA-2 | behaviour | 3 → 2 |\n"
+        "| Beta | BBB-1 | Delta | DDD-1 | behaviour | **2 → 2, inside one wave** |",
+        {"cross-track-row-7-4-not-in-graph"},
+    ),
     # --------------------------------------------------------------- implicit
     (
         "an artifact read with no declared edge",
@@ -358,6 +375,7 @@ MUTATIONS = [
             "registrar-outside-closure",
             "cross-track-edge-count-mismatch",
             "cross-track-edge-not-in-graph",
+            "cross-track-row-7-4-not-in-graph",
         },
     ),
     # ---------------------------------------------------------------- closure
@@ -496,10 +514,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 43)
+        self.assertEqual(len(MUTATIONS), 45)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 43)
+        self.assertEqual(len(rules_the_lints_emit()), 45)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

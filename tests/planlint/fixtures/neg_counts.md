@@ -8,6 +8,10 @@ The conditional sentence says four and the table holds one row.
 The cross-track sentence says there are three; the section 7.3 table holds one
 edge whose two ends share a wave.
 
+There is no section 7.4 table at all, so both of the derived edges are missing
+from the second site assertion 7 names. A document that deleted that table
+outright is the case this fixture holds.
+
 ## 7. The tracks
 
 ### 7.2 The waves
