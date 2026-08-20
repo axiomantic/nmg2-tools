@@ -276,6 +276,108 @@ def backticked(text):
     return [inner for _, _, inner in inline_code_spans(text)[0]]
 
 
+# ------------------------------------------------- the citation form of §24.6
+#
+# A marker's citation is a LIST. Every entry is `<owner>/<repo>`, then the commit
+# sha, then `→`, then the declared paths that commit touched, and entries are
+# separated by `;`. Section 24.6 adopted the form on 2026-08-19 and states why:
+# a marker that quoted only the NEWEST sha satisfied the older sentence while
+# naming almost none of the work it rested on, and a reader could not tell a
+# citation that was SHORT from one that was FALSE.
+#
+# The ARROW is what this reader finds an entry by, because the arrow is the one
+# token the form cannot omit. The plan writes `→` in a great many other places —
+# a wave recut reads `2 → 2` — so an arrow becomes an ENTRY only where a
+# repository-shaped name and a sha-shaped name stand in front of it. An arrow
+# that fails that test yields nothing.
+#
+# THE LIMIT, and it is the same shape as the one `_read_cross_track_table`
+# carries: the path list ends at the first separator that is not a comma, so a
+# sentence joined to the list by a comma is still absorbed. What defends the
+# reader there is the union rule one layer up — an absorbed name that the
+# `Files:` line does not declare is an entry naming an undeclared path, which is
+# a state the form forbids in its own words.
+ARROW = "→"
+SHA = re.compile(r"^[0-9a-f]{7,40}$")
+REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+# A name may stand between the repository and the sha. DSP-0's citation writes
+# `` `axiomantic/dsp56300` branch `dsp56300` `8ea4cc41` ``, and reading the last
+# name before the arrow as the sha is what keeps the branch out of that role.
+JOIN = re.compile(r"^\s*(branch\s*)?$")
+COMMA = re.compile(r"^\s*,\s*$")
+
+
+@dataclasses.dataclass(frozen=True)
+class CitationEntry:
+    """One entry of a completion marker's citation."""
+
+    repository: str
+    sha: str
+    paths: tuple
+
+
+def _run_before(text, spans, stop):
+    """The spans immediately before `stop`, newest first, joined by `JOIN`."""
+    before = [span for span in spans if span[1] < stop]
+    out = []
+    edge = stop
+    for span in reversed(before):
+        if not JOIN.match(text[span[1] + 1:edge]):
+            break
+        out.append(span)
+        edge = span[0]
+    out.reverse()
+    return out
+
+
+def _paths_after(text, spans, start):
+    """The comma-separated backticked names that open at `start`."""
+    out = []
+    edge = start
+    for span in [span for span in spans if span[0] > start]:
+        separator = text[edge + 1:span[0]]
+        # The FIRST name follows the arrow across whitespace; every later one
+        # follows a comma. A separator of any other shape ends the entry, which
+        # is what stops the sentence after the list from becoming a path.
+        joined = COMMA.match(separator) if out else separator.strip() == ""
+        if not joined:
+            break
+        out.append(span[2])
+        edge = span[1]
+    return out
+
+
+def citation_entries(text):
+    """Every `<owner>/<repo>` `<sha>` → `<path>`, ... entry a marker states.
+
+    Section 1.1.1 rules B and C are expanded here, out of the SAME expander the
+    `Files:` line uses, so that the union rule compares one spelling of a file
+    and never two.
+    """
+    spans, _ = inline_code_spans(text)
+    out = []
+    for index, char in enumerate(text):
+        if char != ARROW or any(open_ < index < close for open_, close, _ in spans):
+            continue
+        head = _run_before(text, spans, index)
+        if not head or not SHA.match(head[-1][2]):
+            continue
+        repository = next(
+            (span[2] for span in head if REPOSITORY.match(span[2])), ""
+        )
+        if not repository:
+            continue
+        out.append(
+            CitationEntry(
+                repository=repository,
+                sha=head[-1][2],
+                paths=tuple(expand_files_items(_paths_after(text, spans, index))),
+            )
+        )
+    return out
+
+
 @dataclasses.dataclass(frozen=True)
 class Segment:
     """A run of text the lint scope admits."""
@@ -313,6 +415,7 @@ class DoneMarker:
     line: int
     text: str
     anchored: bool
+    entries: tuple = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -567,6 +670,7 @@ class PlanDocument:
                         line=index + 1,
                         text=text,
                         anchored=text.startswith(DONE_MARKER),
+                        entries=tuple(citation_entries(text)),
                     )
                 )
 

@@ -25,10 +25,12 @@ import typing
 from planlint import (
     anchors,
     checks,
+    citations,
     closure,
     counts,
     graph,
     implicit,
+    markers,
     payload,
     registrar,
     rule9,
@@ -57,9 +59,15 @@ DOCUMENT_LINTS = {
     "registrar": registrar.run,
     "rule9": rule9.run,
     "closure": closure.run,
+    "markers": markers.run,
 }
-REPOSITORY_LINTS = ("payload",)
-ALL_LINTS = list(DOCUMENT_LINTS) + list(REPOSITORY_LINTS)
+
+# A lint that runs only when the invocation supplies what it reads. Membership
+# here and in `LINT_REQUIREMENTS` is asserted to be the SAME set, so a lint
+# cannot be moved out of the default run without also acquiring the reason the
+# report prints for it.
+CONDITIONAL_LINTS = ("citations", "payload")
+ALL_LINTS = list(DOCUMENT_LINTS) + list(CONDITIONAL_LINTS)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,6 +86,7 @@ class Requirement:
 # the reason it prints, so the two cannot drift: a lint that skips silently
 # would have to skip through a route that does not exist.
 LINT_REQUIREMENTS = {
+    "citations": Requirement("--clone", lambda args: bool(args.clone)),
     "payload": Requirement("--repo", lambda args: bool(args.repo)),
 }
 
@@ -103,6 +112,15 @@ def validate_lint_registry(all_lints=None, always_run=None, requirements=None):
             raise LintRegistryError(
                 f"lint '{name}' neither runs unconditionally nor declares what "
                 "it requires, so a run that omits it could not name the reason"
+            )
+        # A lint in BOTH tables would satisfy the check above through the
+        # unconditional branch, so deleting its requirement would move it into
+        # the default run in silence rather than failing here.
+        if name in always_run and name in requirements:
+            raise LintRegistryError(
+                f"lint '{name}' both runs unconditionally and declares a "
+                "requirement, so the requirement decides nothing and could be "
+                "removed without any run changing"
             )
     for name in requirements:
         if name not in all_lints:
@@ -169,6 +187,16 @@ def build_parser():
         "specified multiple times)",
     )
     parser.add_argument(
+        "--clone",
+        action="append",
+        default=None,
+        metavar="OWNER/REPO=PATH",
+        help="path to a clone of a repository a completion marker's citation "
+        "names, for the citation lint. The name is the one the citation "
+        "writes, so `axiomantic/mcf5307=/path/to/mcf5307` (can be specified "
+        "multiple times)",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         default=None,
@@ -206,6 +234,24 @@ def main(argv=None, stream=None):
     if "payload" in selected and not args.repo:
         stream.write("--repo is required to run the payload lint\n")
         return 2
+
+    if "citations" in selected and not args.clone:
+        stream.write("--clone is required to run the citations lint\n")
+        return 2
+
+    clones = {}
+    for entry in args.clone or ():
+        if "=" not in entry:
+            stream.write(
+                f"invalid --clone '{entry}', expected OWNER/REPO=PATH\n"
+            )
+            return 2
+        label, _, value = entry.partition("=")
+        root = pathlib.Path(value.strip())
+        if not root.is_dir():
+            stream.write(f"no such repository clone: {root}\n")
+            return 2
+        clones[label.strip()] = root
 
     source_repos = {}
     for entry in args.source_repo or ():
@@ -246,6 +292,8 @@ def main(argv=None, stream=None):
                 result = rule9.run(doc, source_repos=source_repos)
             else:
                 result = DOCUMENT_LINTS[name](doc)
+        elif name == "citations":
+            result = citations.run(doc, clones=clones)
         else:
             result = payload.run(
                 args.repo, public=not args.private, register=doc.fixture_register

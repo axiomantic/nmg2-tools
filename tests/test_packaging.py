@@ -37,6 +37,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "__init__.py",
         "anchors.py",
         "checks.py",
+        "citations.py",
         "cli.py",
         "closure.py",
         "counts.py",
@@ -44,6 +45,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "finding.py",
         "graph.py",
         "implicit.py",
+        "markers.py",
         "payload.py",
         "registrar.py",
         "rule9.py",
@@ -53,7 +55,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
     ]
 
 
-def test_planlint_cli_exposes_the_twelve_lints():
+def test_planlint_cli_exposes_the_thirteen_lints():
     from planlint import cli
 
     # `structure` runs FIRST. Every lint below it reads a parsed document, so
@@ -71,8 +73,13 @@ def test_planlint_cli_exposes_the_twelve_lints():
         "registrar",
         "rule9",
         "closure",
+        "markers",
     ]
-    assert cli.REPOSITORY_LINTS == ("payload",)
+    # `citations` runs `git`, so it is CONDITIONAL and declares `--clone`.
+    # Membership here is asserted to be exactly the requirement table, or a
+    # lint could leave the default run with no reason to print.
+    assert cli.CONDITIONAL_LINTS == ("citations", "payload")
+    assert sorted(cli.LINT_REQUIREMENTS) == sorted(cli.CONDITIONAL_LINTS)
     assert cli.ALL_LINTS == [
         "structure",
         "graph",
@@ -85,6 +92,8 @@ def test_planlint_cli_exposes_the_twelve_lints():
         "registrar",
         "rule9",
         "closure",
+        "markers",
+        "citations",
         "payload",
     ]
 

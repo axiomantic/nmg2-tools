@@ -19,7 +19,19 @@ python3 -m planlint.cli --plan <plan.md> --only implicit
 # the artifact boundary, against a repository tree
 python3 -m planlint.cli --plan <plan.md> --repo <repository-path>
 python3 -m planlint.cli --plan <plan.md> --repo <path> --private
+
+# the citation form, against the clones its entries name
+python3 -m planlint.cli --plan <plan.md> \
+    --clone axiomantic/mcf5307=<path> --clone axiomantic/gearmulator=<path>
 ```
+
+**`--clone` takes the repository name a citation WRITES**, so
+`axiomantic/mcf5307=/path/to/mcf5307`. The `citations` lint reads the one clone
+an entry names and never hunts a sha across several, which is how the two ways
+a cross-clone scan passes for the wrong reason — a sha that resolves in NONE,
+and a short sha that resolves in TWO — are removed rather than guarded against.
+A repository no `--clone` names is reported UNDECIDED, per entry, and never
+passed.
 
 **The full-coverage invocation is `--plan <plan.md> --repo <repo> --private`.**
 Omitting `--repo` does not trim the report by a line — it drops the `payload`
@@ -52,7 +64,7 @@ wrapper and the `planlint/` package go together and no code changes.
 |---|---|
 | 0 | Every selected lint ran and reported nothing. |
 | 1 | A lint reported a finding, **or a lint found no input to examine**. |
-| 2 | The invocation is wrong: an unknown lint, a missing plan, or `payload` with no `--repo`. |
+| 2 | The invocation is wrong: an unknown lint, a missing plan, `payload` with no `--repo`, or `citations` with no `--clone`. |
 
 **A lint that finds no input to examine exits non-zero.** `ctest -R` exits 0 when
 its pattern matches no test. Nothing to check is never a pass, so every lint
@@ -73,9 +85,11 @@ Severity orders the report. It never excuses a finding from the exit code.
 | 7 | `implicit` | A task that writes into or reads from an artifact another task creates, with no `Depends:` edge. The candidate whose missing edge would **close a cycle** is reported under its own rule. | — |
 | 8 | `registrar` | A task whose check runs `ctest -R <name>` has the task that CREATES the test source and the task that REGISTERS the directory inside its transitive dependency closure. **The registrar is the OWNER section 7.4.2 names, not every task that declares the list.** That section obliges each registering task to declare the list it edits, so reading every declarer as a creator rejected the very form the document requires. **A MARKED `Files:` entry creates nothing**, for the same reason one layer down: section 1.1.1 rule D says `<path>@<OWNER-ID>` is not a claim of ownership, so a second writer that marks its entry — the form section 7.6 assertion 8 requires — is not the task that creates the source, and reporting the owner for not reaching it punished the compliant spelling. **An UNMARKED second write is still a creation** and still has to be reachable. | 1.1.1 rule D, 7.4.2, 7.6 assertion 8, 7.7 clause 2, 7.7.1 |
 | 9 | `closure` | A **symbol, build target, header or gated build option** one task must produce for another task to compile or link is inside the consuming task's transitive dependency closure. Reported in separate buckets: the violations the lint can assert, and the CANDIDATES a reader adjudicates. | — |
-| 10 | `structure` | The markup the other lints parse. A task body carrying a backtick with no partner on its own line, a fenced block opened and never closed, and **a completion marker written behind a lead-in**, which a census anchored at the start of the line reads as an absent marker rather than as an error. **A parse failure is a finding, never a quiet degradation.** | 7.7, 24.6 |
+| 10 | `structure` | The markup the other lints parse. A task body carrying a backtick with no partner on its own line, a fenced block opened and never closed, **a completion marker written behind a lead-in**, which a census anchored at the start of the line reads as an absent marker rather than as an error, and **a table row whose unescaped `\|` count is not the one its own delimiter row declares**, which renders with the wrong number of cells so that a reader and a lint read the wrong text in the wrong column. **A parse failure is a finding, never a quiet degradation.** | 7.7, 24.6 |
 
 | 11 | `anchors` | Every ANCHORED prose restatement of a figure the tool derives equals the derived value. The anchor is an HTML comment beside the written number, so the check reads the restatements a plan MARKS and never scans prose for numbers. It also reports the anchor count, a key it cannot compute, a token it cannot read, and a derived figure no anchor names at all. | 7.6 assertion 7 |
+| 12 | `markers` | The UNION half of section 24.6's citation form: every path a task's `Files:` line declares is NAMED by some cited entry of that task's completion marker. Rules B, C and D of section 1.1.1 are expanded on both operands out of one expander. A marker that carries no entry at all is reported as UNDECIDED under its own rule rather than passed, because a silence there reads exactly like coverage. | 24.6 |
+| 13 | `citations` | The REPOSITORY half of the same form, and section 24.6 states that the two are not one finding: every cited entry's sha actually touched the path that entry claims. One command per cited commit — `git show --format= --name-only <sha>` in the repository the entry NAMES — so it needs no build tree and no network. Needs `--clone`, and a run without one announces the lint as SKIPPED. Three states are not a verdict and each is reported: no clone for the named repository, a sha the clone does not resolve, and a MERGE commit, for which `--name-only` prints nothing. | 24.6 |
 
 `structure` runs FIRST. Every lint below it reads a parsed document, so a
 broken fence is the cause and everything else is the consequence.
@@ -288,6 +302,8 @@ reports it. A lint with no negative fixture is not done.
 | `neg_hist_brd21_gated_link.md` | **Historical defect 3, pre-repair.** BRD-21 calls `mcf5307_exec` behind an option BRD-23 turns ON, and does not declare BRD-23. Its producer CPU-1 IS reachable, so the producer rule stays silent and the option rule fires. |
 | `neg_structure_unmatched_backtick.md` | A task body carrying a backtick with no partner on its own line. |
 | `neg_structure_unclosed_fence.md` | A fenced block opened and never closed, outside every task body. |
+| `neg_structure_table_row_column_count.md` | A table row carrying a raw `\|` inside a cell, beside the escaped spelling that must stay silent, and a one-row table that states no column count at all. |
+| `neg_marker_path_uncited.md` | A completion marker whose citation leaves one declared path out, beside a marker that covers every one of its own, a marker in the grammar that predates the citation form, and a task with no marker at all. |
 | `repo_public_bad/`, `repo_public_good/` | A repository tree with each breach route, and one with none. |
 
 ### Mutation check, per RULE
@@ -366,6 +382,13 @@ signal. It is not a gate.
 | 18 | **A cross-track graph edge that NEITHER section 7.3's column nor section 7.4's table states, where the two ends sit in different waves.** | Section 7.3 lists a track's contract inputs once for the TRACK and does not repeat them per task, so the column omits such edges in bulk and by design. A rule widened in that direction would report every one of them against a document obeying its own stated convention, and a rule that fires on correct input trains a reader to ignore it. **The other direction IS asserted in every wave**: an arrow either site STATES is a claim about a `Depends:` line, and it is held against the graph whatever wave its ends sit in. So the tool now says "what these tables state is true" and still does not say "these tables are complete". |
 | 19 | **Conjunct (c) of section 5.2 rule 7 is decided by nothing, and conjunct (b) only for the paths a `Check:` line NAMES.** | Nothing in the plan marks, per path, which of a T1 task's outputs its gated half produces, so (c) is not decided at all. (b) is decided by joining a named path to section 7.8's register and section 3.1's table, so a path the check reads without naming, and a path the register omits, are both read as UNDECIDED and neither is reported. An admitted edge has been shown to satisfy (a), and (b) for the paths it names. Only an execution with `NMG2_ARTIFACTS` unset settles the rest. |
 | 20 | **A `Files:` entry whose only claimant is MARKED.** | Rule D says a marked entry creates nothing, so a file no unmarked entry names has no creator at all. `registrar-unknown` is what reports that, and it reports it as a missing creator rather than as an unreachable one. Where a name resolves through a marked entry only, read the finding as "nobody declares that they create this", not as a closure failure. |
+| 21 | **Whether a completion marker's task actually PASSES its `Check:`.** | Section 24.6 states this in its own words and the citation lints do not weaken it. A marker answers "was this built?" and leaves "does it work?" to the task's own check. No pass that wrote one of these citations ran a `Check:` command, configured a build tree or compiled anything. A clean `markers` and `citations` run is evidence about coverage and never about correctness. |
+| 22 | **Whether a cited commit CREATED a path, or was written FOR the task.** | `git show --format= --name-only` says the commit touched the path. A one-character edit satisfies it exactly as a creation does. A commit subject naming the task is a separate and stronger claim that neither rule requires, which is the Tier-B class section 24.6 row W3-39 carries. |
+| 23 | **Whether a citation's entries are the WHOLE of a task's work.** | The union rule reads one direction: every declared path is named by some entry. A commit that touched no declared path is invisible to it, which is why the commit COUNT stays on the marker beside the entries. |
+| 24 | **The coverage of a marker written before the citation form.** | Such a marker assigns no path to any commit, so the naming question has no operand. This is REPORTED as `done-marker-citation-not-in-form` rather than passed — most of the plan's markers are in that state — but the rule decides nothing about whether their coverage holds. |
+| 25 | **A `Files:` entry that is a GLOB, a build target, or a repository name.** | `markers.is_comparable_path` excludes all three from the union compare, and states why at the branch: a glob names a SET that no entry names literally, and `nmg2-tools` or `dsp56300` names a repository that no commit can touch. Section 24.6 asks for such an entry to be named in a `NOT PATHS:` clause, which is PROSE; reading the entry is what keeps the exclusion out of a sentence. On the `citations` side a glob IS decided, by matching any file the commit touched. |
+| 26 | **A cited sha the named clone does not resolve, a MERGE commit, and a machine that could not run `git` at all.** | All three are reported as `done-marker-citation-undecided` and none is a verdict. A clone may be behind or on another remote, so an unresolvable sha is a fact about this machine. `--name-only` prints nothing for a merge, so "touched nothing" and "is a merge" are the same output and the parents are asked for separately. A missing `git`, or a clone that does not answer inside the timeout, arrives as a finding rather than as a traceback, because a traceback out of one lint takes the whole report's verdict line with it. |
+| 27 | **A table with no delimiter row.** | `structure.column_norm` takes the norm from the delimiter row, because that is the row Markdown itself fixes the column count at. A table carrying none — a one-row continuation is the plan's case — states no column count and is not decided. |
 
 ### What the closure heuristic cannot see
 
@@ -394,4 +417,11 @@ nobody can measure. These classes need a human reader.
 - Nothing under `extracted/` is read or written.
 - `reference/{dsp56300,gearmulator}` are read-only clones; this tool does not
   touch them.
-- No network, no git, no GitHub. The tools read files and report.
+- No network and no GitHub. Every lint but one reads files and reports.
+- **`citations` is the one exception, and it is stated here rather than left to
+  be discovered.** It runs `git rev-list` and `git show` — both read-only, both
+  under `git -C`, so neither writes and neither touches a working tree — and it
+  runs them only for the clones a `--clone` argument supplies. Section 24.6's
+  citation form is a claim about a repository's history, and no reading of the
+  document alone can decide it. Every OTHER lint still runs no program at all,
+  which is why the exception belongs to one module and not to the package.

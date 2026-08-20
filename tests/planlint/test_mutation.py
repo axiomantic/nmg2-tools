@@ -32,6 +32,7 @@ from planlint import (
     counts,
     graph,
     implicit,
+    markers,
     registrar,
     structure,
     tiers,
@@ -50,6 +51,7 @@ LINTS = {
     "implicit": implicit.run,
     "registrar": registrar.run,
     "closure": closure.run,
+    "markers": markers.run,
 }
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
@@ -118,8 +120,12 @@ DOCUMENT_RULES = frozenset(
         "symbol-closure-candidate",
         "symbol-producer-unreachable",
         "target-producer-unreachable",
+        # markers
+        "done-marker-citation-not-in-form",
+        "done-marker-path-uncited",
         # structure
         "done-marker-not-line-anchored",
+        "table-row-column-count",
         "unclosed-fence",
         "unmatched-backtick",
     }
@@ -485,13 +491,38 @@ MUTATIONS = [
         "a completion marker written behind a lead-in",
         "`add_test(NAME t0_eta ...)`.",
         "`add_test(NAME t0_eta ...)`.\nNote: **DONE on 2026-01-01, commit `0000000`.**",
-        {"done-marker-not-line-anchored"},
+        # The marker this adds is a REAL marker, so the marker lint sees it too
+        # and reports that its citation is not in the per-path form. Both rules
+        # are true of the same line and neither subsumes the other: one is about
+        # where the marker sits, the other about what its citation states.
+        {"done-marker-not-line-anchored", "done-marker-citation-not-in-form"},
     ),
     (
         "a fenced block opened and never closed",
         "### 24.4 The conditional tasks",
         "```\n\n### 24.4 The conditional tasks",
         {"unclosed-fence"},
+    ),
+    (
+        "a raw pipe inside a table cell",
+        "The core builds and the surface answers.",
+        "The core builds and the surface answers | it does.",
+        {"table-row-column-count"},
+    ),
+    # ---------------------------------------------------------------- markers
+    (
+        "a completion marker whose citation leaves a declared path out",
+        "`add_test(NAME t2_zeta ...)`.",
+        "`add_test(NAME t2_zeta ...)`.\n"
+        "**DONE on 2026-01-01, 1 commit. CITED PER DECLARED PATH:** "
+        "`axiomantic/core` `1111111` → `tests/t2_zeta.cpp`.",
+        {"done-marker-path-uncited"},
+    ),
+    (
+        "a completion marker written in the grammar that predates the form",
+        "`add_test(NAME t2_zeta ...)`.",
+        "`add_test(NAME t2_zeta ...)`.\n**DONE on 2026-01-01, commit `1111111`.**",
+        {"done-marker-citation-not-in-form"},
     ),
 ]
 
@@ -535,7 +566,7 @@ def rules_the_lints_emit():
     out = set()
     for module in (
         graph, waves, tiers, checks, counts, implicit, registrar, closure,
-        structure, anchors,
+        structure, anchors, markers,
     ):
         out |= rules_in_source(module)
     return out
@@ -583,16 +614,17 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 51)
+        self.assertEqual(len(MUTATIONS), 54)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 52)
+        self.assertEqual(len(rules_the_lints_emit()), 55)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
             "graph": graph, "waves": waves, "tiers": tiers, "checks": checks,
             "counts": counts, "implicit": implicit, "registrar": registrar,
             "closure": closure, "structure": structure, "anchors": anchors,
+            "markers": markers,
         }
         self.assertEqual(
             sorted(

@@ -167,6 +167,85 @@ class DoneMarkerFormTest(unittest.TestCase):
         self.assertEqual(run("clean_plan.md").findings, [])
 
 
+class TableRowColumnCountTest(unittest.TestCase):
+    """A table row that renders with the wrong number of cells.
+
+    Markdown fixes the column count at the DELIMITER row. A row carrying an
+    unescaped `|` inside a cell splits there, so a reader and a lint read the
+    wrong text in the wrong column, and neither of them is told.
+
+    The escaped spelling is the repair AND the control. A rule that counted raw
+    pipes would report the correct row beside the broken one, so the fixture
+    carries both and this test asserts that only one is reported.
+    """
+
+    def test_a_row_with_an_unescaped_pipe_inside_a_cell_is_reported(self):
+        result = run("neg_structure_table_row_column_count.md")
+
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.message, f.evidence)
+                for f in result.findings
+            ],
+            [
+                (
+                    "table-row-column-count",
+                    "",
+                    "6. The milestone ladder",
+                    30,
+                    "ERROR",
+                    "a table row carries a different number of unescaped `|` "
+                    "characters than the delimiter row of its own table. "
+                    "Markdown fixes the column count at the delimiter row, so "
+                    "this row renders with the wrong number of cells and every "
+                    "reader — a person and a lint — reads the wrong text in the "
+                    "wrong column",
+                    "line 30 carries 6 unescaped `|` characters and the "
+                    "delimiter row at line 28 carries 5. The row opens `**M2**` "
+                    "and a `|` that belongs to a cell is written `\\|`",
+                )
+            ],
+        )
+
+    def test_the_clean_plan_reports_nothing(self):
+        self.assertEqual(run("clean_plan.md").findings, [])
+
+    def test_a_table_inside_a_fence_states_no_norm_and_is_not_read(self):
+        """A fenced block is a quotation. Reading a quoted table would report a
+        row the document never renders as a table at all."""
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: The shape a broken row has is quoted here:\n"
+            "```\n"
+            "| # | What it is |\n"
+            "|---|---|\n"
+            "| W2-1 | a raw | pipe |\n"
+            "```\n",
+            name="inline",
+        )
+
+        self.assertEqual(structure.run(doc).findings, [])
+
+    def test_a_table_with_no_delimiter_row_is_not_decided(self):
+        """The undecided branch, asserted rather than assumed. The norm is the
+        delimiter row's own count, so a table that carries no delimiter row
+        states no column count and this rule decides nothing about it. The
+        fixture's one-row table is that case, and it must not be reported."""
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_one`\n"
+            "\n"
+            "| **M4** | a row with | no delimiter row above it |\n",
+            name="inline",
+        )
+
+        self.assertEqual(structure.run(doc).findings, [])
+
+
 class NoInputTest(unittest.TestCase):
     def test_a_document_with_no_task_block_is_a_hard_error(self):
         result = structure.run(

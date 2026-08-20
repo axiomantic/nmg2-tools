@@ -558,5 +558,131 @@ class DoneMarkerTest(unittest.TestCase):
         self.assertEqual(load_fixture("clean_plan.md").done_markers, [])
 
 
+class CitationEntryTest(unittest.TestCase):
+    """The per-path citation form section 24.6 adopted on 2026-08-19.
+
+    An entry is `<owner>/<repo>`, then the commit sha, then `→`, then the
+    declared paths that commit touched. Entries are separated by `;`.
+    """
+
+    def test_one_entry_yields_its_repository_sha_and_paths(self):
+        self.assertEqual(
+            [
+                (e.repository, e.sha, e.paths)
+                for e in document.citation_entries(
+                    "**DONE on 2026-08-07. CITED PER DECLARED PATH:** "
+                    "`axiomantic/mcf5307` `f0f367c` → `tests/abi_smoke.cpp`, "
+                    "`tests/tests_cpu.cmake`."
+                )
+            ],
+            [
+                (
+                    "axiomantic/mcf5307",
+                    "f0f367c",
+                    ("tests/abi_smoke.cpp", "tests/tests_cpu.cmake"),
+                )
+            ],
+        )
+
+    def test_entries_are_separated_by_a_semicolon_and_the_repository_repeats(self):
+        self.assertEqual(
+            [
+                (e.repository, e.sha, e.paths)
+                for e in document.citation_entries(
+                    "`axiomantic/nmg2-tools` `a91909d` → `docs/check-targets.txt`; "
+                    "`axiomantic/gearmulator` `2ec60364` → `docs/check-targets.txt`."
+                )
+            ],
+            [
+                ("axiomantic/nmg2-tools", "a91909d", ("docs/check-targets.txt",)),
+                ("axiomantic/gearmulator", "2ec60364", ("docs/check-targets.txt",)),
+            ],
+        )
+
+    def test_a_branch_qualifier_between_the_repository_and_the_sha_is_read(self):
+        """DSP-0's citation names a branch. The sha is the LAST name before the
+        arrow and the repository is the first one shaped `<owner>/<repo>`, so a
+        name between the two neither becomes the sha nor hides the repository."""
+        self.assertEqual(
+            [
+                (e.repository, e.sha, e.paths)
+                for e in document.citation_entries(
+                    "`axiomantic/dsp56300` branch `dsp56300` `8ea4cc41` → "
+                    "`source/dsp56kEmu/CMakeLists.txt`."
+                )
+            ],
+            [
+                (
+                    "axiomantic/dsp56300",
+                    "8ea4cc41",
+                    ("source/dsp56kEmu/CMakeLists.txt",),
+                )
+            ],
+        )
+
+    def test_the_path_list_ends_at_the_first_separator_that_is_not_a_comma(self):
+        """Prose follows the last entry on the same line. A reader that took
+        every backticked name after the arrow would absorb the sentence, and the
+        invented paths would have the shape of real ones."""
+        self.assertEqual(
+            [
+                e.paths
+                for e in document.citation_entries(
+                    "`axiomantic/mcf5307` `5425e7e` → `conformance/runner.cpp`. "
+                    "**NOT PATHS:** the `mcf5307_conformance_all` entries are "
+                    "BUILD TARGETS."
+                )
+            ],
+            [("conformance/runner.cpp",)],
+        )
+
+    def test_an_arrow_with_no_repository_and_sha_before_it_is_no_entry(self):
+        """The plan writes `2 → 2, inside one wave` and much else. An arrow is
+        a citation arrow only where a repository and a sha stand in front of
+        it, and everything else yields nothing rather than a malformed entry."""
+        self.assertEqual(
+            document.citation_entries(
+                "**DONE on 2026-08-05.** The recut puts it at 2 → 2, inside one "
+                "wave, and `docs/divergence.md` records it."
+            ),
+            [],
+        )
+
+    def test_an_abbreviated_entry_path_expands_to_the_canonical_spelling(self):
+        """Section 1.1.1 rule B applies to both operands of the union rule, out
+        of one expander, or the two sides compare two spellings of one file."""
+        self.assertEqual(
+            [
+                e.paths
+                for e in document.citation_entries(
+                    "`axiomantic/gearmulator` `a065f31b` → `g2Lib/test/gatedFixture.h`."
+                )
+            ],
+            [("source/nord/g2/g2Lib/test/gatedFixture.h",)],
+        )
+
+    def test_a_marker_records_the_entries_its_own_text_carries(self):
+        doc = PlanDocument.from_text(
+            "## 9. The tasks\n"
+            "\n"
+            "**DSP-2 · The two new DMA request sources** — T0\n"
+            "Files: `src/dma.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_dma`\n"
+            "**DONE on 2026-08-06. CITED PER DECLARED PATH:** "
+            "`axiomantic/dsp56300` `51903e5c` → `src/dma.cpp`.\n",
+            name="inline",
+        )
+
+        self.assertEqual(
+            [
+                (e.repository, e.sha, e.paths)
+                for marker in doc.done_markers
+                for e in marker.entries
+            ],
+            [("axiomantic/dsp56300", "51903e5c", ("src/dma.cpp",))],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

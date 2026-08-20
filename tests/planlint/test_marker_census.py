@@ -135,6 +135,8 @@ EXPECTED_CENSUS = {
     "closure._in_scope": "NEITHER",
     # ------------------------------------------------------------- implicit
     "implicit.artifact_creators": "NEITHER",
+    # --------------------------------------------------------------- markers
+    "markers.comparable_paths": "STRIPS",
     # ------------------------------------------------------------ registrar
     "registrar.creators_of": "SKIPS",
     "registrar.registrars_of": "NEITHER",
@@ -546,7 +548,7 @@ class MarkerCensusTest(unittest.TestCase):
             tally,
             {
                 "PARSES": 2,
-                "STRIPS": 3,
+                "STRIPS": 4,
                 "SKIPS": 2,
                 "READS-RAW-TEXT": 2,
                 "NEITHER": 13,

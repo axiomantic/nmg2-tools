@@ -50,18 +50,18 @@ def result_line(text):
 
 class ExitCodeTest(unittest.TestCase):
     def test_a_clean_plan_exits_zero(self):
-        """This invocation gives no `--repo`, so the payload lint does not run.
-        The verdict says CLEAN of the lints that ran and names the one that did
-        not; `ALL LINTS CLEAN` here would be a claim about a lint this run never
-        exercised."""
+        """This invocation gives neither `--repo` nor `--clone`, so the payload
+        lint and the citations lint do not run. The verdict says CLEAN of the
+        lints that ran and names the two that did not; `ALL LINTS CLEAN` here
+        would be a claim about lints this run never exercised."""
         code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
 
         self.assertEqual(code, 0)
         self.assertIn("graph: clean", text)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 1 lint SKIPPED (payload). "
-            "A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 2 lints SKIPPED (citations, "
+            "payload). A skipped lint is not a clean lint.",
         )
 
     def test_the_anchors_lint_runs_in_the_default_set_and_states_its_count(self):
@@ -126,6 +126,64 @@ class ExitCodeTest(unittest.TestCase):
 
         self.assertEqual(code, 2)
         self.assertIn("--repo is required", text)
+
+    def test_citations_without_a_clone_argument_exits_non_zero(self):
+        """Naming a lint explicitly with its requirement unmet stays an ERROR
+        and never becomes a skip: `--only` is the caller asking for that lint,
+        and answering with a skip would tell them their request was honoured."""
+        code, text = run(
+            ["--plan", str(fixture_path("clean_plan.md")), "--only", "citations"]
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("--clone is required", text)
+
+    def test_a_clone_argument_without_a_repository_name_exits_non_zero(self):
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--clone", str(fixture_path("repo_public_good")),
+            ]
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("expected OWNER/REPO=PATH", text)
+
+    def test_a_clone_path_that_is_not_a_directory_exits_non_zero(self):
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--clone", "axiomantic/core=/nonexistent/path/to/clone",
+            ]
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("no such repository clone", text)
+
+    def test_the_citation_lint_names_the_clone_flag_when_it_did_not_run(self):
+        code, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertEqual(
+            section_line(text, "citations"),
+            "citations: SKIPPED — no --clone given; the lint did not run and "
+            "its result is unknown",
+        )
+
+    def test_a_run_with_a_clone_reports_the_pair_count_it_examined(self):
+        """The coverage figure prints beside the verdict. A run that decided
+        nothing and a run that decided a hundred pairs must not print the same
+        line."""
+        code, text = run(
+            [
+                "--plan", str(fixture_path("clean_plan.md")),
+                "--clone", "axiomantic/core=" + str(fixture_path("repo_public_good")),
+            ]
+        )
+
+        self.assertEqual(
+            section_line(text, "citations"),
+            "citations: clean (0 cited (commit, path) pairs examined)",
+        )
 
     def test_a_missing_plan_file_exits_non_zero(self):
         code, text = run(["--plan", str(fixture_path("no_such_plan.md"))])
@@ -217,8 +275,8 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 1 lint SKIPPED (payload). "
-            "A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 2 lints SKIPPED (citations, "
+            "payload). A skipped lint is not a clean lint.",
         )
 
     def test_a_run_with_findings_and_a_skip_states_both(self):
@@ -228,7 +286,8 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(
             result_line(text),
             "RESULT: findings reported. See each rule above. "
-            "1 lint SKIPPED (payload). A skipped lint is not a clean lint.",
+            "2 lints SKIPPED (citations, payload). A skipped lint is not a "
+            "clean lint.",
         )
 
     def test_a_run_in_which_every_lint_ran_says_nothing_about_a_skip(self):
@@ -238,6 +297,7 @@ class SkippedLintVisibilityTest(unittest.TestCase):
             [
                 "--plan", str(fixture_path("clean_plan.md")),
                 "--repo", str(fixture_path("repo_public_good")),
+                "--clone", "axiomantic/core=" + str(fixture_path("repo_public_good")),
             ]
         )
 
@@ -313,6 +373,25 @@ class LintRegistryTest(unittest.TestCase):
         self.assertEqual(
             str(caught.exception),
             "a requirement is registered for 'ghost', which is not a lint",
+        )
+
+    def test_a_lint_in_both_tables_raises(self):
+        """The requirement would decide nothing. A lint listed as always-running
+        satisfies the first check through that branch, so deleting its
+        requirement would move it into the default run in silence — the very
+        silent narrowing this registry exists to make impossible."""
+        with self.assertRaises(cli.LintRegistryError) as caught:
+            cli.validate_lint_registry(
+                all_lints=["graph"],
+                always_run=("graph",),
+                requirements={"graph": cli.Requirement("--tree", lambda args: True)},
+            )
+
+        self.assertEqual(
+            str(caught.exception),
+            "lint 'graph' both runs unconditionally and declares a requirement, "
+            "so the requirement decides nothing and could be removed without "
+            "any run changing",
         )
 
     def test_a_future_optional_lint_gets_its_skip_line_from_what_it_declares(self):
