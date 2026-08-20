@@ -142,6 +142,7 @@ EXPECTED_CENSUS = {
     "rule9.creators_of": "STRIPS",
     "rule9.run": "STRIPS",
     # ---------------------------------------------------------------- tiers
+    "tiers._produced_paths": "STRIPS",
     "tiers.run": "READS-RAW-TEXT",
 }
 
@@ -545,7 +546,7 @@ class MarkerCensusTest(unittest.TestCase):
             tally,
             {
                 "PARSES": 2,
-                "STRIPS": 2,
+                "STRIPS": 3,
                 "SKIPS": 2,
                 "READS-RAW-TEXT": 2,
                 "NEITHER": 13,

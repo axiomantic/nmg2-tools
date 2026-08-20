@@ -201,13 +201,23 @@ MUTATIONS = [
         {"t0-reads-private-fixture"},
     ),
     (
-        "a T0 task waiting on a T1 task",
-        "Depends: CCC-2, AAA-2.",
-        "Depends: CCC-2, BBB-1.",
+        # Section 5.2 rule 7 admits a T0-to-T1 edge, so the edge alone is not
+        # the defect and the mutation must break a conjunct: the check reads a
+        # path BBB-1 produces that section 7.8 marks PRIVATE in a repository
+        # section 3.1 marks PRIVATE.
+        "a T0 task waiting on a T1 task and reading its private output",
+        "Depends: CCC-2, AAA-2. **CONDITIONAL: this task exists only if the probe "
+        "reports a result.**\nCheck: `ctest --test-dir build --no-tests=error "
+        "-R t0_delta`. Registered with `add_test(NAME t0_delta ...)`.",
+        "Depends: CCC-2, BBB-1. **CONDITIONAL: this task exists only if the probe "
+        "reports a result.**\nCheck: `ctest --test-dir build --no-tests=error "
+        "-R t0_delta`. It reads `dumps/session.log`. Registered with "
+        "`add_test(NAME t0_delta ...)`.",
         # AAA-2 comes off CCC-1's line, and both stated sites still carry
         # `CCC-1 → AAA-2` across a wave boundary.
         {
             "t0-depends-t1",
+            "t0-reads-private-fixture",
             "cross-track-edge-not-in-graph-across-waves",
             "cross-track-row-7-4-not-in-graph-across-waves",
         },
