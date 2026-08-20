@@ -30,8 +30,19 @@ it should not. Both breakages are therefore findings of their own.
     lint passes is one on which the anchored form and the wide form of
     `planlint.document` return the same set.
 
-All three are ERRORs. A document a lint cannot read correctly is not a document
-that passed.
+  * `table-row-column-count` — a row whose unescaped `|` count is not the one
+    its own table's delimiter row declares. It renders with the wrong number
+    of cells, so a reader and a lint read the wrong text in the wrong column.
+  * `table-column-count-undecided` — a run of table rows carrying no delimiter
+    row. That run states no column count, so the rule above decides nothing
+    about it, and a run it skipped and a run it found correct print the same
+    result. The skip is therefore a finding of its own. This is the same
+    discipline the citation rules keep: undecided is never spelled as silence.
+
+All but the last are ERRORs, and the last is a WARNING because it reports an
+absence of evidence rather than a defect. A document a lint cannot read
+correctly is not a document that passed, and a document a lint did not read is
+not one either.
 """
 
 import re
@@ -44,7 +55,7 @@ from planlint.document import (
     fenced_line_indexes,
     inline_code_spans,
 )
-from planlint.finding import ERROR, Finding, guard_no_input
+from planlint.finding import ERROR, WARNING, Finding, guard_no_input
 
 # A `|` that belongs to a cell is written `\|`. Counting raw pipes reports the
 # escaped spelling — the REPAIR — beside the defect, and a rule that fires on
@@ -109,14 +120,35 @@ def column_norm(doc, block):
     this document today; they part on a table whose MAJORITY of rows is broken,
     and there the delimiter row is still the count the renderer uses.
 
-    WHAT THIS CANNOT DECIDE: a table that carries no delimiter row states no
-    column count of its own, and nothing here supplies one. A one-row table is
-    that case, and it is returned as undecided rather than as a norm of one.
+    WHAT THIS DECIDES AND WHAT IT CANNOT. It decides a run of table rows that
+    contains a delimiter row, against that row. It cannot decide a run that
+    carries none: such a run states no column count of its own and nothing here
+    supplies one, so `None` comes back rather than a norm of one. A one-row
+    continuation written below a blank line is that shape.
+
+    `None` is not a pass. `undecided_table_blocks` turns it into a finding of
+    its own, because a run this returns `None` for and a run whose rows all
+    agree leave the report looking identical. Outside both branches lies a
+    third case that is neither decided nor reported: a fenced run, which
+    `table_blocks` never offers here at all.
     """
     for index in range(block[0], block[1] + 1):
         if TABLE_RULE.match(doc.lines[index]):
             return len(UNESCAPED_PIPE.findall(doc.lines[index])), index + 1
     return None
+
+
+def undecided_table_blocks(doc):
+    """Every run of table rows that states no column count, as `[first, last]`.
+
+    1-based and inclusive. These are the runs `table_row_column_counts` reads
+    nothing out of, named so that the silence is a finding instead of a gap.
+    """
+    return [
+        (block[0] + 1, block[1] + 1)
+        for block in table_blocks(doc)
+        if column_norm(doc, block) is None
+    ]
 
 
 def _first_cell(line):
@@ -225,6 +257,36 @@ def run(doc):
                     "that belongs to a cell is written `\\|`"
                 ),
                 severity=ERROR,
+            )
+        )
+
+    for first, last in undecided_table_blocks(doc):
+        rows = last - first + 1
+        plural = "" if rows == 1 else "s"
+        findings.append(
+            Finding(
+                rule="table-column-count-undecided",
+                message=(
+                    "a run of table rows carries no delimiter row, so the "
+                    "table states no column count and the cell count of every "
+                    "row in it is UNDECIDED. This is reported rather than "
+                    "passed, because a rule that skipped the run and a rule "
+                    "that found it correct print the same result. Markdown "
+                    "fixes a table's column count at its delimiter row, and a "
+                    "continuation row written below a blank line is the shape "
+                    "that carries none"
+                ),
+                section=doc.section_at(first),
+                line=first,
+                evidence=(
+                    f"line{plural} {first if rows == 1 else f'{first}-{last}'} "
+                    f"carr{'ies' if rows == 1 else 'y'} {rows} table row"
+                    f"{plural} and no delimiter row, so this run states no "
+                    "column count and `table-row-column-count` decides nothing "
+                    f"about {'it' if rows == 1 else 'them'}. The run opens "
+                    f"`{_first_cell(doc.lines[first - 1])}`"
+                ),
+                severity=WARNING,
             )
         )
 

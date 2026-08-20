@@ -125,6 +125,7 @@ DOCUMENT_RULES = frozenset(
         "done-marker-path-uncited",
         # structure
         "done-marker-not-line-anchored",
+        "table-column-count-undecided",
         "table-row-column-count",
         "unclosed-fence",
         "unmatched-backtick",
@@ -509,6 +510,14 @@ MUTATIONS = [
         "The core builds and the surface answers | it does.",
         {"table-row-column-count"},
     ),
+    (
+        "a continuation row detached from the table whose columns it borrows",
+        "## 7. The tracks and the dependency graph",
+        "| **M2** | A row below a blank line. | T0 | It borrows nothing. |\n"
+        "\n"
+        "## 7. The tracks and the dependency graph",
+        {"table-column-count-undecided"},
+    ),
     # ---------------------------------------------------------------- markers
     (
         "a completion marker whose citation leaves a declared path out",
@@ -614,10 +623,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 54)
+        self.assertEqual(len(MUTATIONS), 55)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 55)
+        self.assertEqual(len(rules_the_lints_emit()), 56)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

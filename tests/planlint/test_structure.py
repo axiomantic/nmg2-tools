@@ -17,6 +17,16 @@ from planlint import structure
 from planlint.document import PlanDocument
 
 
+UNDECIDED_MESSAGE = (
+    "a run of table rows carries no delimiter row, so the table states no "
+    "column count and the cell count of every row in it is UNDECIDED. This is "
+    "reported rather than passed, because a rule that skipped the run and a "
+    "rule that found it correct print the same result. Markdown fixes a "
+    "table's column count at its delimiter row, and a continuation row written "
+    "below a blank line is the shape that carries none"
+)
+
+
 def run(name):
     return structure.run(load_fixture(name))
 
@@ -203,7 +213,18 @@ class TableRowColumnCountTest(unittest.TestCase):
                     "line 30 carries 6 unescaped `|` characters and the "
                     "delimiter row at line 28 carries 5. The row opens `**M2**` "
                     "and a `|` that belongs to a cell is written `\\|`",
-                )
+                ),
+                (
+                    "table-column-count-undecided",
+                    "",
+                    "6. The milestone ladder",
+                    33,
+                    "WARNING",
+                    UNDECIDED_MESSAGE,
+                    "line 33 carries 1 table row and no delimiter row, so this "
+                    "run states no column count and `table-row-column-count` "
+                    "decides nothing about it. The run opens `**M4**`",
+                ),
             ],
         )
 
@@ -228,11 +249,14 @@ class TableRowColumnCountTest(unittest.TestCase):
 
         self.assertEqual(structure.run(doc).findings, [])
 
-    def test_a_table_with_no_delimiter_row_is_not_decided(self):
-        """The undecided branch, asserted rather than assumed. The norm is the
-        delimiter row's own count, so a table that carries no delimiter row
-        states no column count and this rule decides nothing about it. The
-        fixture's one-row table is that case, and it must not be reported."""
+    def test_a_table_with_no_delimiter_row_is_reported_as_undecided(self):
+        """The undecided branch, REPORTED rather than skipped in silence.
+
+        The norm is the delimiter row's own count, so a run of table rows that
+        carries no delimiter row states no column count and this rule decides
+        nothing about it. A skip and a pass print the same result, so the skip
+        is a finding under its own rule identity.
+        """
         doc = PlanDocument.from_text(
             "**AAA-1 · A task** — T0\n"
             "Files: `src/one.cpp`\n"
@@ -243,7 +267,112 @@ class TableRowColumnCountTest(unittest.TestCase):
             name="inline",
         )
 
+        self.assertEqual(
+            [
+                (f.rule, f.task, f.section, f.line, f.severity, f.message, f.evidence)
+                for f in structure.run(doc).findings
+            ],
+            [
+                (
+                    "table-column-count-undecided",
+                    "",
+                    "",
+                    6,
+                    "WARNING",
+                    UNDECIDED_MESSAGE,
+                    "line 6 carries 1 table row and no delimiter row, so this "
+                    "run states no column count and `table-row-column-count` "
+                    "decides nothing about it. The run opens `**M4**`",
+                )
+            ],
+        )
+
+    def test_a_multi_row_table_with_no_delimiter_row_names_its_whole_span(self):
+        """The plan's case is one row. The rule must report the shape it
+        cannot decide and not the one instance of it this document holds, so
+        the span and the row count are asserted on a run longer than one."""
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_one`\n"
+            "\n"
+            "| **M4** | a run of rows |\n"
+            "| **M5** | with no delimiter row anywhere in it |\n"
+            "| **M6** | so no row of it states a column count |\n",
+            name="inline",
+        )
+
+        self.assertEqual(
+            [
+                (f.rule, f.line, f.severity, f.evidence)
+                for f in structure.run(doc).findings
+            ],
+            [
+                (
+                    "table-column-count-undecided",
+                    6,
+                    "WARNING",
+                    "lines 6-8 carry 3 table rows and no delimiter row, so this "
+                    "run states no column count and `table-row-column-count` "
+                    "decides nothing about them. The run opens `**M4**`",
+                )
+            ],
+        )
+
+    def test_a_table_that_carries_a_delimiter_row_is_decided_and_not_undecided(self):
+        """The control for the rule above. A run that HAS a delimiter row is
+        decided, so it must produce no undecided finding — otherwise the new
+        rule would fire on every table in the document and say nothing."""
+        doc = PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R t0_one`\n"
+            "\n"
+            "| # | What it is |\n"
+            "|---|---|\n"
+            "| **M4** | a row of a table that states its own column count |\n",
+            name="inline",
+        )
+
         self.assertEqual(structure.run(doc).findings, [])
+
+    ASCII_ART = (
+        "           |        |                    |\n"
+        "           |        |        WAVE 3b   the internal join\n"
+        "           |        |          REPO-9, SCH-19..SCH-30\n"
+        "           |        |          usbhost USB-0..USB-4\n"
+        "           |        |\n"
+    )
+
+    def art_doc(self, fenced):
+        rail = "```\n" if fenced else ""
+        return PlanDocument.from_text(
+            "**AAA-1 · A task** — T0\n"
+            "Files: `src/one.cpp`\n"
+            "Depends: none\n"
+            "Check: The wave diagram is drawn here:\n"
+            f"{rail}{self.ASCII_ART}{rail}",
+            name="inline",
+        )
+
+    def test_ascii_art_is_excluded_by_row_shape_and_not_only_by_the_fence(self):
+        """Section 7.2's wave diagram, in the shape that produced a false
+        measurement: pipes drawn as tree connectors, where a run of them has
+        the shape of a delimiter row and the lines below it the shape of short
+        rows. A scan that read this as a table called three of these lines
+        broken rows.
+
+        BOTH variants are asserted, and the un-fenced one is the load-bearing
+        half. A row ends at a `|`, so a drawn line that ends in prose is not a
+        row at all and the drawing never becomes a block — the fence is a
+        second reason and not the only one. Asserting the fenced variant alone
+        would leave the row shape free to be loosened with nothing going red,
+        which is the edit that produced the false count.
+        """
+        self.assertEqual(structure.run(self.art_doc(fenced=True)).findings, [])
+        self.assertEqual(structure.run(self.art_doc(fenced=False)).findings, [])
 
 
 class NoInputTest(unittest.TestCase):
