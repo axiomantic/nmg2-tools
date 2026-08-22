@@ -137,6 +137,8 @@ EXPECTED_CENSUS = {
     "implicit.artifact_creators": "NEITHER",
     # --------------------------------------------------------------- markers
     "markers.comparable_paths": "STRIPS",
+    # ---------------------------------------------------------- secondwrite
+    "secondwrite.run": "STRIPS",
     # ------------------------------------------------------------ registrar
     "registrar.creators_of": "SKIPS",
     "registrar.registrars_of": "NEITHER",
@@ -548,7 +550,7 @@ class MarkerCensusTest(unittest.TestCase):
             tally,
             {
                 "PARSES": 2,
-                "STRIPS": 4,
+                "STRIPS": 5,
                 "SKIPS": 2,
                 "READS-RAW-TEXT": 2,
                 "NEITHER": 13,

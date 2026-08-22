@@ -530,6 +530,7 @@ class PlanDocument:
         self.repositories = {}
         self.fixture_register = []
         self.owned_paths = {}
+        self.owner_mechanisms = {}
         self.cross_track_edges = []
         self.cross_track_table = []
         self.done_markers = []
@@ -746,7 +747,7 @@ class PlanDocument:
             elif header[:2] == ["track", "tasks"]:
                 self._read_counts_table(body)
             elif header[:2] == ["path", "owner"]:
-                self._read_owner_table(body)
+                self._read_owner_table(header, body)
             elif len(header) > 2 and header[2].startswith("cross-track"):
                 self._read_cross_track_table(body, table["section"])
             elif header[:5] == ["from (track)", "task", "to (track)", "task", "kind"]:
@@ -798,11 +799,42 @@ class PlanDocument:
                 )
             )
 
-    def _read_owner_table(self, body):
-        """Section 7.4.2: the shared paths that are not CMake lists."""
+    def _read_owner_table(self, header, body):
+        """Section 7.4.2: the shared paths that are not CMake lists.
+
+        The mechanism cell is kept beside the owner cell. Condition-10 test 4
+        reads the class a row states, and the class lives in the mechanism
+        prose; an owner table read down to its second column left the one
+        field the outside-class rule needs on the floor.
+
+        The mechanism column is found by its HEADER TEXT and never by
+        position: the plan writes the table with a repository column between
+        owner and mechanism, and a fixture writes it without. A fixed ordinal
+        reads the wrong cell in one of the two shapes.
+        """
+        mechanism_index = next(
+            (
+                index
+                for index, name in enumerate(header)
+                if name.startswith("the mechanism")
+            ),
+            None,
+        )
         for _, cells in body:
+            # None records that THIS TABLE carries no mechanism column at all;
+            # an empty string records a column present and a cell empty. The
+            # outside-class rule reads the difference: a document that has no
+            # mechanism column does not speak to classes, and silence is not
+            # the same as a refusal.
+            mechanism = (
+                strip_markup(cells[mechanism_index])
+                if mechanism_index is not None and len(cells) > mechanism_index
+                else None
+            )
             for path in backticked(cells[0]):
-                self.owned_paths[canonical_path(path)] = strip_markup(cells[1])
+                path = canonical_path(path)
+                self.owned_paths[path] = strip_markup(cells[1])
+                self.owner_mechanisms[path] = mechanism
 
     def owner_cell(self, path):
         """The section 7.4.2 owner cell for a path, as written, or `None`.
@@ -823,6 +855,23 @@ class PlanDocument:
     def has_owner(self, path):
         """Whether section 7.4.2 names an owner for a path."""
         return self.owner_cell(path) is not None
+
+    def mechanism_cell(self, path):
+        """The section 7.4.2 mechanism cell for a path, or `None`.
+
+        The lookup mirrors `owner_cell` exactly — file row over directory row,
+        a `/`-suffixed row owning every path beneath it, and the caller
+        supplies a CANONICAL path just as `owner_cell` expects — so the two
+        answers always come from the SAME row. A class read from one row and
+        an owner read from another would adjudicate a marker against prose
+        written for a different path.
+        """
+        if path in self.owner_mechanisms:
+            return self.owner_mechanisms[path]
+        for owned, mechanism in self.owner_mechanisms.items():
+            if owned.endswith("/") and path.startswith(owned):
+                return mechanism
+        return None
 
     def owner_of(self, path):
         """The task section 7.4.2 names as the OWNER of a path, or `None`.

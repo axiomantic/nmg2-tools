@@ -49,13 +49,14 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "payload.py",
         "registrar.py",
         "rule9.py",
+        "secondwrite.py",
         "structure.py",
         "tiers.py",
         "waves.py",
     ]
 
 
-def test_planlint_cli_exposes_the_thirteen_lints():
+def test_planlint_cli_exposes_the_fourteen_lints():
     from planlint import cli
 
     # `structure` runs FIRST. Every lint below it reads a parsed document, so
@@ -74,6 +75,7 @@ def test_planlint_cli_exposes_the_thirteen_lints():
         "rule9",
         "closure",
         "markers",
+        "secondwrite",
     ]
     # `citations` runs `git`, so it is CONDITIONAL and declares `--clone`.
     # Membership here is asserted to be exactly the requirement table, or a
@@ -93,6 +95,7 @@ def test_planlint_cli_exposes_the_thirteen_lints():
         "rule9",
         "closure",
         "markers",
+        "secondwrite",
         "citations",
         "payload",
     ]

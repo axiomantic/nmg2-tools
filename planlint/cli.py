@@ -34,6 +34,7 @@ from planlint import (
     payload,
     registrar,
     rule9,
+    secondwrite,
     structure,
     tiers,
     waves,
@@ -60,6 +61,7 @@ DOCUMENT_LINTS = {
     "rule9": rule9.run,
     "closure": closure.run,
     "markers": markers.run,
+    "secondwrite": secondwrite.run,
 }
 
 # A lint that runs only when the invocation supplies what it reads. Membership

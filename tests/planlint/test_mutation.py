@@ -34,6 +34,7 @@ from planlint import (
     implicit,
     markers,
     registrar,
+    secondwrite,
     structure,
     tiers,
     waves,
@@ -52,6 +53,7 @@ LINTS = {
     "registrar": registrar.run,
     "closure": closure.run,
     "markers": markers.run,
+    "secondwrite": secondwrite.run,
 }
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
@@ -123,6 +125,10 @@ DOCUMENT_RULES = frozenset(
         # markers
         "done-marker-citation-not-in-form",
         "done-marker-path-uncited",
+        # secondwrite
+        "second-write-class-undecided",
+        "second-write-no-owner-row",
+        "second-write-outside-class",
         # structure
         "done-marker-not-line-anchored",
         "table-column-count-undecided",
@@ -528,6 +534,45 @@ MUTATIONS = [
         {"done-marker-path-uncited"},
     ),
     (
+        # EEE-1 already depends on CCC-1 and CCC-2, so the added task's
+        # Depends edge needs no wave or count change; the marked path is one
+        # NO owner row names, which is exactly test 1.
+        "a marked entry whose path carries no owner row",
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `g2Lib/eta_hook.h@CCC-1`, `tests/tests_core.cmake`",
+        {"second-write-no-owner-row"},
+    ),
+    (
+        # One contiguous replacement adds BOTH the marked entry and the
+        # owner row that refuses it: the row exists on the
+        # post-replacement document, so test 1 passes there, but its
+        # mechanism cell carries no class sentence -- test 4 refuses the
+        # writer. The undecided variant of this shape (a two-column row
+        # stating no mechanism at all) is the mutation beside this one.
+        "a marked entry whose owner row states no class",
+        # Anchored on EEE-1's REAL Files line. The NEW side adds the
+        # marked entry and the owner row that refuses it in one edit.
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `g2Lib/classless.h@CCC-1`, `tests/tests_core.cmake`\n"
+        "| Path | Owner | The mechanism for everybody else |\n|---|---|---|\n"
+        "| `g2Lib/classless.h` | **CCC-1** | Ask CCC-1 before editing. |",
+        {"second-write-outside-class"},
+    ),
+    (
+        # EEE-1's Files line gains the marked entry. The tests_core owner
+        # row is TWO-COLUMN in the clean fixture, so it states no mechanism
+        # at all -- the undecided branch, not the refusal. The refusal
+        # branch (a mechanism column present with no class sentence in it)
+        # is covered by the inline fixtures in test_secondwrite, which
+        # build the four-column shape directly; a mutation here would have
+        # to widen a table and edit a task in one non-contiguous
+        # replacement, which the harness cannot express.
+        "a marked entry whose owner row states no mechanism",
+        "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake@AAA-1`",
+        {"second-write-class-undecided"},
+    ),
+    (
         "a completion marker written in the grammar that predates the form",
         "`add_test(NAME t2_zeta ...)`.",
         "`add_test(NAME t2_zeta ...)`.\n**DONE on 2026-01-01, commit `1111111`.**",
@@ -575,7 +620,7 @@ def rules_the_lints_emit():
     out = set()
     for module in (
         graph, waves, tiers, checks, counts, implicit, registrar, closure,
-        structure, anchors, markers,
+        structure, anchors, markers, secondwrite,
     ):
         out |= rules_in_source(module)
     return out
@@ -623,17 +668,17 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 55)
+        self.assertEqual(len(MUTATIONS), 58)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 56)
+        self.assertEqual(len(rules_the_lints_emit()), 59)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
             "graph": graph, "waves": waves, "tiers": tiers, "checks": checks,
             "counts": counts, "implicit": implicit, "registrar": registrar,
             "closure": closure, "structure": structure, "anchors": anchors,
-            "markers": markers,
+            "markers": markers, "secondwrite": secondwrite,
         }
         self.assertEqual(
             sorted(
