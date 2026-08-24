@@ -1,0 +1,2 @@
+[console_scripts]
+planlint = planlint.cli:main

@@ -5,18 +5,58 @@ analysis and build tools. It holds no emulator code and it uses no CMake.
 
 Repository: `axiomantic/nmg2-tools`. Licence: MIT.
 
-## Test
+## Build and test
+
+There is nothing to build. This repository uses no CMake and needs no install
+step to test: `pyproject.toml` sets `testpaths = ["tests"]` and
+`pythonpath = ["."]`, so pytest finds the tests and the tests import the package
+from the repository root.
+
+**The sibling repositories carry `CMakePresets.json` or `CMakeUserPresets.json`
+so that the narrow check is shorter to type than the wide one. This one carries
+no equivalent, deliberately.** There is no CMake here to hold a preset, and the
+thing a preset would buy does not exist: the full run below is already the
+shortest invocation in this file, and it costs seconds rather than the CPU-hours
+that make a narrow path worth a mechanism in `gearmulator`. Adding a marker set
+or a wrapper script to mirror the other repositories would be ceremony with
+nothing behind it.
+
+### Narrow
 
 ```bash
-pytest                      # the whole suite
-pytest tests/test_pch2.py   # one file
+.venv/bin/python -m pytest tests/test_pch2.py    # one file
+.venv/bin/python -m pytest tests/planlint        # the plan linter alone
+.venv/bin/python -m pytest -k <expression>       # by name
 ```
 
-Requirements: Python 3.11 or later, pytest 7.0 or later.
+**Narrowing here is by PATH or by `-k`, never by marker.** `pyproject.toml`
+registers no markers and the suite defines none, so `pytest -m ...` selects
+nothing. Do not write a `-m` invocation into a check line.
 
-`pyproject.toml` sets `testpaths = ["tests"]` and `pythonpath = ["."]`, so
-pytest finds the tests and the tests import the package from the repository
-root.
+### Full
+
+```bash
+.venv/bin/python -m pytest
+```
+
+`.github/workflows` also runs the suite under `python -X dev -W error`, which
+turns a warning into a failure. A change that touches deprecation surface —
+`datetime`, `importlib`, `re` — passes the plain run and fails that one.
+
+**The narrow run cannot see the consumer.** The firmware extractor here is the
+test ORACLE for the C++ extractor in the `gearmulator` fork, and the two must
+produce identical bytes. A change under `nmg2_tools/` that the oracle path
+reaches — `container`, `lzo1x`, and what they call — is only checked by
+`t0_extract_matches_python` in that repository, which nothing here runs.
+
+### Environment
+
+- **Use the interpreter in `.venv`.** The system `python3` on this host has no
+  pytest installed, so a bare `pytest` works only from an activated environment.
+  Requirements: Python 3.11 or later, pytest 7.0 or later.
+- `NMG2_ARTIFACTS` names the private artifact tree. Unset is the normal case:
+  the tests that need it skip with a stated reason and never fail for that
+  reason. Set it only to exercise the gated half.
 
 ## Layout
 
@@ -71,6 +111,17 @@ Never write these in a comment or a docstring:
   test is the only durable statement about coverage.
 - **A note about history** ("this used to...", "an earlier version..."). Git
   holds that.
+- **An enumeration whose length is the claim.** A stale enumeration is a stale
+  count with the number spelled out. Delete the word "four" from "any of those
+  four values" and the list above it still says four. It goes wrong by the
+  mechanism the word did.
+- **A path that does not resolve.** A comment, a docstring, or a document that
+  names a file, a script, a test, or a type must name one that exists.
+- **A claim about the rest of the tree.** A comment or a docstring describes the
+  code beside it. Do not write what else imports this module, what its only
+  caller is, which task consumes it next, or what another file does not name.
+  The import graph answers those and stays right; a sentence about them is
+  derivable, goes stale the moment another task moves, and records no decision.
 
 **One exception, and it is the only one.** A number that a mechanism reads and
 checks at test time may stay. The check is then the source of truth, not the
@@ -86,6 +137,31 @@ comment claiming a member count that "a grep for two property names finds"
 was an unverifiable hand-count in the very file written to end hand-counts.
 Where a count is genuinely needed, **compute it** — read it out of the source
 with `ast`, or out of the tool itself — and assert the computed value.
+
+**`planlint/README.md` is also the live example of the path rule, and its wrong
+paths are a separate defect from its wrong numbers.** It names the invocations
+`./plan_lint.py`, `./payload_lint.py` and `./assert_section_7_6.py`, and not one
+resolves as written: the loose wrappers were never migrated, and `payload_lint.py`
+survives only as the package module the README's own third column names. Every
+`tests/` path it cites has moved one directory down into `tests/planlint/`, so
+each names a real file at a wrong location. Measured 2026-08-14 with `find` and a
+file test, not with `git grep`.
+
+**The path rule is the one a machine can decide, and that is why it is stated
+apart from the others.** Each other rule here needs a reader's judgement about
+what a sentence claims. "Every path-shaped token resolves" is a regular
+expression and a file test. Write the check. Do not trust a sweep to hold.
+
+**A path that MOVED is corrected. A path that never existed is deleted.** A moved
+path has a correct target, so give it one. A named script that exists nowhere has
+no target, so the sentence goes — unless the sentence records a known GAP, and
+then the gap moves to a tracked item BEFORE the comment goes.
+
+**A cross-reference that helps a reader NAVIGATE still stands.** "The section
+offsets are also read in `nmg2_tools/pch2.py`" earns its place and stays,
+provided it asserts no exclusivity and no sequence. What goes is ONLY, FIRST,
+NEXT, and "does not name": those are the falsifiable forms, and that difference
+is the whole of the rule.
 
 ### Scope: code we authored
 
