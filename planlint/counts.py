@@ -35,12 +35,34 @@ CROSS_TRACK_ROW = re.compile(r"crosses a track inside one wave", re.IGNORECASE)
 THERE_ARE = re.compile(r"\bThere are ([A-Za-z0-9]+)\b")
 
 
+TENS = {
+    "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+}
+
+
 def as_number(token):
-    """A digit or an English number word, or `None`."""
+    """A digit or an English number word, or `None`.
+
+    Compound words are read as well, in the hyphenated form this document
+    uses -- `twenty-two` is 22. Without this a figure that grows past twenty
+    reports as its own tens word and the anchor rule accuses a document that
+    is correct: `twenty-two` matched `twenty` and read as 20 while the tool
+    derived 22, which is the instrument disagreeing with itself rather than
+    with the text.
+    """
     token = token.strip().replace(",", "")
     if token.isdigit():
         return int(token)
-    return WORDS.get(token.lower())
+    lowered = token.lower()
+    if lowered in WORDS:
+        return WORDS[lowered]
+    if lowered in TENS:
+        return TENS[lowered]
+    head, sep, tail = lowered.partition("-")
+    if sep and head in TENS and tail in WORDS and 1 <= WORDS[tail] <= 9:
+        return TENS[head] + WORDS[tail]
+    return None
 
 
 def run(doc):

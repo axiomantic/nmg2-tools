@@ -53,7 +53,11 @@ from planlint.finding import ERROR, Finding, guard_no_input
 # accepted only a well-formed key would not match a misspelled anchor at all,
 # and an anchor the scanner cannot see reads exactly like an anchor that is not
 # there.
-ANCHOR = re.compile(r"<!--\s*derived:(?P<key>.*?)-->[ \t]*(?P<token>[A-Za-z0-9,]*)")
+# The token class carries the HYPHEN so that a compound number word is
+# captured whole. Without it `twenty-two` was captured as `twenty`, read
+# as 20, and reported stale against a derived 22 -- the rule accusing a
+# document that was correct, which is worse than not checking at all.
+ANCHOR = re.compile(r"<!--\s*derived:(?P<key>.*?)-->[ \t]*(?P<token>[A-Za-z0-9,-]*)")
 
 # `{key: how the tool derives the figure}`. A key here with no anchor beside it
 # in the document is a finding, so registering a figure obliges the prose that
