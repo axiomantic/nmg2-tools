@@ -417,7 +417,7 @@ class KeptByFormTest(unittest.TestCase):
 class ObservableFormTest(unittest.TestCase):
     """§7.7's form 2, in both wordings the live document uses.
 
-    BRD-7 records nine bare `assert()`s REPLACED by a helper "compiled in every
+    BRD-7 records bare `assert()`s REPLACED by a helper "compiled in every
     build type"; DSP-7's live clause reads back the registers "through the
     peripheral set, which is an observable no build type deletes". Both were
     convicted by the shipped rule. Each wording is driven from both directions
@@ -572,6 +572,62 @@ class ShapePredicateTest(unittest.TestCase):
             [SHAPE_RULE],
         )
 
+    @staticmethod
+    def _shape_block(closing):
+        """A block whose predicate is the SHAPE, followed by `closing`.
+
+        `without asserting` carries no noun the wider rule reads, so whatever
+        this block reports is the shape rule's answer alone.
+        """
+        return (
+            "## 9. The tasks\n"
+            "\n"
+            "**ZZZ-7 · A verdict-shape predicate** — T0\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_zzz$`. "
+            "The registered test drives one case and verifies it completes "
+            "without asserting." + closing + "\n"
+        )
+
+    def _shape_findings(self, closing):
+        result = removed.run(
+            PlanDocument.from_text(self._shape_block(closing), name="synthetic")
+        )
+        return [(f.rule, f.task, f.evidence) for f in result.findings]
+
+    SHAPE_EVIDENCE = (
+        "The registered test drives one case and verifies it completes "
+        "without asserting."
+    )
+
+    def test_a_verdict_shape_predicate_under_form_2_is_spared(self):
+        """§7.7 gives its three forms to the BLOCK, so the shape rule answers to
+        all three and not to the first. The pair below drops the one sentence,
+        which is what makes the sparing attributable to form 2 rather than to
+        anything else in the block."""
+        self.assertEqual(
+            self._shape_findings(
+                " The count the verdict reads is a returned value present in "
+                "every build type."
+            ),
+            [],
+        )
+
+    def test_a_verdict_shape_predicate_under_form_3_is_spared(self):
+        self.assertEqual(
+            self._shape_findings(
+                " The property is unchecked in the default build, and ZZZ-9 "
+                "checks it."
+            ),
+            [],
+        )
+
+    def test_the_same_shape_predicate_with_no_form_at_all_is_reported(self):
+        self.assertEqual(
+            self._shape_findings(""),
+            [(SHAPE_RULE, "ZZZ-7", self.SHAPE_EVIDENCE)],
+        )
+
 
 class PredicateTableTest(unittest.TestCase):
     """Each rule the lint emits is a ROW with its own id, its own message
@@ -608,8 +664,7 @@ class PredicateTableTest(unittest.TestCase):
     def test_the_noun_predicates_pattern_is_the_one_w3_405_refused_to_narrow(self):
         """The refusal is the point. §24.6 row W3-405 declined to narrow this
         pattern "until the count resembles the roster" and row W3-408 restates
-        it; the measured count against the live document is 40, which resembles
-        no roster. The shape rule is an ADDITION beside it, so this pattern is
+        it. The shape rule is an ADDITION beside it, so this pattern is
         pinned here byte for byte and moves only when that refusal is
         withdrawn."""
         self.assertEqual(

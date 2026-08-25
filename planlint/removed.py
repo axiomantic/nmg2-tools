@@ -25,7 +25,7 @@ member two is a row and a fixture, never a second rule and never an edit here.
 The sparing side is `kept_by`, and it is THREE ROWS because section 7.7 gives
 three legal forms and calls silence "not a fourth". The rule shipped with the
 first form alone while citing the whole section as its authority, so it
-convicted the two blocks that took the SECOND — BRD-7, which records nine bare
+convicted the two blocks that took the SECOND — BRD-7, which records bare
 `assert()`s replaced by a helper "compiled in every build type", and DSP-7,
 whose live clause reads the registers back through "an observable no build type
 deletes". A rule that convicts the blocks that did the right thing trains a
@@ -172,9 +172,8 @@ REMOVED_MECHANISMS = (
                 names="names",
                 # NOT NARROWED. §24.6 row W3-405 refused that "until the count
                 # resembles the roster" and row W3-408 restates the refusal.
-                # The measured count against the live document is 40, which
-                # resembles no roster, so the refusal stands and the answer to
-                # the shape question is the row BELOW rather than an edit here.
+                # The refusal stands, so the answer to the shape question is
+                # the row BELOW rather than an edit here.
                 clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
                 severity=ERROR,
             ),
@@ -182,9 +181,9 @@ REMOVED_MECHANISMS = (
                 rule="check-verdict-rests-on-an-assertion-not-firing",
                 names="rests its verdict on the not-firing of",
                 # §7.7's boxed RULE, read as the SHAPE of the verdict rather
-                # than the spelling of a noun. Against the live document this
-                # returns ONE block — DSP-20 — and DSP-20 is the block that
-                # rule names.
+                # than the spelling of a noun. A block that states the shape
+                # under any of §7.7's three legal forms is spared, because the
+                # section gives those forms to the block and not to a spelling.
                 clause_pattern=r"(?i)\bno assertion (?:trips|fires)\b"
                 r"|\bwithout asserting\b|\basserts no assertion\b",
                 severity=ERROR,
