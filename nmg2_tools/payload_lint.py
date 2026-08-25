@@ -84,6 +84,13 @@ from pathlib import Path
 
 SIZE_CEILING = 65_536
 
+# The register SHIPS WITH THIS PACKAGE, so it is resolved against the module's
+# own location and never against the process's working directory. A relative
+# default here passes from the repository root and fails from every other
+# directory -- green on a developer's machine, red in CI, in the shape of a
+# defect in the code under test rather than in the path.
+SHIPPED_REGISTER = Path(__file__).resolve().parent / "testdata" / "register.tsv"
+
 PCH2_ALLOWED_DIR = "nmg2_tools/testdata/pch2_synth/"
 
 # Clause 3 (the byte ceiling) applies only to a committed file under one of
@@ -300,8 +307,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--register",
         type=Path,
-        default=Path("nmg2_tools/testdata/register.tsv"),
-        help="path to the register file (default: nmg2_tools/testdata/register.tsv)",
+        default=SHIPPED_REGISTER,
+        help=f"path to the register file (default: {SHIPPED_REGISTER})",
     )
     parser.add_argument(
         "--visibility",

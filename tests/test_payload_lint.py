@@ -1,10 +1,13 @@
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from nmg2_tools.payload_lint import (
     PCH2_ALLOWED_DIR,
+    SHIPPED_REGISTER,
     RegisterError,
     RegisterEntry,
     lint_committed_files,
@@ -140,8 +143,7 @@ def test_pch2_exception_row_grants_no_size_exemption(tmp_path):
 
 
 def test_shipped_register_has_exactly_one_pch2_exception_row():
-    register_path = Path("nmg2_tools/testdata/register.tsv")
-    entries = load_register(register_path)
+    entries = load_register(SHIPPED_REGISTER)
     exception_entries = [e for e in entries if e.pch2_excepted]
     assert len(exception_entries) == 1
     assert exception_entries[0].path == "PatchTestFiles/"
@@ -205,7 +207,7 @@ def test_scoped_exception_does_not_widen_to_other_paths_in_its_own_repo(tmp_path
 
 
 def test_shipped_register_pch2_exception_row_is_scoped_to_g2_edit():
-    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    entries = load_register(SHIPPED_REGISTER)
     exception_entries = [e for e in entries if e.pch2_excepted]
     assert len(exception_entries) == 1
     assert exception_entries[0].path == "PatchTestFiles/"
@@ -349,7 +351,7 @@ def test_main_reports_a_malformed_register_row_as_a_named_failure(
 def test_shipped_register_exception_applies_in_g2_edit(tmp_path):
     rel = "PatchTestFiles/InheritedOne.pch2"
     _write(tmp_path / rel, 10)
-    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    entries = load_register(SHIPPED_REGISTER)
     failures = lint_committed_files(
         tmp_path, [rel], entries, repo="axiomantic/G2-Edit"
     )
@@ -359,7 +361,7 @@ def test_shipped_register_exception_applies_in_g2_edit(tmp_path):
 def test_shipped_register_exception_does_not_travel_to_another_repository(tmp_path):
     rel = "PatchTestFiles/InheritedOne.pch2"
     _write(tmp_path / rel, 10)
-    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    entries = load_register(SHIPPED_REGISTER)
     failures = lint_committed_files(tmp_path, [rel], entries, repo="axiomantic/mc68k")
     assert failures == [
         f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
@@ -374,7 +376,7 @@ def test_shipped_register_private_guard_holds_for_the_demo_corpus(tmp_path):
     """
     rel = "corpus/pch2/Anthem demo.pch2"
     _write(tmp_path / rel, 10)
-    entries = load_register(Path("nmg2_tools/testdata/register.tsv"))
+    entries = load_register(SHIPPED_REGISTER)
     failures = lint_committed_files(
         tmp_path,
         [rel],
@@ -383,3 +385,47 @@ def test_shipped_register_private_guard_holds_for_the_demo_corpus(tmp_path):
         repo="axiomantic/nmg2-artifacts",
     )
     assert failures == []
+
+
+# --- The register resolves against the code, not against the cwd ------------
+#
+# A path resolved against the process's working directory passes from the
+# repository root and fails from everywhere else. That is green locally and
+# red in CI, in the shape of a real defect, so the guard below has to fail
+# where the bug HIDES -- from the repository root -- and not only where it
+# already shows.
+
+
+@pytest.mark.skipif(
+    "_NMG2_FOREIGN_CWD_CHILD" in os.environ,
+    reason="the child run of this same module; recursing again would not end",
+)
+def test_this_module_passes_from_a_foreign_working_directory(tmp_path):
+    """Every test here resolves its fixtures independently of the cwd.
+
+    The child run carries `_NMG2_FOREIGN_CWD_CHILD`, which makes this test
+    skip inside it. The recursion is one level deep and terminates.
+    """
+    environment = dict(os.environ, _NMG2_FOREIGN_CWD_CHILD="1")
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(Path(__file__).resolve()), "-q",
+         "-p", "no:cacheprovider"],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_default_register_is_found_from_a_foreign_working_directory(
+    tmp_path, monkeypatch, capsys
+):
+    """`--register` defaults to the shipped file wherever the tool is run."""
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    subprocess.run(["git", "-C", str(tree), "init", "-q"], check=True)
+    monkeypatch.chdir(tmp_path)
+    status = main([str(tree), "--repo", "axiomantic/nmg2-tools"])
+    assert status == 0
+    assert capsys.readouterr() == ("", "")
