@@ -21,6 +21,8 @@ is the pair of fixture trees in `test_payload.py`.
 
 import ast
 import pathlib
+import tempfile
+import types
 import unittest
 
 from tests.planlint.support import fixture_path
@@ -133,6 +135,7 @@ DOCUMENT_RULES = frozenset(
         "second-write-outside-class",
         # removed
         "check-predicate-removed-by-default-build",
+        "check-verdict-rests-on-an-assertion-not-firing",
         # structure
         "done-marker-not-line-anchored",
         "table-column-count-undecided",
@@ -588,6 +591,19 @@ MUTATIONS = [
         {"check-predicate-removed-by-default-build"},
     ),
     (
+        # The predicate SHAPE §7.7's boxed RULE names, carried by a clause with
+        # NO assertion noun in it: `without asserting` is the verdict's shape
+        # and `asserting` is not a spelling the noun pattern reads. So this
+        # mutation reddens the shape rule ALONE, which is what proves the two
+        # rules are separately falsifiable rather than one rule wearing two
+        # names.
+        "a Check: verdict that rests on an assertion not firing",
+        "Registered with `add_test(NAME t0_beta ...)` through the track test list.",
+        "Registered with `add_test(NAME t0_beta ...)` through the track test list. "
+        "The test drives the case and verifies it completes without asserting.",
+        {"check-verdict-rests-on-an-assertion-not-firing"},
+    ),
+    (
         "a completion marker written in the grammar that predates the form",
         "`add_test(NAME t2_zeta ...)`.",
         "`add_test(NAME t2_zeta ...)`.\n**DONE on 2026-01-01, commit `1111111`.**",
@@ -615,20 +631,41 @@ def rules_in_source(module):
     """Every rule a lint module can emit, read from its source.
 
     Read from the SOURCE and not from a list kept by hand, so that a rule added
-    to a lint is a rule this file already knows about. A `Finding` whose rule is
-    not a literal is reported rather than skipped: a rule the source cannot name
-    is a rule no mutation can cover.
+    to a lint is a rule this file already knows about.
+
+    A rule id reaches a `Finding` two ways. Most lints spell it at the `Finding`
+    call. `removed` spells it on a DATA ROW and passes `rule=predicate.rule`,
+    because a rule id spelled in the rule body is the roster defect in its
+    smallest form. Both are `rule=` keywords carrying a string literal, so both
+    are read the same way and neither needs this function to know a lint's name.
+
+    A module that DECLARES rule ids is described by those declarations. A module
+    that declares none is described by what its `Finding` calls name, literal or
+    not, so a rule the source cannot name is reported rather than skipped rather
+    than a lint going silently uncovered.
+
+    THE GAP THIS LEAVES, NAMED: a module that declares rule ids AND ALSO builds
+    one from an expression naming none of them would have that one missed here.
+    `test_every_document_lint_owns_at_least_one_covered_rule` is what catches the
+    whole-module case; a partial one would need a reader that can resolve the
+    expression, which no reader here does.
     """
     tree = ast.parse(pathlib.Path(module.__file__).read_text(encoding="utf-8"))
-    out = set()
+    declared = set()
+    emitted = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or getattr(node.func, "id", "") != "Finding":
+        if not isinstance(node, ast.Call):
             continue
         found = [keyword.value for keyword in node.keywords if keyword.arg == "rule"]
-        found += node.args[:1]
-        for value in found:
-            out.add(value.value if isinstance(value, ast.Constant) else ast.unparse(value))
-    return out
+        if getattr(node.func, "id", "") == "Finding":
+            for value in found + node.args[:1]:
+                emitted.add(
+                    value.value if isinstance(value, ast.Constant) else ast.unparse(value)
+                )
+        declared |= {
+            value.value for value in found if isinstance(value, ast.Constant)
+        }
+    return declared or emitted
 
 
 def rules_the_lints_emit():
@@ -639,6 +676,59 @@ def rules_the_lints_emit():
     ):
         out |= rules_in_source(module)
     return out
+
+
+class RuleReaderTest(unittest.TestCase):
+    """`rules_in_source` drives every assertion in `RuleCoverageTest`. A reader
+    that returned an empty set, or that went blind when a lint moved its rule
+    ids onto a data row, would make all of them pass and verify nothing.
+
+    So the reader is driven here directly, in BOTH of its branches, over sources
+    written for the purpose.
+    """
+
+    def read(self, source):
+        path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory())) / "m.py"
+        path.write_text(source, encoding="utf-8")
+        return rules_in_source(types.SimpleNamespace(__file__=str(path)))
+
+    def test_a_rule_spelled_at_the_finding_call_is_read(self):
+        self.assertEqual(
+            self.read('Finding(rule="spelled-at-the-call", message="")'),
+            {"spelled-at-the-call"},
+        )
+
+    def test_a_rule_declared_on_a_data_row_is_read(self):
+        """The branch `removed` uses. Without it that lint reads as owning the
+        single pseudo-rule `predicate.rule` and every rule it really emits goes
+        uncovered with this file green."""
+        self.assertEqual(
+            self.read(
+                'ROWS = (Predicate(rule="declared-on-a-row"),)\n'
+                "Finding(rule=predicate.rule, message='')\n"
+            ),
+            {"declared-on-a-row"},
+        )
+
+    def test_a_rule_the_source_cannot_name_is_reported_and_not_skipped(self):
+        """The other branch. A module that declares nothing and builds its rule
+        from an expression is REPORTED under that expression, which no mutation
+        covers, so `test_every_rule_the_lints_emit_has_a_mutation` fails by
+        name rather than passing over a rule nothing drives."""
+        self.assertEqual(
+            self.read("Finding(rule=chosen.rule, message='')"),
+            {"chosen.rule"},
+        )
+
+    def test_the_reader_is_not_empty_for_the_lint_that_declares_its_rules(self):
+        """An empty scan makes every assertion in `RuleCoverageTest` pass."""
+        self.assertEqual(
+            rules_in_source(removed),
+            {
+                "check-predicate-removed-by-default-build",
+                "check-verdict-rests-on-an-assertion-not-firing",
+            },
+        )
 
 
 class MutationTest(unittest.TestCase):
@@ -652,6 +742,22 @@ class MutationTest(unittest.TestCase):
             with self.subTest(mutation=label):
                 self.assertIn(old, CLEAN, f"anchor missing for: {label}")
                 self.assertEqual(red_rules(CLEAN.replace(old, new, 1), build_dirs=build_dirs), expected)
+
+    def test_every_mutation_changes_something(self):
+        """A mutation whose replacement equals its anchor AND which overrides no
+        `build_dirs` mutates nothing. The run is then the clean fixture itself,
+        the expected rule set is whatever the clean fixture already reports, and
+        the subtest passes while covering no rule at all.
+
+        The two ways a defect is injected are BOTH allowed and the predicate
+        names both: the text is replaced with different text, or the fifth
+        element supplies a build directory the clean text cannot describe.
+        `an invalid build-dir path` is the second kind and is the reason this
+        assertion reads `and` rather than testing the text alone."""
+        self.assertEqual(
+            [item[0] for item in MUTATIONS if item[1] == item[2] and len(item) <= 4],
+            [],
+        )
 
     def test_every_mutation_anchor_appears_once_in_the_clean_fixture(self):
         """A mutation whose anchor appears twice edits a place its author did
@@ -683,10 +789,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 59)
+        self.assertEqual(len(MUTATIONS), 60)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 60)
+        self.assertEqual(len(rules_the_lints_emit()), 61)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

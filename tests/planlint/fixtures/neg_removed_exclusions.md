@@ -1,6 +1,6 @@
 # Negative fixture — the removed-mechanism lint's named exclusions
 
-**WHAT THIS FILE IS.** Six task blocks the removed-mechanism lint MUST spare,
+**WHAT THIS FILE IS.** Ten task blocks the removed-mechanism lint MUST spare,
 one for each REASON a flagged span cannot be a defect of this class. An empty
 findings list over this fixture is the answer, and `examined` is non-zero, so
 the emptiness is a measurement and not an absence of one.
@@ -27,9 +27,34 @@ unless the same command returns non-zero somewhere.
     §7.6's assertions are sentences in this document, checked by `planlint`
     itself; no build type deletes a sentence. Its pair drops the number and
     nothing else, which is the whole of the recognizer.
-  * **KEP-4 — A LIVE `debug build` SENTENCE.** The `kept_by` sparing phrase, in
-    the ordinary case. Its pair is the identical block with that one sentence
+  * **KEP-4 — A LIVE `debug build` SENTENCE.** §7.7's FORM 1 — *"it names
+    `-DCMAKE_BUILD_TYPE=Debug` on a command inside the same block"* — in the
+    ordinary case. Its pair is the identical block with that one sentence
     struck, so a withdrawn excuse stops excusing.
+  * **KEP-7 — FORM 2, THE PROPERTY CONVERTED TO AN OBSERVABLE.** §7.7's second
+    legal form: *"it converts the property to an OBSERVABLE the check reads in
+    any build type — a returned value, a `g2::Status`, a counter, a file"*. The
+    wording is BRD-7's own — nine bare `assert()`s replaced by a helper
+    *"compiled in every build type"*. Its pair drops that one clause and
+    nothing else.
+  * **KEP-8 — FORM 2, IN THE OTHER WORDING THE DOCUMENT USES.** DSP-7's live
+    clause reads back the registers *"through the peripheral set, which is an
+    observable no build type deletes"*. The two wordings are separate
+    alternatives of the same form and each is driven from both directions,
+    because an alternative no fixture reaches is an alternative nothing proves.
+    Its pair drops that one clause and nothing else.
+  * **KEP-9 — FORM 3, THE PROPERTY DECLARED UNCHECKED IN THE DEFAULT BUILD.**
+    §7.7's third legal form: *"the block says in words that the property is
+    unchecked in the default build and names the task that checks it"*. BOTH
+    halves are required — the form names the task, so a block that declares the
+    gap and names no task states no form at all. Its pair drops the declaring
+    clause and keeps the task identifier, so the pair proves the declaration is
+    what spares and not the identifier beside it.
+  * **KEP-10 — A VERDICT-SHAPE PREDICATE UNDER A LIVE FORM 1 SENTENCE.** The
+    shape-keyed rule's sparing half. `without asserting` is the predicate SHAPE
+    §7.7's boxed RULE names, and a block that states it under a legal form is
+    spared exactly as the noun-keyed rule's blocks are. Its pair is the
+    identical block with that one sentence removed.
   * **UNM-1 — A TRACK §7.1 PLACES IN AN UNMEASURED REPOSITORY.** §7.7 says the
     rule *"binds each repository from its own transcript"* and that `mcf5307`
     *"is a Nim-driven CMake project and its default build type is NOT
@@ -80,3 +105,23 @@ Check: `ctest --test-dir build --no-tests=error -R ^t0_unm_one$`. The registered
 Files: `g2Lib/test/t0_spn_one.cpp`
 Depends: none
 Check: `ctest --test-dir build --no-tests=error -R ^t0_spn_one$`. The registered test drives one case and the bound is held by an assertion in the helper.
+
+**KEP-7 · A bound converted to an observable, in BRD-7's wording** — T0
+Files: `g2Lib/test/t0_kep_seven.cpp`
+Depends: none
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_seven$`. The registered test drives one case and the bound is held by an assertion in the helper. Nine bare `assert()`s are replaced by `checkEqual`, which is compiled in every build type.
+
+**KEP-8 · A bound converted to an observable, in DSP-7's wording** — T0
+Files: `g2Lib/test/t0_kep_eight.cpp`
+Depends: none
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_eight$`. The registered test drives one case and the bound is held by an assertion in the helper. The test asserts the arming by reading back that channel's own registers through the peripheral set, which is an observable no build type deletes.
+
+**KEP-9 · A bound declared unchecked in the default build** — T0
+Files: `g2Lib/test/t0_kep_nine.cpp`
+Depends: none
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_nine$`. The registered test drives one case and the bound is held by an assertion in the helper. The property is unchecked in the default build and KEP-4 is the task that checks it.
+
+**KEP-10 · A verdict-shape predicate the debug build keeps** — T0
+Files: `g2Lib/test/t0_kep_ten.cpp`
+Depends: none
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_ten$`. The registered test drives one case and verifies it completes without asserting. A debug build keeps it.

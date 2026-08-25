@@ -10,6 +10,7 @@ lint fails in.
 """
 
 import ast
+import dataclasses
 import pathlib
 import re
 import unittest
@@ -20,6 +21,7 @@ from planlint import cli, removed
 from planlint.document import PlanDocument
 
 RULE = "check-predicate-removed-by-default-build"
+SHAPE_RULE = "check-verdict-rests-on-an-assertion-not-firing"
 
 AUTHORITY = (
     "§7.7 measurement 7, TAKEN for `dsp56300`; §7.7 measurement 8, the "
@@ -28,10 +30,19 @@ AUTHORITY = (
     "there may rest on an assertion"
 )
 
+SHAPE_MESSAGE = (
+    "a Check: predicate rests its verdict on the not-firing of assert(), which "
+    "NDEBUG removes from the default build, so the check reports PASS against a "
+    "tree in which the property was never written; the block states none of the "
+    "three legal forms that would keep it "
+    f"({AUTHORITY})"
+)
+
 MESSAGE = (
     "a Check: predicate names assert(), which NDEBUG removes from the default "
     "build, so the check reports PASS against a tree in which the property was "
-    "never written; the block names no build type that keeps it "
+    "never written; the block states none of the three legal forms that "
+    "would keep it "
     f"({AUTHORITY})"
 )
 
@@ -52,9 +63,10 @@ class AuthorityTest(unittest.TestCase):
         self.assertEqual(removed.REMOVED_MECHANISMS[0].authority, AUTHORITY)
 
     def test_every_finding_carries_that_authority_in_its_message(self):
+        """Both rules cite it, because §7.7 is the authority for both."""
         self.assertEqual(
             sorted({f.message for f in run("pos_removed_exclusions.md").findings}),
-            [MESSAGE],
+            sorted([MESSAGE, SHAPE_MESSAGE]),
         )
 
 
@@ -87,6 +99,11 @@ class NegativeFixtureTest(unittest.TestCase):
 
 class PositiveFixtureTest(unittest.TestCase):
     def test_the_positive_fixture_reports_the_five_blocks_and_no_other(self):
+        """Five blocks, seven findings. BRD-17 and DSP-7 state the verdict in
+        the SHAPE §7.7's boxed rule names as well as in the noun, so each is
+        reported under both rules — two true statements about one block, and
+        not a duplicate. SCH-28 asserts that an assertion DOES trip, which the
+        shape rule does not read: its id says `not-firing` and it means it."""
         result = run("pos_removed_mechanism.md")
 
         self.assertEqual(
@@ -97,6 +114,8 @@ class PositiveFixtureTest(unittest.TestCase):
                 (RULE, "SCH-20"),
                 (RULE, "SCH-28"),
                 (RULE, "SCH-7"),
+                (SHAPE_RULE, "BRD-17"),
+                (SHAPE_RULE, "DSP-7"),
             ],
         )
         self.assertEqual(result.examined, 5)
@@ -175,7 +194,7 @@ class ExclusionFixturePairTest(unittest.TestCase):
         result = run("neg_removed_exclusions.md")
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.examined, 6)
+        self.assertEqual(result.examined, 10)
         self.assertEqual(result.examined_label, "Check: blocks")
 
     def test_the_exclusion_positive_fixture_reports_every_pair_and_no_other(self):
@@ -190,9 +209,13 @@ class ExclusionFixturePairTest(unittest.TestCase):
                 (RULE, "KEP-4"),
                 (RULE, "KEP-5"),
                 (RULE, "KEP-6"),
+                (RULE, "KEP-7"),
+                (RULE, "KEP-8"),
+                (RULE, "KEP-9"),
+                (SHAPE_RULE, "KEP-10"),
             ],
         )
-        self.assertEqual(result.examined, 6)
+        self.assertEqual(result.examined, 10)
 
 
 class StruckClauseTest(unittest.TestCase):
@@ -223,6 +246,304 @@ class StruckClauseTest(unittest.TestCase):
         """The other direction, and the reason the strike is applied to
         `kept_by` too: a withdrawn excuse stops excusing."""
         self.assertIn((RULE, "KEP-4", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+
+class KeptByFormTest(unittest.TestCase):
+    """§7.7 gives a `Check:` BLOCK that states a debug-only behaviour EXACTLY
+    THREE legal forms, and each is a row here with its own name and its own
+    reason.
+
+    The lint shipped ONE of the three. A rule that enforces a third of the
+    section it cites, and cites the whole section as its authority, convicts
+    blocks that did the right thing — which is the sparing side, the direction
+    a wrong lint fails in. Both blocks the live document states form 2 in were
+    convicted by it.
+
+    This is not the narrowing §24.6 rows W3-405 and W3-408 refused. That
+    refusal is about `clause_pattern`, which is untouched. These rows implement
+    the other two legal forms OF THE RULE THE LINT ALREADY CLAIMS TO ENFORCE.
+    """
+
+    def forms(self):
+        return removed.REMOVED_MECHANISMS[0].kept_by
+
+    def test_the_shipped_row_names_each_legal_form_with_its_own_reason(self):
+        self.assertEqual(
+            [(item.name, item.pattern, item.reason) for item in self.forms()],
+            [
+                (
+                    "form 1 — it names the build type that keeps the mechanism",
+                    r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
+                    r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                    "§7.7: the block \"names `-DCMAKE_BUILD_TYPE=Debug` on a "
+                    "command inside the same block\", so the translation unit "
+                    "the check reads keeps the mechanism",
+                ),
+                (
+                    "form 2 — it converts the property to an observable read in "
+                    "any build type",
+                    r"(?i)\b(?:compiled|present|read|readable|available"
+                    r"|observable|survives|kept)\b[^.]{0,60}"
+                    r"\b(?:in (?:every|any) build type"
+                    r"|no build type (?:deletes|removes|strips|omits))\b",
+                    "§7.7: the block \"converts the property to an OBSERVABLE "
+                    "the check reads in any build type — a returned value, a "
+                    "`g2::Status`, a counter, a file\", so no build setting can "
+                    "delete the thing the verdict rests on",
+                ),
+                (
+                    "form 3 — it says the property is unchecked in the default "
+                    "build and names the task that checks it",
+                    r"(?i)\bunchecked in the default build\b[^.]{0,80}"
+                    r"\b[A-Z]{2,6}-\d+\b",
+                    "§7.7: the block \"says in words that the property is "
+                    "unchecked in the default build and names the task that "
+                    "checks it\", so the gap is stated rather than left silent, "
+                    "and §7.7 says silence is not a fourth form",
+                ),
+            ],
+        )
+
+    def test_no_form_matches_a_removing_setting(self):
+        """`Release` and `NDEBUG` are the settings that REMOVE the mechanism.
+        A form reaching either spares exactly the blocks whose own prose names
+        the removal, and the live document's worst case — DSP-7 — names both in
+        the sentence that diagnoses its defect."""
+        removing = (
+            "a Release build defines `NDEBUG`, which removes every `assert()`",
+            "the default build is Release",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "NDEBUG is defined",
+            "the assertion is deleted in every build type that defines NDEBUG",
+        )
+
+        self.assertEqual(
+            [
+                (item.name, text)
+                for item in self.forms()
+                for text in removing
+                if re.search(item.pattern, text)
+            ],
+            [],
+        )
+
+    def test_the_plans_worked_example_is_matched_by_the_build_type_form_alone(self):
+        """SCH-18 is §7.7's worked example of correct treatment: it returns a
+        `g2::Status` rather than asserting, and its `Check:` reads "in a release
+        build as well as a debug build". That sentence is FORM 2 in substance
+        and it is form 1 in spelling, and form 1 already shipped — so the
+        example was never among the convicted, and this test records which row
+        spares it rather than leaving a reader to assume the new one does."""
+        sentence = "in a release build as well as a debug build"
+
+        self.assertEqual(
+            [item.name for item in self.forms() if re.search(item.pattern, sentence)],
+            ["form 1 — it names the build type that keeps the mechanism"],
+        )
+
+
+class ObservableFormTest(unittest.TestCase):
+    """§7.7's form 2, in both wordings the live document uses.
+
+    BRD-7 records nine bare `assert()`s REPLACED by a helper "compiled in every
+    build type"; DSP-7's live clause reads back the registers "through the
+    peripheral set, which is an observable no build type deletes". Both were
+    convicted by the shipped rule. Each wording is driven from both directions
+    here, because an alternative no fixture reaches is an alternative nothing
+    proves.
+    """
+
+    def test_the_brd7_wording_spares_the_block(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-7"],
+            [],
+        )
+
+    def test_the_same_block_without_that_clause_is_reported(self):
+        self.assertIn(
+            (
+                RULE,
+                "KEP-7",
+                "The registered test drives one case and the bound is held by an "
+                "assertion in the helper.",
+            ),
+            tuples(run("pos_removed_exclusions.md")),
+        )
+
+    def test_the_dsp7_wording_spares_the_block(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-8"],
+            [],
+        )
+
+    def test_the_same_read_back_without_that_clause_is_reported(self):
+        self.assertIn(
+            (
+                RULE,
+                "KEP-8",
+                "The registered test drives one case and the bound is held by an "
+                "assertion in the helper.",
+            ),
+            tuples(run("pos_removed_exclusions.md")),
+        )
+
+
+class UncheckedFormTest(unittest.TestCase):
+    """§7.7's form 3, and the half of it a looser pattern would drop.
+
+    The form has TWO halves — the block "says in words that the property is
+    unchecked in the default build" AND "names the task that checks it". The
+    paired positive keeps the task identifier and drops the declaration, so the
+    pair proves the declaration is what spares and not the identifier beside
+    it.
+    """
+
+    def test_a_declared_gap_that_names_the_checking_task_spares_the_block(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-9"],
+            [],
+        )
+
+    def test_a_named_task_with_no_declared_gap_is_reported(self):
+        self.assertIn(
+            (
+                RULE,
+                "KEP-9",
+                "The registered test drives one case and the bound is held by an "
+                "assertion in the helper.",
+            ),
+            tuples(run("pos_removed_exclusions.md")),
+        )
+
+    def test_a_declared_gap_that_names_no_task_is_reported(self):
+        """Both halves are required. A block that states the gap and names
+        nobody has stated no form at all, and §7.7 says silence is not a fourth
+        form."""
+        text = (
+            "## 9. The tasks\n"
+            "\n"
+            "**ZZZ-4 · A gap declared and left to nobody** — T0\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_zzz$`. " + BOUND + " "
+            "The property is unchecked in the default build.\n"
+        )
+        result = removed.run(PlanDocument.from_text(text, name="synthetic"))
+
+        self.assertEqual(
+            [(f.rule, f.task, f.evidence) for f in result.findings],
+            [(RULE, "ZZZ-4", BOUND)],
+        )
+
+
+class ShapePredicateTest(unittest.TestCase):
+    """The rule keyed on the predicate's SHAPE and not on a noun's spelling.
+
+    §7.7's boxed RULE names one shape: *"No `Check:` line may state its
+    predicate as 'an assertion fires' or 'no assertion fires' without naming
+    the build type that keeps `assert()`."* The noun-keyed rule reads every
+    SPELLING instead, which is a wider question and a different one, and
+    §24.6 rows W3-405 and W3-408 refuse to narrow it.
+
+    So this is an ADDITION and not a narrowing. The two rules ask different
+    questions of the same block and each says which it asked; a block that
+    answers both badly is reported twice, which is two true statements and not
+    a duplicate.
+
+    Both rules share the whole sparing side — the strike mask, the
+    `not_the_mechanism` rows, the repository scope and §7.7's three legal
+    forms — because §7.7 gives those to the block and not to the spelling.
+    """
+
+    def test_a_verdict_shape_predicate_with_no_legal_form_is_reported(self):
+        self.assertEqual(
+            [f for f in tuples(run("pos_removed_exclusions.md")) if f[1] == "KEP-10"],
+            [
+                (
+                    SHAPE_RULE,
+                    "KEP-10",
+                    "The registered test drives one case and verifies it completes "
+                    "without asserting.",
+                )
+            ],
+        )
+
+    def test_the_same_block_under_a_legal_form_is_spared(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-10"],
+            [],
+        )
+
+    def test_the_shape_finding_carries_its_own_message_and_the_same_authority(self):
+        """The message names the SHAPE and not the noun, so a reader can tell
+        which of the two questions was asked. The authority is the same, because
+        §7.7 is the authority for both."""
+        self.assertEqual(
+            sorted(
+                (f.task, f.severity, f.message)
+                for f in run("pos_removed_exclusions.md").findings
+                if f.rule == SHAPE_RULE
+            ),
+            [("KEP-10", "ERROR", SHAPE_MESSAGE)],
+        )
+
+    def test_the_shape_pattern_does_not_reach_the_english_noun_alone(self):
+        """`without asserting` is the shape; `an assertion in the helper` is the
+        noun. KEP-10's positive carries the shape and no noun, and it is
+        reported under this rule ALONE — which is what makes the two rules
+        separately falsifiable rather than one rule wearing two names."""
+        self.assertEqual(
+            [
+                f[0]
+                for f in tuples(run("pos_removed_exclusions.md"))
+                if f[1] == "KEP-10"
+            ],
+            [SHAPE_RULE],
+        )
+
+
+class PredicateTableTest(unittest.TestCase):
+    """Each rule the lint emits is a ROW with its own id, its own message
+    fragment and its own severity, and `run()` names none of the three.
+
+    A rule id spelled inside `run()` is the roster defect in its smallest form:
+    the body would then know how many rules there are. The AST pin below is what
+    holds that shut.
+    """
+
+    def test_the_shipped_row_carries_the_two_predicates_the_section_states(self):
+        self.assertEqual(
+            [
+                (item.rule, item.names, item.clause_pattern, item.severity)
+                for item in removed.REMOVED_MECHANISMS[0].predicates
+            ],
+            [
+                (
+                    RULE,
+                    "names",
+                    r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                    "ERROR",
+                ),
+                (
+                    SHAPE_RULE,
+                    "rests its verdict on the not-firing of",
+                    r"(?i)\bno assertion (?:trips|fires)\b|\bwithout asserting\b"
+                    r"|\basserts no assertion\b",
+                    "ERROR",
+                ),
+            ],
+        )
+
+    def test_the_noun_predicates_pattern_is_the_one_w3_405_refused_to_narrow(self):
+        """The refusal is the point. §24.6 row W3-405 declined to narrow this
+        pattern "until the count resembles the roster" and row W3-408 restates
+        it; the measured count against the live document is 40, which resembles
+        no roster. The shape rule is an ADDITION beside it, so this pattern is
+        pinned here byte for byte and moves only when that refusal is
+        withdrawn."""
+        self.assertEqual(
+            removed.REMOVED_MECHANISMS[0].predicates[0].clause_pattern,
+            r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+        )
 
 
 class NotTheMechanismTest(unittest.TestCase):
@@ -373,14 +694,14 @@ class RepositoryScopeTest(unittest.TestCase):
                 if isinstance(node, ast.Constant) and isinstance(node.value, str)
             ),
             [
+                " ",
                 " removes from the default build, so the check reports PASS "
                 "against a tree in which the property was never written; the "
-                "block names no build type that keeps it (",
+                "block states none of the three legal forms that would keep it (",
                 ")",
                 ", which ",
                 "Check: blocks",
-                "a Check: predicate names ",
-                "check-predicate-removed-by-default-build",
+                "a Check: predicate ",
                 "removed",
                 "removed-mechanism lint",
             ],
@@ -407,13 +728,15 @@ class FindingEvidenceTest(unittest.TestCase):
         result = run("pos_removed_mechanism.md")
 
         self.assertEqual(
-            sorted((f.task, f.severity, f.section, f.message) for f in result.findings),
+            sorted((f.task, f.rule, f.severity, f.section, f.message) for f in result.findings),
             [
-                ("BRD-17", "ERROR", "9. The tasks", MESSAGE),
-                ("DSP-7", "ERROR", "9. The tasks", MESSAGE),
-                ("SCH-20", "ERROR", "9. The tasks", MESSAGE),
-                ("SCH-28", "ERROR", "9. The tasks", MESSAGE),
-                ("SCH-7", "ERROR", "9. The tasks", MESSAGE),
+                ("BRD-17", RULE, "ERROR", "9. The tasks", MESSAGE),
+                ("BRD-17", SHAPE_RULE, "ERROR", "9. The tasks", SHAPE_MESSAGE),
+                ("DSP-7", RULE, "ERROR", "9. The tasks", MESSAGE),
+                ("DSP-7", SHAPE_RULE, "ERROR", "9. The tasks", SHAPE_MESSAGE),
+                ("SCH-20", RULE, "ERROR", "9. The tasks", MESSAGE),
+                ("SCH-28", RULE, "ERROR", "9. The tasks", MESSAGE),
+                ("SCH-7", RULE, "ERROR", "9. The tasks", MESSAGE),
             ],
         )
 
@@ -421,13 +744,15 @@ class FindingEvidenceTest(unittest.TestCase):
         result = run("pos_removed_mechanism.md")
 
         self.assertEqual(
-            sorted((f.task, f.line) for f in result.findings),
+            sorted((f.task, f.rule, f.line) for f in result.findings),
             [
-                ("BRD-17", 38),
-                ("DSP-7", 62),
-                ("SCH-20", 50),
-                ("SCH-28", 56),
-                ("SCH-7", 44),
+                ("BRD-17", RULE, 38),
+                ("BRD-17", SHAPE_RULE, 38),
+                ("DSP-7", RULE, 62),
+                ("DSP-7", SHAPE_RULE, 62),
+                ("SCH-20", RULE, 50),
+                ("SCH-28", RULE, 56),
+                ("SCH-7", RULE, 44),
             ],
         )
 
@@ -469,15 +794,15 @@ class TranscriptFenceTest(unittest.TestCase):
         return removed.run(PlanDocument.from_text(self.DOCUMENT, name="synthetic"))
 
     def test_the_prose_below_the_transcript_is_reported(self):
+        evidence = (
+            "The registered test drives one case and asserts that no assertion trips."
+        )
+
         self.assertEqual(
-            [(f.rule, f.task, f.evidence) for f in self.result().findings],
+            sorted((f.rule, f.task, f.evidence) for f in self.result().findings),
             [
-                (
-                    RULE,
-                    "ZZZ-2",
-                    "The registered test drives one case and asserts that no "
-                    "assertion trips.",
-                )
+                (RULE, "ZZZ-2", evidence),
+                (SHAPE_RULE, "ZZZ-2", evidence),
             ],
         )
 
@@ -507,9 +832,22 @@ class MechanismTableTest(unittest.TestCase):
     SYNTHETIC_TABLE = (
         removed.RemovedMechanism(
             mechanism="quantum tripwire",
-            clause_pattern=r"(?i)\bquantum tripwire\b",
+            predicates=(
+                removed.Predicate(
+                    rule="check-predicate-removed-by-default-build",
+                    names="names",
+                    clause_pattern=r"(?i)\bquantum tripwire\b",
+                    severity="ERROR",
+                ),
+            ),
             removed_by="G2_NO_TRIPWIRE",
-            kept_by=r"(?i)\btripwire build\b",
+            kept_by=(
+                removed.KeptBy(
+                    name="the only form the invented mechanism has",
+                    pattern=r"(?i)\btripwire build\b",
+                    reason="§0, a passage this project does not carry",
+                ),
+            ),
             authority="§0, a passage this project does not carry",
             # The invented mechanism has no spelling that is provably not it,
             # and the field is stated rather than defaulted: a row that leaves
@@ -558,6 +896,33 @@ class MechanismTableTest(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertEqual(result.examined, 1)
 
+    def test_a_synthetic_row_reports_at_the_severity_its_predicate_states(self):
+        """`severity` is a column and not a constant in `run()`, so this drives
+        it to a value neither shipped predicate uses. Both shipped predicates
+        are ERROR by decision — `LintResult.failed` is `bool(self.findings)`, so
+        a lower severity reorders the report and does not change the exit code,
+        which would make the change LOOK like a remediation and deliver none.
+        That decision is a value in a row a reader can see and a later pass can
+        revisit; without this test the column would be an untested `off`
+        switch."""
+        table = (
+            dataclasses.replace(
+                self.SYNTHETIC_TABLE[0],
+                predicates=(
+                    dataclasses.replace(
+                        self.SYNTHETIC_TABLE[0].predicates[0], severity="WARNING"
+                    ),
+                ),
+            ),
+        )
+
+        result = removed.run(self.document(), mechanisms=table)
+
+        self.assertEqual(
+            [(f.rule, f.task, f.severity) for f in result.findings],
+            [("check-predicate-removed-by-default-build", "ZZZ-1", "WARNING")],
+        )
+
     def test_the_shipped_table_carries_the_assert_row_the_plan_states(self):
         """The whole row, every column. A field this pin did not name could be
         added, changed or emptied with the suite green."""
@@ -566,10 +931,66 @@ class MechanismTableTest(unittest.TestCase):
             (
                 removed.RemovedMechanism(
                     mechanism="assert()",
-                    clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                    predicates=(
+                        removed.Predicate(
+                            rule=RULE,
+                            names="names",
+                            clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                            severity="ERROR",
+                        ),
+                        removed.Predicate(
+                            rule=SHAPE_RULE,
+                            names="rests its verdict on the not-firing of",
+                            clause_pattern=r"(?i)\bno assertion (?:trips|fires)\b"
+                            r"|\bwithout asserting\b|\basserts no assertion\b",
+                            severity="ERROR",
+                        ),
+                    ),
                     removed_by="NDEBUG",
-                    kept_by=r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
-                    r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                    kept_by=(
+                        removed.KeptBy(
+                            name="form 1 — it names the build type that keeps the mechanism",
+                            pattern=r"(?i)\bdebug\s+build\b|\bdebug-only\b"
+                            r"|\bRelWithDebInfo\b|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                            reason=(
+                                "§7.7: the block \"names `-DCMAKE_BUILD_TYPE=Debug` "
+                                "on a command inside the same block\", so the "
+                                "translation unit the check reads keeps the mechanism"
+                            ),
+                        ),
+                        removed.KeptBy(
+                            name=(
+                                "form 2 — it converts the property to an observable "
+                                "read in any build type"
+                            ),
+                            pattern=r"(?i)\b(?:compiled|present|read|readable|available"
+                            r"|observable|survives|kept)\b[^.]{0,60}"
+                            r"\b(?:in (?:every|any) build type"
+                            r"|no build type (?:deletes|removes|strips|omits))\b",
+                            reason=(
+                                "§7.7: the block \"converts the property to an "
+                                "OBSERVABLE the check reads in any build type — a "
+                                "returned value, a `g2::Status`, a counter, a file\", "
+                                "so no build setting can delete the thing the verdict "
+                                "rests on"
+                            ),
+                        ),
+                        removed.KeptBy(
+                            name=(
+                                "form 3 — it says the property is unchecked in the "
+                                "default build and names the task that checks it"
+                            ),
+                            pattern=r"(?i)\bunchecked in the default build\b[^.]{0,80}"
+                            r"\b[A-Z]{2,6}-\d+\b",
+                            reason=(
+                                "§7.7: the block \"says in words that the property is "
+                                "unchecked in the default build and names the task "
+                                "that checks it\", so the gap is stated rather than "
+                                "left silent, and §7.7 says silence is not a fourth "
+                                "form"
+                            ),
+                        ),
+                    ),
                     authority=AUTHORITY,
                     not_the_mechanism=(
                         removed.NotTheMechanism(
@@ -597,27 +1018,6 @@ class MechanismTableTest(unittest.TestCase):
                 ),
             ),
         )
-
-    def test_the_kept_by_pattern_matches_no_removing_setting(self):
-        """`Release` and `NDEBUG` are the settings that REMOVE the mechanism.
-        A `kept_by` reaching either spares exactly the blocks whose own prose
-        names the removal."""
-        kept_by = re.compile(removed.REMOVED_MECHANISMS[0].kept_by)
-
-        self.assertEqual(
-            [
-                text
-                for text in (
-                    "a Release build defines `NDEBUG`, which removes every `assert()`",
-                    "the default build is Release",
-                    "-DCMAKE_BUILD_TYPE=Release",
-                    "NDEBUG is defined",
-                )
-                if kept_by.search(text)
-            ],
-            [],
-        )
-
 
 class EmptyPopulationTest(unittest.TestCase):
     def test_a_document_with_no_task_block_is_a_hard_error(self):
