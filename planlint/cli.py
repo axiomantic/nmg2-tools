@@ -33,6 +33,7 @@ from planlint import (
     markers,
     payload,
     registrar,
+    removed,
     rule9,
     secondwrite,
     structure,
@@ -62,6 +63,7 @@ DOCUMENT_LINTS = {
     "closure": closure.run,
     "markers": markers.run,
     "secondwrite": secondwrite.run,
+    "removed": removed.run,
 }
 
 # A lint that runs only when the invocation supplies what it reads. Membership

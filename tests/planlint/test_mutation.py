@@ -34,6 +34,7 @@ from planlint import (
     implicit,
     markers,
     registrar,
+    removed,
     secondwrite,
     structure,
     tiers,
@@ -54,6 +55,7 @@ LINTS = {
     "closure": closure.run,
     "markers": markers.run,
     "secondwrite": secondwrite.run,
+    "removed": removed.run,
 }
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
@@ -129,6 +131,8 @@ DOCUMENT_RULES = frozenset(
         "second-write-class-undecided",
         "second-write-no-owner-row",
         "second-write-outside-class",
+        # removed
+        "check-predicate-removed-by-default-build",
         # structure
         "done-marker-not-line-anchored",
         "table-column-count-undecided",
@@ -572,6 +576,17 @@ MUTATIONS = [
         "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake@AAA-1`",
         {"second-write-class-undecided"},
     ),
+    # ---------------------------------------------------------------- removed
+    (
+        # The clause names the MECHANISM `NDEBUG` deletes, and the block names
+        # no build type that keeps it. The English verb `asserts` is not the
+        # subject: it is what a test does in every build.
+        "a Check: predicate resting on a mechanism the default build removes",
+        "The suite carries a failing case of its own.",
+        "The suite carries a failing case of its own. The bound is held by an "
+        "`assert()` in the helper.",
+        {"check-predicate-removed-by-default-build"},
+    ),
     (
         "a completion marker written in the grammar that predates the form",
         "`add_test(NAME t2_zeta ...)`.",
@@ -620,7 +635,7 @@ def rules_the_lints_emit():
     out = set()
     for module in (
         graph, waves, tiers, checks, counts, implicit, registrar, closure,
-        structure, anchors, markers, secondwrite,
+        structure, anchors, markers, secondwrite, removed,
     ):
         out |= rules_in_source(module)
     return out
@@ -668,17 +683,17 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 58)
+        self.assertEqual(len(MUTATIONS), 59)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 59)
+        self.assertEqual(len(rules_the_lints_emit()), 60)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
             "graph": graph, "waves": waves, "tiers": tiers, "checks": checks,
             "counts": counts, "implicit": implicit, "registrar": registrar,
             "closure": closure, "structure": structure, "anchors": anchors,
-            "markers": markers, "secondwrite": secondwrite,
+            "markers": markers, "secondwrite": secondwrite, "removed": removed,
         }
         self.assertEqual(
             sorted(
