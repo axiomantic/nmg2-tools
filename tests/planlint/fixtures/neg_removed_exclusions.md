@@ -1,6 +1,6 @@
 # Negative fixture — the removed-mechanism lint's named exclusions
 
-**WHAT THIS FILE IS.** Ten task blocks the removed-mechanism lint MUST spare,
+**WHAT THIS FILE IS.** Eleven task blocks the removed-mechanism lint MUST spare,
 one for each REASON a flagged span cannot be a defect of this class. An empty
 findings list over this fixture is the answer, and `examined` is non-zero, so
 the emptiness is a measurement and not an absence of one.
@@ -55,6 +55,13 @@ unless the same command returns non-zero somewhere.
     §7.7's boxed RULE names, and a block that states it under a legal form is
     spared exactly as the noun-keyed rule's blocks are. Its pair is the
     identical block with that one sentence removed.
+  * **KEP-11 — FORM 1 IN THE SPELLING §7.7 ITSELF PRESCRIBES.** §7.7 writes
+    form 1 down once and the spelling carries the flag prefix: *"it names
+    `-DCMAKE_BUILD_TYPE=Debug` on a command inside the same block"*. KEP-4
+    drives the PROSE wording of the same form; this block drives the COMMAND
+    wording, which is the one the section wrote. Its pair says `Release` where
+    this one says `Debug` and nothing else — the one word that turns a setting
+    that KEEPS the mechanism into the setting that removes it.
   * **UNM-1 — A TRACK §7.1 PLACES IN AN UNMEASURED REPOSITORY.** §7.7 says the
     rule *"binds each repository from its own transcript"* and that `mcf5307`
     *"is a Nim-driven CMake project and its default build type is NOT
@@ -125,3 +132,8 @@ Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_nine$`. The registere
 Files: `g2Lib/test/t0_kep_ten.cpp`
 Depends: none
 Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_ten$`. The registered test drives one case and verifies it completes without asserting. A debug build keeps it.
+
+**KEP-11 · A bound the debug build keeps, named on the check command** — T0
+Files: `g2Lib/test/t0_kep_eleven.cpp`
+Depends: none
+Check: `cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug` then `ctest --test-dir build-debug --no-tests=error -R ^t0_kep_eleven$`. The registered test drives one case and the bound is held by an assertion in the helper.

@@ -194,7 +194,7 @@ class ExclusionFixturePairTest(unittest.TestCase):
         result = run("neg_removed_exclusions.md")
 
         self.assertEqual(result.findings, [])
-        self.assertEqual(result.examined, 10)
+        self.assertEqual(result.examined, 11)
         self.assertEqual(result.examined_label, "Check: blocks")
 
     def test_the_exclusion_positive_fixture_reports_every_pair_and_no_other(self):
@@ -204,6 +204,7 @@ class ExclusionFixturePairTest(unittest.TestCase):
             sorted((f.rule, f.task) for f in result.findings),
             [
                 (RULE, "KEP-1"),
+                (RULE, "KEP-11"),
                 (RULE, "KEP-2"),
                 (RULE, "KEP-3"),
                 (RULE, "KEP-4"),
@@ -215,7 +216,7 @@ class ExclusionFixturePairTest(unittest.TestCase):
                 (SHAPE_RULE, "KEP-10"),
             ],
         )
-        self.assertEqual(result.examined, 10)
+        self.assertEqual(result.examined, 11)
 
 
 class StruckClauseTest(unittest.TestCase):
@@ -247,6 +248,22 @@ class StruckClauseTest(unittest.TestCase):
         `kept_by` too: a withdrawn excuse stops excusing."""
         self.assertIn((RULE, "KEP-4", BOUND), tuples(run("pos_removed_exclusions.md")))
 
+    def test_the_prescribed_command_spelling_spares_the_block(self):
+        """KEP-4 drives form 1's PROSE wording. This drives the wording §7.7
+        itself wrote down — `-DCMAKE_BUILD_TYPE=Debug` on a command inside the
+        block — which the shipped pattern refused, because the `-D` puts a word
+        character in front of the `C` and a leading `\\b` cannot open there."""
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-11"],
+            [],
+        )
+
+    def test_the_same_command_naming_the_removing_build_type_is_reported(self):
+        """The pair differs by ONE WORD, and it is the word that decides:
+        `Release` is the setting that REMOVES the mechanism, so the block that
+        names it states no legal form and must still be convicted."""
+        self.assertIn((RULE, "KEP-11", BOUND), tuples(run("pos_removed_exclusions.md")))
+
 
 class KeptByFormTest(unittest.TestCase):
     """§7.7 gives a `Check:` BLOCK that states a debug-only behaviour EXACTLY
@@ -274,7 +291,7 @@ class KeptByFormTest(unittest.TestCase):
                 (
                     "form 1 — it names the build type that keeps the mechanism",
                     r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
-                    r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                    r"|(?<![A-Za-z0-9_])(?:-D)?CMAKE_BUILD_TYPE\s*=\s*Debug\b",
                     "§7.7: the block \"names `-DCMAKE_BUILD_TYPE=Debug` on a "
                     "command inside the same block\", so the translation unit "
                     "the check reads keeps the mechanism",
@@ -339,6 +356,61 @@ class KeptByFormTest(unittest.TestCase):
         self.assertEqual(
             [item.name for item in self.forms() if re.search(item.pattern, sentence)],
             ["form 1 — it names the build type that keeps the mechanism"],
+        )
+
+    def test_form_1_matches_the_spelling_section_7_7_itself_prescribes(self):
+        """§7.7 states form 1 in ONE spelling and it carries the `-D`: the
+        block *"names `-DCMAKE_BUILD_TYPE=Debug` on a command inside the same
+        block"*. Form 1's own `reason` quotes that sentence verbatim, so a
+        pattern that does not read it convicts the block that did exactly what
+        the rule's own authority prescribes — the sparing-side failure, and in
+        the one spelling the section wrote down itself.
+
+        BOTH spellings are driven. The bare one is what a prose sentence
+        reaches for and the `-D` one is what a command line carries, and §7.7
+        prescribes the second."""
+        form1 = self.forms()[0].pattern
+
+        self.assertEqual(
+            [
+                text
+                for text in (
+                    "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug",
+                    "-DCMAKE_BUILD_TYPE=Debug",
+                    "CMAKE_BUILD_TYPE=Debug",
+                    "CMAKE_BUILD_TYPE = Debug",
+                )
+                if re.search(form1, text)
+            ],
+            [
+                "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "CMAKE_BUILD_TYPE=Debug",
+                "CMAKE_BUILD_TYPE = Debug",
+            ],
+        )
+
+    def test_form_1s_build_type_alternative_reads_no_other_assignment(self):
+        """The widening is bounded on the other side in the same test file it
+        is made in. `Release` is the setting that REMOVES the mechanism and
+        `NDEBUG` is what it defines, so the `-D` prefix may not become a licence
+        to read any assignment at all, and a name that merely ENDS in the
+        matched one — `EXTRA_CMAKE_BUILD_TYPE` — is a different variable."""
+        form1 = self.forms()[0].pattern
+
+        self.assertEqual(
+            [
+                text
+                for text in (
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-DCMAKE_BUILD_TYPE=MinSizeRel",
+                    "-DCMAKE_CONFIGURATION_TYPES=Debug",
+                    "-DEXTRA_CMAKE_BUILD_TYPE=Debug",
+                    "-DNDEBUG",
+                )
+                if re.search(form1, text)
+            ],
+            [],
         )
 
 
@@ -951,7 +1023,8 @@ class MechanismTableTest(unittest.TestCase):
                         removed.KeptBy(
                             name="form 1 — it names the build type that keeps the mechanism",
                             pattern=r"(?i)\bdebug\s+build\b|\bdebug-only\b"
-                            r"|\bRelWithDebInfo\b|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                            r"|\bRelWithDebInfo\b"
+                            r"|(?<![A-Za-z0-9_])(?:-D)?CMAKE_BUILD_TYPE\s*=\s*Debug\b",
                             reason=(
                                 "§7.7: the block \"names `-DCMAKE_BUILD_TYPE=Debug` "
                                 "on a command inside the same block\", so the "

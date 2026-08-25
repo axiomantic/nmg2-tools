@@ -198,8 +198,16 @@ REMOVED_MECHANISMS = (
         kept_by=(
             KeptBy(
                 name="form 1 — it names the build type that keeps the mechanism",
+                # The leading boundary is a LOOKBEHIND and not `\b`, and that is
+                # the whole of the repair. §7.7 states this form in one
+                # spelling — "names `-DCMAKE_BUILD_TYPE=Debug` on a command
+                # inside the same block" — and the `-D` puts a word character
+                # immediately before the `C`, so a leading `\b` refuses the
+                # section's own prescribed spelling. The lookbehind admits the
+                # flag prefix and still refuses `EXTRA_CMAKE_BUILD_TYPE`, which
+                # is a different variable and not this one.
                 pattern=r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
-                r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
+                r"|(?<![A-Za-z0-9_])(?:-D)?CMAKE_BUILD_TYPE\s*=\s*Debug\b",
                 reason=(
                     "§7.7: the block \"names `-DCMAKE_BUILD_TYPE=Debug` on a "
                     "command inside the same block\", so the translation unit "

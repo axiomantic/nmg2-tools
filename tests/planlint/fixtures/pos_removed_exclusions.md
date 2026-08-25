@@ -1,6 +1,6 @@
 # Positive fixture — the paired half of each named exclusion
 
-**WHAT THIS FILE IS.** Ten task blocks the removed-mechanism lint MUST report.
+**WHAT THIS FILE IS.** Eleven task blocks the removed-mechanism lint MUST report.
 Each one is the PAIR of a block in `neg_removed_exclusions.md`, differing as
 narrowly as its reason allows, so that every exclusion is falsifiable in both
 directions rather than being an `off` switch nothing drives.
@@ -26,6 +26,9 @@ directions rather than being an `off` switch nothing drives.
   * **KEP-9** — `neg` KEP-9 with the *"unchecked in the default build"*
     declaration dropped and the TASK IDENTIFIER KEPT. §7.7's form 3 needs both
     halves; this pair proves the declaration is the half that spares.
+  * **KEP-11** — `neg` KEP-11 with `Debug` replaced by `Release` on the same
+    command, and nothing else. `Release` is the setting that REMOVES the
+    mechanism, so the block that names it states no legal form at all.
   * **KEP-10** — `neg` KEP-10 with its `debug build` sentence dropped. It
     carries the predicate SHAPE and no assertion NOUN, so it is reported under
     the shape-keyed rule and under no other.
@@ -87,3 +90,8 @@ Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_nine$`. The registere
 Files: `g2Lib/test/t0_kep_ten.cpp`
 Depends: none
 Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_ten$`. The registered test drives one case and verifies it completes without asserting.
+
+**KEP-11 · A bound the named build type removes, on the check command** — T0
+Files: `g2Lib/test/t0_kep_eleven.cpp`
+Depends: none
+Check: `cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Release` then `ctest --test-dir build-debug --no-tests=error -R ^t0_kep_eleven$`. The registered test drives one case and the bound is held by an assertion in the helper.
