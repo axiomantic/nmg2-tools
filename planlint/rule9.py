@@ -1,4 +1,4 @@
-"""Lint 10 — section 1.3 rule 9, made executable in both of its halves.
+"""Lint 16 — section 1.3 rule 9, made executable in both of its halves.
 
 Section 1.3 rule 9 reads, verbatim:
 

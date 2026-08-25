@@ -5,15 +5,21 @@ examine exits non-zero too: nothing to check is never a pass.
 """
 
 import argparse
+import ast
 import io
+import pathlib
 import re
+import tempfile
 import unittest
 
 from tests.planlint.support import fixture_path
 
 from planlint import cli
 
+PACKAGE = pathlib.Path(cli.__file__).resolve().parent
+
 SECTION = re.compile(r"^(?P<name>[a-z0-9]+): (?P<rest>.*)$")
+ORDINAL = re.compile(r"^Lint (?P<number>\d+) — ")
 
 
 def run(argv):
@@ -348,6 +354,74 @@ class LintRegistryTest(unittest.TestCase):
     def test_the_shipped_registry_accounts_for_every_lint(self):
         cli.validate_lint_registry()
 
+    def test_a_lint_module_on_disk_that_no_table_names_raises(self):
+        """The planted failure. A lint module is WRITTEN into the package and
+        registered in neither table, which is the one route by which a lint can
+        skip in silence: a population read out of `DOCUMENT_LINTS` cannot hold a
+        name `DOCUMENT_LINTS` never got."""
+        planted = PACKAGE / "_planted_lint.py"
+        planted.write_text(
+            '"""A lint module nobody registered."""\n'
+            "\n"
+            "from planlint.finding import LintResult\n"
+            "\n"
+            "\n"
+            "def run(doc):\n"
+            '    return LintResult(name="_planted_lint", findings=[], examined=1)\n',
+            encoding="utf-8",
+        )
+        self.addCleanup(planted.unlink)
+
+        with self.assertRaises(cli.LintRegistryError) as caught:
+            cli.validate_lint_registry()
+
+        self.assertEqual(
+            str(caught.exception),
+            "lint '_planted_lint' neither runs unconditionally nor declares what "
+            "it requires, so a run that omits it could not name the reason",
+        )
+
+    def test_the_scan_names_every_lint_module_and_no_support_module(self):
+        """Exact equality. `cli`, `document` and `finding` are support modules
+        and expose no `run`; `graph` is both a helper and a lint and is IN."""
+        self.assertEqual(
+            cli.discover_lint_modules(),
+            [
+                "anchors",
+                "checks",
+                "citations",
+                "closure",
+                "counts",
+                "graph",
+                "implicit",
+                "markers",
+                "payload",
+                "registrar",
+                "removed",
+                "rule9",
+                "secondwrite",
+                "structure",
+                "tiers",
+                "waves",
+            ],
+        )
+
+    def test_a_scan_that_finds_no_lint_module_raises(self):
+        """The guard's own silent-failure mode. A scan that reads the wrong
+        directory returns nothing, every registered lint is then vacuously
+        accounted for, and the guard passes by finding nothing to check."""
+        empty = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(empty.rmdir)
+
+        with self.assertRaises(cli.LintRegistryError) as caught:
+            cli.discover_lint_modules(empty)
+
+        self.assertEqual(
+            str(caught.exception),
+            f"no lint module found in {empty}, so the registry would be checked "
+            "against nothing and would pass by examining no lint",
+        )
+
     def test_a_lint_that_neither_always_runs_nor_declares_a_requirement_raises(self):
         with self.assertRaises(cli.LintRegistryError) as caught:
             cli.validate_lint_registry(
@@ -418,6 +492,61 @@ class LintRegistryTest(unittest.TestCase):
 
         self.assertEqual(selected, ["graph", "ghost"])
         self.assertEqual(skipped, {})
+
+
+class LintOrdinalTest(unittest.TestCase):
+    """Each lint module opens `Lint N — `. Nothing in the tool read that number,
+    so two modules could claim one ordinal and did. The number stays because
+    `planlint/README.md` refers to lints by it; it is asserted here so that it
+    is a checked fact rather than a hand-maintained one.
+    """
+
+    def ordinals(self):
+        """The ordinal each lint module's docstring claims, read out of the
+        source rather than recalled."""
+        found = {}
+        for name in cli.discover_lint_modules():
+            path = PACKAGE / f"{name}.py"
+            docstring = ast.get_docstring(
+                ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            )
+            match = ORDINAL.match(docstring or "")
+            found[name] = int(match.group("number")) if match else None
+        return found
+
+    def test_every_lint_module_claims_the_ordinal_it_is_known_by(self):
+        self.assertEqual(
+            self.ordinals(),
+            {
+                "graph": 1,
+                "waves": 2,
+                "tiers": 3,
+                "checks": 4,
+                "payload": 5,
+                "counts": 6,
+                "implicit": 7,
+                "registrar": 8,
+                "closure": 9,
+                "structure": 10,
+                "anchors": 11,
+                "markers": 12,
+                "citations": 13,
+                "secondwrite": 14,
+                "removed": 15,
+                "rule9": 16,
+            },
+        )
+
+    def test_the_ordinals_are_a_numbering_and_not_a_set_of_labels(self):
+        """One ordinal per lint, and no gap. A duplicate makes a reference to
+        `lint N` ambiguous, which is the defect this test closes; a gap means a
+        lint was dropped and its number left behind."""
+        claimed = self.ordinals()
+
+        self.assertEqual(
+            sorted(claimed.values()),
+            list(range(1, len(cli.discover_lint_modules()) + 1)),
+        )
 
 
 if __name__ == "__main__":

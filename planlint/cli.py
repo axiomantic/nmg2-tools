@@ -17,6 +17,7 @@ lint passed.
 """
 
 import argparse
+import ast
 import dataclasses
 import pathlib
 import sys
@@ -99,6 +100,45 @@ class LintRegistryError(Exception):
     """The registry cannot account for a lint. Raised at import, never caught."""
 
 
+def discover_lint_modules(package_dir=None):
+    """Every module in the package that exposes a `run`, read off the DISK.
+
+    The population the registry is checked against comes from the filesystem
+    and not from `DOCUMENT_LINTS`, because a population derived from the table
+    under test cannot hold a module the table never got: such a module runs in
+    no report and is named in no error, which is a silent skip.
+
+    A `run` is what the report calls, so it is what separates a lint from a
+    support module. The source is READ and not imported: the check runs at
+    import of this module, and importing every sibling to ask what it defines
+    would make the order in which they import each other decide the answer.
+
+    An empty scan RAISES. A scan that finds nothing accounts for every lint
+    vacuously, so it and a correct registry produce the same silence.
+    """
+    package_dir = (
+        pathlib.Path(__file__).resolve().parent
+        if package_dir is None
+        else pathlib.Path(package_dir)
+    )
+
+    found = []
+    for path in sorted(package_dir.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name == "run":
+                found.append(path.stem)
+                break
+    if not found:
+        raise LintRegistryError(
+            f"no lint module found in {package_dir}, so the registry would be "
+            "checked against nothing and would pass by examining no lint"
+        )
+    return found
+
+
 def validate_lint_registry(all_lints=None, always_run=None, requirements=None):
     """Every lint either always runs or declares what it requires.
 
@@ -106,8 +146,13 @@ def validate_lint_registry(all_lints=None, always_run=None, requirements=None):
     default run whenever its input was absent, with nothing to print as the
     reason. This raises rather than reports, because a caller cannot repair it
     and a report on stdout would be one more line to skim past.
+
+    The default population is the UNION of what the package holds and what
+    `ALL_LINTS` names, so a module present on disk and in neither table is
+    caught, and so is a name in a table with no module behind it.
     """
-    all_lints = ALL_LINTS if all_lints is None else all_lints
+    if all_lints is None:
+        all_lints = sorted(set(discover_lint_modules()) | set(ALL_LINTS))
     always_run = DOCUMENT_LINTS if always_run is None else always_run
     requirements = LINT_REQUIREMENTS if requirements is None else requirements
 
