@@ -528,6 +528,7 @@ class PlanDocument:
         self.wave_of = {}
         self.conditional_tasks = set()
         self.repositories = {}
+        self.track_repositories = {}
         self.fixture_register = []
         self.owned_paths = {}
         self.owner_mechanisms = {}
@@ -744,6 +745,8 @@ class PlanDocument:
                 self._read_repository_table(body)
             elif header[:5] == ["fixture", "path", "named by", "repository", "visibility"]:
                 self._read_fixture_table(body)
+            elif header[:4] == ["track", "worktree name", "repository", "task prefix"]:
+                self._read_track_table(body)
             elif header[:2] == ["track", "tasks"]:
                 self._read_counts_table(body)
             elif header[:2] == ["path", "owner"]:
@@ -764,6 +767,28 @@ class PlanDocument:
                 continue
             for ident in expand_identifiers(cells[2]):
                 self.wave_of[ident] = (label, order)
+
+    def _read_track_table(self, body):
+        """Section 7.1's table: the repositories a task-identifier prefix
+        writes into.
+
+        Section 7.1's own heading says it is the one home of the track set, and
+        section 7.6 assertion 8 asserts that every prefix any task block uses
+        appears in its prefix column. A reader that wanted the repository of a
+        task and kept its own list would be that table copied into Python,
+        which is the shape section 24.6 row W3-404 names as a missing
+        predicate.
+        """
+        for _, cells in body:
+            if len(cells) < 4:
+                continue
+            repositories = tuple(
+                strip_markup(name).strip() for name in cells[2].split(",")
+            )
+            for prefix in cells[3].split(","):
+                prefix = strip_markup(prefix).strip()
+                if prefix:
+                    self.track_repositories[prefix] = repositories
 
     def _read_conditional_table(self, body):
         for _, cells in body:

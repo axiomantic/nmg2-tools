@@ -1,9 +1,20 @@
 """Lint 15 — a `Check:` predicate that names a mechanism the default build removes.
 
-Section 7.7 measurements 7 and 8: the default build is Release, Release defines
+Section 7.7 measurement 7: the default build is Release, Release defines
 `NDEBUG`, and `NDEBUG` removes every `assert()`. A check whose verdict rests on
 an assertion firing therefore reports PASS against a tree in which the property
-was never written.
+was never written. Measurement 8, the `gearmulator` fork transcript, is OWED
+AND NOT TAKEN, and the `authority` field says so rather than citing it as
+taken.
+
+The rule reaches a task through the REPOSITORY its track writes into, which
+section 7.1's table states and this module reads out of the document. A block
+is convicted only when EVERY repository its track writes into is one this
+mechanism binds: a block in a track that also writes into an unmeasured
+repository may be describing the work there, and section 7.7 forbids applying
+a measured behaviour outside its own transcript. Neither the tracks nor the
+repositories appear in `run()`; a list of tracks in the rule body would be
+section 7.1's table copied into Python.
 
 The mechanism list is a DATA TABLE this module iterates and never a pattern in
 `run()`. Section 24.6 row W3-404 states the reason in its own words — "a roster
@@ -11,12 +22,19 @@ amended once per case is a missing predicate" — and a lint that hardcoded the
 one `assert()` regex would be row W3-4's roster rewritten in Python. Adding
 member two is a row and a fixture, never a second rule and never an edit here.
 
-The two discriminating fields are LITERAL patterns and not English. Row W3-405
+The discriminating fields are LITERAL patterns and not English. Row W3-405
 measured what an English description costs: `kept_by` matches DEBUG-flavoured
 build-type names and nothing else, because `Release` and `NDEBUG` are the
 settings that REMOVE the mechanism. A `kept_by` reaching either would spare
 exactly the blocks whose own prose diagnoses the defect — DSP-7 first of all,
 whose `Check:` block names both in the sentence that convicts it.
+
+A `~~`-struck span is masked before any of those patterns is applied, in BOTH
+directions. The document strikes and quotes rather than deleting, so struck
+text is a record of what a predicate USED TO SAY: a struck clause stops
+convicting and a struck sparing phrase stops excusing. Without this a
+strike-based repair could not be confirmed by the instrument that flags it,
+and every repair in this document takes that form.
 """
 
 import dataclasses
@@ -27,12 +45,45 @@ from planlint.finding import ERROR, Finding, guard_no_input
 
 
 @dataclasses.dataclass(frozen=True)
+class NotTheMechanism:
+    """A span that carries a mechanism's SPELLING and is provably not it.
+
+    This is not a narrowing of `clause_pattern`. Section 24.6 row W3-405
+    refused to narrow that pattern "until the count resembles the roster" and
+    row W3-408 restates the refusal. An entry here states, in `reason`, why the
+    flagged thing CANNOT be a defect of this class — and the test of the two
+    apart is whether the reason survives being written down with no count
+    beside it. Every entry's reason survives that.
+    """
+
+    name: str
+    pattern: str
+    reason: str
+
+
+@dataclasses.dataclass(frozen=True)
 class RemovedMechanism:
     """One mechanism a build setting deletes, and how a block names it.
 
-    `clause_pattern` reads the MECHANISM — the call and its noun — and not the
-    English verb `asserts`, which is what a test does in every build and names
-    no mechanism at all.
+    `clause_pattern` reads every SPELLING a block reaches for — the call
+    `assert()` and the English nouns beside it. IN THIS DOCUMENT THE NOUN IS
+    OFTEN NOT THE MECHANISM: a block writing "the assertion is that the model
+    rejects the access" names a test case, and section 7.7's rule does not
+    reach it.
+
+    THAT IS STATED HERE RATHER THAN REPAIRED BY NARROWING THE PATTERN. This
+    docstring once claimed the pattern read "the MECHANISM — the call and its
+    noun — and not the English verb `asserts`", which was the record of an
+    intention the pattern did not carry out; section 24.6 row W3-408 measured
+    the gap. THE CLAIM IS WHAT MOVED, because row W3-405 refused to narrow
+    `clause_pattern` "until the count resembles the roster" and row W3-408
+    restates that refusal: narrowing to make a count look right is the roster
+    written in Python.
+
+    What the module excludes instead is `not_the_mechanism` — spellings that
+    are provably NOT this mechanism, each carrying its own reason — and
+    `repositories`, the scope section 7.7 gives the rule. Both are columns on
+    this row. Adding member two is a row and a fixture, never a second rule.
     """
 
     mechanism: str
@@ -40,6 +91,8 @@ class RemovedMechanism:
     removed_by: str
     kept_by: str
     authority: str
+    not_the_mechanism: tuple
+    repositories: tuple
 
 
 REMOVED_MECHANISMS = (
@@ -47,15 +100,94 @@ REMOVED_MECHANISMS = (
         mechanism="assert()",
         clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
         removed_by="NDEBUG",
-        # Measurement 7 measures the `dsp56300` default build and measurement 8
-        # the `gearmulator` fork. Every block this lint is calibrated on is a
-        # `gearmulator`-fork task, and section 7.7 forbids applying a measured
-        # behaviour outside its own transcript.
+        # The sparing phrase, and it reaches DEBUG-flavoured build-type names
+        # only. `Release` and `NDEBUG` are the settings that REMOVE the
+        # mechanism, so a `kept_by` reaching either would spare exactly the
+        # blocks whose own prose diagnoses the defect.
         kept_by=r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
         r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
-        authority="§7.7 measurements 7 and 8",
+        # The citation is HALF OWED and it says so. §7.7 records of
+        # measurement 8 — the `gearmulator` fork transcript — "THIS TRANSCRIPT
+        # IS OWED AND NOT TAKEN", and a field reading "measurements 7 and 8"
+        # asserted a measured behaviour that has not been measured. §7.7's
+        # instruction for that state is CONSERVATIVE: it does not exempt the
+        # fork, it forbids a `Check:` there from resting on an assertion. So
+        # the repair is an honest citation and the fork stays in scope.
+        authority=(
+            "§7.7 measurement 7, TAKEN for `dsp56300`; §7.7 measurement 8, the "
+            "`gearmulator` fork transcript, is OWED AND NOT TAKEN, and what binds "
+            "the fork until it exists is §7.7's own standing instruction that no "
+            "`Check:` there may rest on an assertion"
+        ),
+        not_the_mechanism=(
+            NotTheMechanism(
+                name="a static assertion",
+                pattern=r"(?i)\bstatic[_\s]assert(?:ion|ions|s)?\b",
+                reason=(
+                    "NDEBUG does not remove static_assert: it is a compile-time "
+                    "construct present in every build type, and this class is a "
+                    "mechanism the default build removes"
+                ),
+            ),
+            NotTheMechanism(
+                name="a citation of one of the plan's own graph assertions",
+                pattern=r"(?i)\bassertions?\s+\d+\b",
+                reason=(
+                    "a numbered assertion is one of section 7.6's own graph "
+                    "invariants, a sentence in this document that planlint "
+                    "checks, and no build type deletes a sentence"
+                ),
+            ),
+        ),
+        # Section 7.7: the rule "binds each repository from its own
+        # transcript". These are the two the section reaches — measurement 7
+        # measures the `dsp56300` default build, and measurement 8's owed
+        # transcript is replaced, until it is taken, by the section's own
+        # standing instruction that no `Check:` in the `gearmulator` fork may
+        # rest on an assertion. `mcf5307` is a Nim-driven CMake project whose
+        # default build type the section says is NOT measured, and `NDEBUG` has
+        # no meaning at all in `nmg2-tools`, which is a pytest project.
+        repositories=("dsp56300 fork", "gearmulator fork"),
     ),
 )
+
+
+# A `~~`-struck span, across line breaks. The document's convention is to
+# strike and quote rather than delete — §1.3 rule 12 — so struck text is a
+# record of what a predicate USED TO SAY and never a live predicate. A lint
+# that read through the markers could not confirm a strike-based repair, which
+# is the form every repair in this document takes.
+STRUCK = re.compile(r"~~.+?~~", re.DOTALL)
+
+
+def _mask(text, patterns):
+    """`text` with the WORD CHARACTERS of every named span blanked.
+
+    Length, punctuation and line breaks are preserved, so an offset in the
+    masked text is the same offset in the original. That is what lets a finding
+    quote the document's own sentence rather than the blanked one, and it is
+    why the mask blanks characters instead of deleting them.
+    """
+    for pattern in patterns:
+        text = pattern.sub(lambda match: re.sub(r"\w", " ", match.group(0)), text)
+    return text
+
+
+def _sentence_at(text, offset):
+    """The sentence of `text` that holds `offset`, quoted verbatim.
+
+    The offset comes from the MASKED text and the sentence from the original,
+    which is the whole reason `_mask` preserves length.
+    """
+    body = text.strip()
+    offset -= len(text) - len(text.lstrip())
+    position = 0
+    for sentence in sentences(text):
+        start = body.index(sentence, position)
+        position = start + len(sentence)
+        if start <= offset < position:
+            return sentence
+    return body
 
 
 def _block_lines(doc, task):
@@ -95,19 +227,25 @@ def _block_lines(doc, task):
     return block
 
 
-def _clause(doc, task, pattern):
+def _clause(doc, task, pattern, masks):
     """The line and the sentence a match sits on, quoted verbatim.
 
     A reader told a `Check:` is unfalsifiable and not shown the sentence goes
-    looking for it.
+    looking for it. The search runs over the MASKED line and the quote comes
+    out of the original, so a withdrawn span can neither be reported nor
+    quoted.
     """
-    for number, text in _block_lines(doc, task):
-        if not pattern.search(text):
+    block = _block_lines(doc, task)
+    # The mask runs over the JOINED block and never line by line: a struck span
+    # may open on one line and close on another, and a per-line mask would see
+    # one unpaired marker on each of them and blank neither. The mask preserves
+    # length and never touches a line break, so the split realigns exactly.
+    masked = _mask("\n".join(text for _, text in block), masks).split("\n")
+    for (number, text), masked_text in zip(block, masked):
+        match = pattern.search(masked_text)
+        if not match:
             continue
-        for sentence in sentences(text):
-            if pattern.search(sentence):
-                return number, sentence
-        return number, text.strip()
+        return number, _sentence_at(text, match.start())
     return task.check_line, task.check_text.splitlines()[0].strip()
 
 
@@ -119,13 +257,31 @@ def run(doc, mechanisms=REMOVED_MECHANISMS):
         if not task.check_line or not task.check_text.strip():
             continue
         examined += 1
+        # The repositories the document itself places this task's track in.
+        # An EMPTY answer on either side makes no exclusion, and both silences
+        # mean the same thing: an exclusion must be PROVABLE, and neither a row
+        # that states no scope nor a document that states no track table proves
+        # a task out of scope. A lint that went quiet on a silence would fail
+        # exactly like a lint that is not there.
+        stated = doc.track_repositories.get(task.track, ())
+
         for mechanism in mechanisms:
+            if (
+                stated
+                and mechanism.repositories
+                and not set(stated) <= set(mechanism.repositories)
+            ):
+                continue
             clause_pattern = re.compile(mechanism.clause_pattern)
-            if not clause_pattern.search(task.check_text):
+            masks = (STRUCK,) + tuple(
+                re.compile(item.pattern) for item in mechanism.not_the_mechanism
+            )
+            masked = _mask(task.check_text, masks)
+            if not clause_pattern.search(masked):
                 continue
-            if re.search(mechanism.kept_by, task.check_text):
+            if re.search(mechanism.kept_by, masked):
                 continue
-            line, evidence = _clause(doc, task, clause_pattern)
+            line, evidence = _clause(doc, task, clause_pattern, masks)
             findings.append(
                 Finding(
                     rule="check-predicate-removed-by-default-build",

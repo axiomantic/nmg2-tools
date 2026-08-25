@@ -9,6 +9,8 @@ fixture is the half that is VERBATIM, because sparing is the direction a wrong
 lint fails in.
 """
 
+import ast
+import pathlib
 import re
 import unittest
 
@@ -19,12 +21,41 @@ from planlint.document import PlanDocument
 
 RULE = "check-predicate-removed-by-default-build"
 
+AUTHORITY = (
+    "§7.7 measurement 7, TAKEN for `dsp56300`; §7.7 measurement 8, the "
+    "`gearmulator` fork transcript, is OWED AND NOT TAKEN, and what binds the "
+    "fork until it exists is §7.7's own standing instruction that no `Check:` "
+    "there may rest on an assertion"
+)
+
 MESSAGE = (
     "a Check: predicate names assert(), which NDEBUG removes from the default "
     "build, so the check reports PASS against a tree in which the property was "
     "never written; the block names no build type that keeps it "
-    "(§7.7 measurements 7 and 8)"
+    f"({AUTHORITY})"
 )
+
+
+class AuthorityTest(unittest.TestCase):
+    """The cited authority is half owed, and the citation says so.
+
+    §7.7 records of measurement 8 — the `gearmulator` fork transcript — "THIS
+    TRANSCRIPT IS OWED AND NOT TAKEN". A field reading "measurements 7 and 8"
+    asserted a measured behaviour that has not been measured, which is this
+    project's own signature failure wearing the costume of a citation. §7.7's
+    instruction for that state is CONSERVATIVE — it forbids resting on an
+    assertion in the fork rather than exempting the fork — so the repair is an
+    honest citation and not an exemption, and the fork stays in `repositories`.
+    """
+
+    def test_the_authority_names_which_measurement_is_taken_and_which_is_owed(self):
+        self.assertEqual(removed.REMOVED_MECHANISMS[0].authority, AUTHORITY)
+
+    def test_every_finding_carries_that_authority_in_its_message(self):
+        self.assertEqual(
+            sorted({f.message for f in run("pos_removed_exclusions.md").findings}),
+            [MESSAGE],
+        )
 
 
 def run(name, **kwargs):
@@ -122,6 +153,237 @@ class PositiveFixtureTest(unittest.TestCase):
                 "The test arms one DMA channel on each and asserts no assertion trips.",
             ),
             tuples(run("pos_removed_mechanism.md")),
+        )
+
+
+BOUND = (
+    "The registered test drives one case and the bound is held by an "
+    "assertion in the helper."
+)
+
+
+class ExclusionFixturePairTest(unittest.TestCase):
+    """The aggregate guard over the exclusion pair.
+
+    Every block of the negative fixture went red here during the cycle that
+    added its reason, and each per-reason test above names one of them. This
+    pair of assertions is what makes a STRAY finding — or a stray sparing —
+    fail, which no per-reason test can do on its own.
+    """
+
+    def test_the_exclusion_negative_fixture_reports_nothing_over_a_non_zero_population(self):
+        result = run("neg_removed_exclusions.md")
+
+        self.assertEqual(result.findings, [])
+        self.assertEqual(result.examined, 6)
+        self.assertEqual(result.examined_label, "Check: blocks")
+
+    def test_the_exclusion_positive_fixture_reports_every_pair_and_no_other(self):
+        result = run("pos_removed_exclusions.md")
+
+        self.assertEqual(
+            sorted((f.rule, f.task) for f in result.findings),
+            [
+                (RULE, "KEP-1"),
+                (RULE, "KEP-2"),
+                (RULE, "KEP-3"),
+                (RULE, "KEP-4"),
+                (RULE, "KEP-5"),
+                (RULE, "KEP-6"),
+            ],
+        )
+        self.assertEqual(result.examined, 6)
+
+
+class StruckClauseTest(unittest.TestCase):
+    """A `~~`-struck clause is withdrawn text.
+
+    The document's convention is to strike and quote rather than delete, so
+    struck text is HISTORY and not a live predicate. A lint that read straight
+    through the markers cannot confirm a strike-based repair, which is the form
+    every repair in this document takes.
+    """
+
+    def test_a_struck_predicate_is_spared(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-1"],
+            [],
+        )
+
+    def test_the_same_predicate_unstruck_is_reported(self):
+        self.assertIn((RULE, "KEP-1", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+    def test_a_live_debug_build_sentence_spares_the_block(self):
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-4"],
+            [],
+        )
+
+    def test_the_same_block_with_that_sentence_struck_is_reported(self):
+        """The other direction, and the reason the strike is applied to
+        `kept_by` too: a withdrawn excuse stops excusing."""
+        self.assertIn((RULE, "KEP-4", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+
+class NotTheMechanismTest(unittest.TestCase):
+    """A span that carries the mechanism's SPELLING and is provably not it.
+
+    Neither entry narrows `clause_pattern`, which §24.6 row W3-405 refused to
+    narrow and row W3-408 restates. Each names a reason the flagged thing
+    cannot be a defect of this class, and each reason stands written down with
+    no count beside it.
+    """
+
+    def test_a_static_assertion_is_spared(self):
+        """`NDEBUG` does not remove `static_assert`. It is a compile-time
+        construct present in every build type, and the class this lint reads is
+        a mechanism the default build REMOVES."""
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-2"],
+            [],
+        )
+
+    def test_the_same_sentence_without_the_word_static_is_reported(self):
+        self.assertIn((RULE, "KEP-2", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+    def test_a_numbered_graph_assertion_citation_is_spared(self):
+        """§7.6's assertions are sentences in the plan, checked by `planlint`
+        itself, and no build type deletes a sentence."""
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "KEP-3"],
+            [],
+        )
+
+    def test_the_same_sentence_without_the_number_is_reported(self):
+        self.assertIn(
+            (
+                RULE,
+                "KEP-3",
+                "The registered test drives the row and reports whether the "
+                "assertion still holds.",
+            ),
+            tuples(run("pos_removed_exclusions.md")),
+        )
+
+    def test_the_shipped_row_names_each_exclusion_with_its_own_reason(self):
+        self.assertEqual(
+            [
+                (item.name, item.pattern, item.reason)
+                for item in removed.REMOVED_MECHANISMS[0].not_the_mechanism
+            ],
+            [
+                (
+                    "a static assertion",
+                    r"(?i)\bstatic[_\s]assert(?:ion|ions|s)?\b",
+                    "NDEBUG does not remove static_assert: it is a compile-time "
+                    "construct present in every build type, and this class is a "
+                    "mechanism the default build removes",
+                ),
+                (
+                    "a citation of one of the plan's own graph assertions",
+                    r"(?i)\bassertions?\s+\d+\b",
+                    "a numbered assertion is one of section 7.6's own graph "
+                    "invariants, a sentence in this document that planlint "
+                    "checks, and no build type deletes a sentence",
+                ),
+            ],
+        )
+
+
+class RepositoryScopeTest(unittest.TestCase):
+    """Section 7.7: the rule "binds each repository from its own transcript".
+
+    The scope is a column on the mechanism ROW and the track-to-repository map
+    is read out of the document's own section 7.1 table. Neither is a list in
+    `run()`, and the last test here is what holds that shut.
+    """
+
+    def test_the_document_reads_the_track_repositories_out_of_its_7_1_table(self):
+        self.assertEqual(
+            load_fixture("neg_removed_exclusions.md").track_repositories,
+            {
+                "KEP": ("gearmulator fork",),
+                "UNM": ("mcf5307",),
+                "SPN": ("gearmulator fork", "nmg2-tools"),
+            },
+        )
+
+    def test_a_track_placed_in_an_unmeasured_repository_is_spared(self):
+        """`mcf5307` is a Nim-driven CMake project whose default build type
+        section 7.7 says is NOT measured."""
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "UNM-1"],
+            [],
+        )
+
+    def test_the_same_block_under_a_fork_track_is_reported(self):
+        self.assertIn((RULE, "KEP-5", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+    def test_a_track_spanning_a_bound_and_an_unbound_repository_is_spared(self):
+        """A block whose track also writes into `nmg2-tools` may be describing
+        the work in the repository where `NDEBUG` has no meaning at all."""
+        self.assertEqual(
+            [f for f in tuples(run("neg_removed_exclusions.md")) if f[1] == "SPN-1"],
+            [],
+        )
+
+    def test_the_same_block_under_the_single_repository_track_is_reported(self):
+        self.assertIn((RULE, "KEP-6", BOUND), tuples(run("pos_removed_exclusions.md")))
+
+    def test_the_shipped_row_names_the_repositories_the_mechanism_binds(self):
+        self.assertEqual(
+            removed.REMOVED_MECHANISMS[0].repositories,
+            ("dsp56300 fork", "gearmulator fork"),
+        )
+
+    def test_a_document_that_states_no_track_table_is_not_silently_spared(self):
+        """An exclusion must be PROVABLE. A document that states no repository
+        for a track proves nothing, and a lint that went quiet whenever the
+        table was missing would fail exactly like a lint that is not there."""
+        text = (
+            "## 9. The tasks\n"
+            "\n"
+            "**ZZZ-3 · A block in a document with no section 7.1 table** — T0\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_zzz$`. " + BOUND + "\n"
+        )
+        result = removed.run(PlanDocument.from_text(text, name="synthetic"))
+
+        self.assertEqual(
+            [(f.rule, f.task, f.evidence) for f in result.findings],
+            [(RULE, "ZZZ-3", BOUND)],
+        )
+        self.assertEqual(result.examined, 1)
+
+    def test_run_states_no_track_and_no_repository(self):
+        """The signature defect of this project, refused mechanically. Every
+        string `run()` holds is listed here, so a track prefix or a repository
+        name appearing in that body fails this test by name."""
+        source = pathlib.Path(removed.__file__).read_text(encoding="utf-8")
+        body = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "run"
+        )
+
+        self.assertEqual(
+            sorted(
+                node.value
+                for node in ast.walk(body)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            ),
+            [
+                " removes from the default build, so the check reports PASS "
+                "against a tree in which the property was never written; the "
+                "block names no build type that keeps it (",
+                ")",
+                ", which ",
+                "Check: blocks",
+                "a Check: predicate names ",
+                "check-predicate-removed-by-default-build",
+                "removed",
+                "removed-mechanism lint",
+            ],
         )
 
 
@@ -249,6 +511,14 @@ class MechanismTableTest(unittest.TestCase):
             removed_by="G2_NO_TRIPWIRE",
             kept_by=r"(?i)\btripwire build\b",
             authority="§0, a passage this project does not carry",
+            # The invented mechanism has no spelling that is provably not it,
+            # and the field is stated rather than defaulted: a row that leaves
+            # it out silently claims the same thing without deciding it.
+            not_the_mechanism=(),
+            # The invented mechanism states no repository scope, so the row
+            # excludes nothing on that ground and says so rather than
+            # defaulting to it.
+            repositories=(),
         ),
     )
 
@@ -289,21 +559,43 @@ class MechanismTableTest(unittest.TestCase):
         self.assertEqual(result.examined, 1)
 
     def test_the_shipped_table_carries_the_assert_row_the_plan_states(self):
+        """The whole row, every column. A field this pin did not name could be
+        added, changed or emptied with the suite green."""
         self.assertEqual(
-            [
-                (m.mechanism, m.clause_pattern, m.removed_by, m.kept_by, m.authority)
-                for m in removed.REMOVED_MECHANISMS
-            ],
-            [
-                (
-                    "assert()",
-                    r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
-                    "NDEBUG",
-                    r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
+            removed.REMOVED_MECHANISMS,
+            (
+                removed.RemovedMechanism(
+                    mechanism="assert()",
+                    clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                    removed_by="NDEBUG",
+                    kept_by=r"(?i)\bdebug\s+build\b|\bdebug-only\b|\bRelWithDebInfo\b"
                     r"|\bCMAKE_BUILD_TYPE\s*=\s*Debug\b",
-                    "§7.7 measurements 7 and 8",
-                )
-            ],
+                    authority=AUTHORITY,
+                    not_the_mechanism=(
+                        removed.NotTheMechanism(
+                            name="a static assertion",
+                            pattern=r"(?i)\bstatic[_\s]assert(?:ion|ions|s)?\b",
+                            reason=(
+                                "NDEBUG does not remove static_assert: it is a "
+                                "compile-time construct present in every build "
+                                "type, and this class is a mechanism the default "
+                                "build removes"
+                            ),
+                        ),
+                        removed.NotTheMechanism(
+                            name="a citation of one of the plan's own graph assertions",
+                            pattern=r"(?i)\bassertions?\s+\d+\b",
+                            reason=(
+                                "a numbered assertion is one of section 7.6's own "
+                                "graph invariants, a sentence in this document that "
+                                "planlint checks, and no build type deletes a "
+                                "sentence"
+                            ),
+                        ),
+                    ),
+                    repositories=("dsp56300 fork", "gearmulator fork"),
+                ),
+            ),
         )
 
     def test_the_kept_by_pattern_matches_no_removing_setting(self):
