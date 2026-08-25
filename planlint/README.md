@@ -288,6 +288,7 @@ reports it. A lint with no negative fixture is not done.
 | `neg_wave_order.md` | A task before its dependency, a task in no wave, a wave entry with no task. |
 | `neg_tier_purity.md` | A T0-to-T1 edge failing conjunct (b) of section 5.2 rule 7, a gated T0 check, a T0 read of a PRIVATE fixture, a header with no tier, a range swallowing a higher tier and a conditional. |
 | `neg_check_commands.md` | An `-R` nothing creates, a missing `--no-tests=error`, `--` forwarding, a `--target` nothing creates, an unstated registration. |
+| `neg_check_registration_outside_task.md` | The calibrated pair for section 1.3 rule 9's registration clause: the identical `add_test(NAME ...)` sentence written inside a task block (silent) and written only in a §24.6 defect-register row (reported). |
 | `neg_check_orphan_test.md` | A test file created and never invoked, in C++ and in Python. |
 | `neg_check_repos_and_paths.md` | A repository outside section 3.1, and a path two tasks claim with no owner. |
 | `pos_check_multiline_transcript.md` | **No defect.** It proves the false positives do not occur: a multi-line check block, and a deliberate transcript counter-example. |

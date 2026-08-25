@@ -263,8 +263,15 @@ def target_arguments(command):
 
 
 def registered_names(doc):
-    """Every name the plan says a task registers with `add_test(NAME ...)`."""
-    return set(ADD_TEST.findall("\n".join(doc.lines)))
+    """Every name the plan says a task registers with `add_test(NAME ...)`.
+
+    The scan reads TASK BLOCKS and nothing else, because section 1.3 rule 9
+    names a task and a §24.6 defect-register row is not one. A document-wide
+    scan makes the rule satisfiable by any sentence anywhere — a register row
+    that quotes a registration silences the check for a test no task registers,
+    which is a lint a sentence can talk out of a finding.
+    """
+    return set(ADD_TEST.findall("\n".join(task.body_text for task in doc.tasks)))
 
 
 FAILURE_MECHANISMS = re.compile(

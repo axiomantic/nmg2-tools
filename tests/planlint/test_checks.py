@@ -328,6 +328,45 @@ class CheckLintTest(unittest.TestCase):
         self.assertEqual(result.examined, 0)
 
 
+class RegistrationScopeTest(unittest.TestCase):
+    """Section 1.3 rule 9 says *some task* registers the name.
+
+    The clause names a task, so the `add_test(NAME ...)` scan must read task
+    blocks and nothing else. A document-wide scan is a rule a sentence can talk
+    out of a finding: a §24.6 defect-register row quoting a registration silences
+    the check for a test that no task registers, and the register row is not a
+    task. The pair below differs in ONE thing — which side of a task boundary the
+    identical sentence sits on.
+    """
+
+    def test_a_registration_inside_a_task_block_satisfies_the_rule(self):
+        result = run("neg_check_registration_outside_task.md")
+
+        self.assertEqual(
+            [f.evidence for f in result.findings if f.task == "BBB-1"],
+            [],
+        )
+
+    def test_a_registration_only_outside_every_task_block_is_reported(self):
+        result = run("neg_check_registration_outside_task.md")
+
+        self.assertEqual(
+            pairs(result),
+            [
+                (
+                    "r-name-not-registered",
+                    "BBB-2",
+                    "-R t0_outside; no `add_test(NAME t0_outside ...)` appears in this plan",
+                ),
+            ],
+        )
+
+    def test_the_scan_reads_task_bodies_and_not_the_whole_document(self):
+        doc = load_fixture("neg_check_registration_outside_task.md")
+
+        self.assertEqual(checks.registered_names(doc), {"t0_inside"})
+
+
 class AbbreviatedSharedPathTest(unittest.TestCase):
     """Section 7.4.2's criterion, with rules B and C expanded.
 

@@ -296,6 +296,13 @@ MUTATIONS = [
         {"r-name-not-registered"},
     ),
     (
+        "a registration moved out of its task block and into loose prose",
+        "Registered with `add_test(NAME t0_epsilon ...)`.\nIt exports",
+        "\n\n## An interlude, outside every task\n\n"
+        "Registered with `add_test(NAME t0_epsilon ...)`.\n\nIt exports",
+        {"r-name-not-registered"},
+    ),
+    (
         "a --target no Files line creates",
         "--target core_tests",
         "--target ghost_target",
@@ -789,7 +796,7 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 60)
+        self.assertEqual(len(MUTATIONS), 61)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
         self.assertEqual(len(rules_the_lints_emit()), 61)
