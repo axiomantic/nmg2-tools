@@ -678,6 +678,42 @@ class MarkedSecondWriteTest(unittest.TestCase):
         )
 
 
+class RegistrationPlaceholderTest(unittest.TestCase):
+    """A documentation placeholder is not a registered name.
+
+    `add_test(NAME ...)` is how the plan writes the FORM of a registration in
+    prose. The literal `...` is a name no test can ever carry, so admitting it
+    to the registered-name set puts a string there that only a typo can look
+    up — and a typo that finds a name is a check that passes for nothing.
+
+    The three probes below share one task body and differ in the single token
+    after `NAME`. The dotted probe is what separates this repair from dropping
+    `.` out of the character class: a dot is legal inside a real ctest name,
+    and a class without it would truncate such a name rather than reject it.
+    """
+
+    TEMPLATE = (
+        "**AAA-1 · A task** — T0\n"
+        "Files: `tests/t0_alpha.cpp`\n"
+        "Depends: none\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`. "
+        "The registration reads `add_test(NAME {token} COMMAND t0_alpha)`.\n"
+    )
+
+    def names_for(self, token):
+        doc = PlanDocument.from_text(self.TEMPLATE.format(token=token), name="inline")
+        return checks.registered_names(doc)
+
+    def test_the_placeholder_does_not_enter_the_registered_name_set(self):
+        self.assertEqual(self.names_for("..."), set())
+
+    def test_a_real_name_still_enters_the_registered_name_set(self):
+        self.assertEqual(self.names_for("t0_alpha"), {"t0_alpha"})
+
+    def test_a_name_carrying_a_dot_is_read_whole(self):
+        self.assertEqual(self.names_for("t0_alpha.suffix"), {"t0_alpha.suffix"})
+
+
 if __name__ == "__main__":
     unittest.main()
 

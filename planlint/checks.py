@@ -194,7 +194,12 @@ SHELL_QUOTED = re.compile(r"^(?P<quote>['\"])(?P<inner>.+)(?P=quote)$")
 TARGET_ARGUMENT = re.compile(r"--target\s+(\S+)")
 FORWARDED = re.compile(r"(?:^|\s)--(?:\s|$)")
 NO_TESTS_ERROR = "--no-tests=error"
-ADD_TEST = re.compile(r"add_test\(\s*NAME\s+([A-Za-z0-9_.\-]+)")
+# The lookahead requires one alphanumeric somewhere in the name, which is what
+# separates a registration from the prose placeholder `add_test(NAME ...)`. The
+# alternative repair — dropping `.` from the class — is worse: a dot is a legal
+# character in a ctest name, and a class without it reads `add_test(NAME a.b)`
+# as the name `a`, turning a rejection into a silent truncation.
+ADD_TEST = re.compile(r"add_test\(\s*NAME\s+(?=[A-Za-z0-9_.\-]*[A-Za-z0-9])([A-Za-z0-9_.\-]+)")
 PYTEST_PATH = re.compile(r"pytest\s+(\S+\.py)")
 AXIOMANTIC = re.compile(r"\baxiomantic/[A-Za-z0-9_.\-]+")
 
