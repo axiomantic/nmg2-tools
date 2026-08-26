@@ -101,17 +101,43 @@ def gated_skip_line() -> str:
     return GATED_SKIP_PREFIX + ARTIFACT_UNSET_MESSAGE
 
 
-def gated_skip_reason() -> Optional[str]:
+def gated_skip_reason(*required: str) -> Optional[str]:
     """Return the skip line when a gated test cannot run, or ``None`` when it can.
 
-    ``None`` means the artifact resolved and the gated body must run. Any other
-    return is a reason, never a silent pass: design section 18.5 opens with "a
-    firmware-gated test that cannot run must skip WITH A REASON. It must never
-    pass silently."
+    ``required`` is the paths, relative to the artifacts root, that the gated
+    body will OPEN. The gate is built from them and not from the directory
+    alone, because a directory that resolves says nothing about whether the
+    files in it exist. A gate that opens on the directory alone answers RUN to
+    a body whose input is absent, and that body raises ``FileNotFoundError``
+    where design section 18.5 requires a skip WITH A REASON. Plan section 24.6
+    row W3-427(c) is the withdrawal that records it as a defect in its own
+    right.
+
+    ``None`` means every required artifact is present and the gated body must
+    run. Any other return is a reason, never a silent pass.
+
+    The gate reads names only. **A file that is PRESENT and WRONG resolves, so
+    the body runs and FAILS**, which is the case section 18.5 exists to protect
+    and the reason this function never opens a file: a gate that read content
+    could not tell a broken artifact from an absent one, and it would answer
+    "unavailable" to both.
+
+    Two reasons, taken from REPO-5's three messages rather than from a fourth
+    text of this function's own:
+
+    * the root does not resolve -- section 18.5's line, message 1, whatever
+      ``required`` says, because there is no directory to look in;
+    * the root resolves and a required path is not a file under it -- the
+      prefix on message 3, which names that path.
     """
     directory, _why = resolve_artifacts()
 
-    if directory:
-        return None
+    if not directory:
+        return gated_skip_line()
 
-    return gated_skip_line()
+    for name in required:
+        _resolved, why = resolve_artifacts(name)
+        if why:
+            return GATED_SKIP_PREFIX + why
+
+    return None

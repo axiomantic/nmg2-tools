@@ -385,16 +385,21 @@ def test_write_csv_round_trips_through_to_csv_text(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+# The two inputs, as paths relative to the artifacts root. One constant serves
+# as the `@pytest.mark.artifacts` declaration below AND as the path the body
+# opens, so the gate and the read cannot name different files. Each body reads
+# its declared path and does not search the tree for a file of the same name: a
+# body that hunts for its input cannot be gated on it, and a skip naming the
+# expected path tells an operator more than a silent match somewhere else.
+DESCRIPTOR_CSV_REL = "dsp/g2_module_descriptors.csv"
+PANL_JSON_REL = "g2demo/g2_modules.json"
+
+
 def _descriptors_from_csv(artifacts_dir):
     import csv as _csv
     import os
 
-    path = os.path.join(artifacts_dir, "dsp", "g2_module_descriptors.csv")
-    if not os.path.isfile(path):
-        for root, _dirs, files in os.walk(artifacts_dir):
-            if os.path.basename(path) in files:
-                path = os.path.join(root, os.path.basename(path))
-                break
+    path = os.path.join(artifacts_dir, DESCRIPTOR_CSV_REL)
     descriptors = []
     with open(path, newline="") as fh:
         for record in _csv.DictReader(fh):
@@ -413,12 +418,7 @@ def _panl_from_json(artifacts_dir):
     import json
     import os
 
-    path = os.path.join(artifacts_dir, "g2demo", "g2_modules.json")
-    if not os.path.isfile(path):
-        for root, _dirs, files in os.walk(artifacts_dir):
-            if os.path.basename(path) in files:
-                path = os.path.join(root, os.path.basename(path))
-                break
+    path = os.path.join(artifacts_dir, PANL_JSON_REL)
     with open(path) as fh:
         payload = json.load(fh)
     panl = []
@@ -432,6 +432,7 @@ def _panl_from_json(artifacts_dir):
     return panl
 
 
+@pytest.mark.artifacts(DESCRIPTOR_CSV_REL, PANL_JSON_REL)
 def test_gated_real_artifacts_produce_a_well_formed_map(artifacts_dir):
     """The whole generator runs against the real descriptor and editor tables.
     What is asserted is what is knowable without the un-derived

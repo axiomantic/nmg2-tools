@@ -34,3 +34,11 @@ packages = ["nmg2_tools", "planlint"]
 # path so that a test imports `nmg2_tools` without an install step.
 testpaths = ["tests"]
 pythonpath = ["."]
+# `artifacts` is the declaration a gated test makes of the files its body
+# opens; `tests/conftest.py`'s `artifacts_dir` fixture builds section 18.5's
+# gate from them. Registering it turns an unknown mark into an error rather
+# than a warning, so a typo in a declaration cannot silently gate on nothing.
+markers = [
+    "artifacts(*paths): paths, relative to NMG2_ARTIFACTS, that this test's body opens",
+]
+filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]

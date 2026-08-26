@@ -21,14 +21,12 @@ describe passes T0 and FAILS HERE, and because this tier is informational the
 failure is a signal to extend the parser rather than a block on a merge.
 """
 
-import os
 import pathlib
 
 import pytest
 
 from nmg2_tools import pch2
 from nmg2_tools.artifacts import (
-    ARTIFACT_ENVIRONMENT_VARIABLE,
     gated_skip_reason,
     resolve_artifacts,
 )
@@ -37,6 +35,7 @@ from nmg2_tools.artifacts import (
 # artifacts root. This is not a count, and it is not the thing the test must
 # not hardcode.
 CORPUS_REL = pathlib.Path("corpus") / "pch2"
+MANIFEST_REL = CORPUS_REL / "MANIFEST.txt"
 
 
 @pytest.fixture(scope="module")
@@ -49,22 +48,20 @@ def demo_corpus_dir() -> pathlib.Path:
     artifacts root is unreachable. A root that exists but does not hold the
     corpus is skipped with a second, distinct reason rather than failing, so
     that the informational tier stays green on machines without the private
-    corpus."""
-    reason = gated_skip_reason()
+    corpus.
+
+    Both reasons come from `gated_skip_reason()`, which gates on the files the
+    body opens, so the manifest is stated as a required path rather than
+    checked here with a message of this module's own. A hand-built message here
+    would be REPO-5's message 3 spelled a second time, and a message with two
+    texts is a message with two meanings."""
+    reason = gated_skip_reason(str(MANIFEST_REL))
     if reason is not None:
         pytest.skip(reason)
 
-    value = os.environ.get(ARTIFACT_ENVIRONMENT_VARIABLE, "")
     base, _why = resolve_artifacts()
-    corpus = pathlib.Path(base) / CORPUS_REL
 
-    if not (corpus / "MANIFEST.txt").is_file():
-        pytest.skip(
-            f"firmware artifact not available (corpus/pch2/MANIFEST.txt not "
-            f"found under NMG2_ARTIFACTS: {value})"
-        )
-
-    return corpus
+    return pathlib.Path(base) / CORPUS_REL
 
 
 def _patches(corpus: pathlib.Path) -> list[pathlib.Path]:

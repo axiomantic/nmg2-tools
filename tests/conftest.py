@@ -23,7 +23,7 @@ pytest_plugins = ["pytester"]
 
 
 @pytest.fixture
-def artifacts_dir() -> str:
+def artifacts_dir(request) -> str:
     """The directory holding the Clavia-derived artifacts, or a skip.
 
     The skip reason is section 18.5's line WORD FOR WORD, prefix included. The
@@ -31,8 +31,24 @@ def artifacts_dir() -> str:
     reads ``SKIPPED [1] file:line: <reason>``, so without it the required
     literal would never appear in the job output, and design section 18.5 step 2
     asks for the literal.
+
+    A test declares the artifacts its body OPENS with
+    ``@pytest.mark.artifacts("dsp/g2_module_descriptors.csv", ...)``, and the
+    gate is built from those paths. The declaration lives on the test and not
+    in this fixture because the fixture cannot know what any one body reads --
+    it is the one caller of :func:`gated_skip_reason` that has no paths of its
+    own -- and a gate built from the directory alone crashes the body it was
+    meant to protect. Paths are relative to the artifacts root.
+
+    An undeclared test still gates on the root, which is the old behaviour and
+    the honest one for a body that searches for its input rather than naming
+    it.
     """
-    reason = gated_skip_reason()
+    required: list[str] = []
+    for marker in request.node.iter_markers("artifacts"):
+        required.extend(marker.args)
+
+    reason = gated_skip_reason(*required)
 
     if reason is not None:
         pytest.skip(reason)

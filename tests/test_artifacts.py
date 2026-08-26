@@ -242,3 +242,140 @@ def test_the_conftest_fixture_runs_the_body_when_the_artifact_resolves(pytester,
 
     result.assert_outcomes(passed=1, skipped=0, failed=0)
     assert EXPECTED_SKIP_LINE not in result.stdout.str()
+
+
+# ---------------------------------------------------------------------------
+# The gate opens on the FILES the gated body reads, not on the directory alone.
+#
+# Section 24.6 row W3-427(c): `gated_skip_reason()` returned RUN as soon as a
+# directory resolved, so a gated body raised `FileNotFoundError` where section
+# 18.5 requires a skip WITH A REASON. The reason is REPO-5's message 3, which
+# already exists and already names the missing artifact -- a fourth message
+# would be a second text for one meaning.
+#
+# The distinction these cases hold apart, and it is the whole point of them:
+#   artifact ABSENT           -> SKIP, naming the path.
+#   artifact PRESENT but WRONG -> RUN, and the body FAILS.
+# A gate that answered SKIP to the second would hide every broken artifact.
+# ---------------------------------------------------------------------------
+
+REQUIRED_REL = "dsp/g2_module_descriptors.csv"
+
+
+def _expected_missing_line(directory) -> str:
+    return (
+        "SKIPPED: firmware artifact not available "
+        f"({REQUIRED_REL} not found under NMG2_ARTIFACTS: {directory})"
+    )
+
+
+def test_gated_skip_reason_skips_when_a_required_artifact_is_absent(tmp_path, monkeypatch):
+    """The defect itself. The directory resolves and the file is not in it, so
+    the gate must report SKIP with the path in the reason -- not RUN."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    assert gated_skip_reason(REQUIRED_REL) == _expected_missing_line(tmp_path)
+
+
+def test_gated_skip_reason_names_the_first_absent_artifact_of_several(tmp_path, monkeypatch):
+    """A body that opens two files states two paths. The reason names the one
+    that is missing, so an operator is sent to the file that is actually
+    absent rather than to the first path in the list."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    present = tmp_path / "g2demo" / "g2_modules.json"
+    present.parent.mkdir()
+    present.write_text("[]")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    reason = gated_skip_reason("g2demo/g2_modules.json", REQUIRED_REL)
+
+    assert reason == _expected_missing_line(tmp_path)
+
+
+def test_gated_skip_reason_runs_when_a_required_artifact_is_present_but_malformed(
+    tmp_path, monkeypatch
+):
+    """The ABSENT/WRONG distinction, at the gate. A present artifact whose
+    CONTENT is garbage must still report RUN, so that the body reaches it and
+    FAILS. A gate that read the content would turn every broken artifact into
+    a silent skip, which is worse than the defect it replaces."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    malformed = tmp_path / "dsp" / "g2_module_descriptors.csv"
+    malformed.parent.mkdir()
+    malformed.write_text("this is not a descriptor table\n")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    assert gated_skip_reason(REQUIRED_REL) is None
+
+
+def test_gated_skip_reason_reports_the_unset_line_before_it_looks_for_files(monkeypatch):
+    """With the variable unset there is no directory to look in, so the reason
+    is section 18.5's line word for word and NOT a message naming a path under
+    an empty root."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
+
+    assert gated_skip_reason(REQUIRED_REL) == EXPECTED_SKIP_LINE
+
+
+def test_the_conftest_fixture_skips_when_a_declared_artifact_is_absent(pytester, tmp_path, monkeypatch):
+    """The fixture end to end. A gated test declares the paths its body opens
+    with the `artifacts` marker; the fixture skips with the message that names
+    the absent one, and the body does not run."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    pytester.makeconftest(_GENERATED_CONFTEST)
+    pytester.makeini("[pytest]\nmarkers =\n    artifacts(*paths): declared\n")
+    pytester.makepyfile(
+        f"""
+        import pytest
+
+        @pytest.mark.artifacts({REQUIRED_REL!r})
+        def test_a_gated_test(artifacts_dir):
+            raise AssertionError("the gated body must not run")
+        """
+    )
+
+    result = pytester.runpytest("-rs")
+
+    result.assert_outcomes(skipped=1, passed=0, failed=0)
+    assert _expected_missing_line(tmp_path) in result.stdout.str()
+
+
+def test_the_conftest_fixture_lets_a_malformed_artifact_reach_the_body_and_fail(
+    pytester, tmp_path, monkeypatch
+):
+    """The planted failure, end to end. The declared artifact is PRESENT and
+    its content is garbage. The fixture must not skip: the body runs, the
+    parse fails, and the verdict the caller reads is FAILED."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+    malformed = tmp_path / "dsp" / "g2_module_descriptors.csv"
+    malformed.parent.mkdir()
+    malformed.write_text("not,a,descriptor,table\n")
+
+    pytester.makeconftest(_GENERATED_CONFTEST)
+    pytester.makeini("[pytest]\nmarkers =\n    artifacts(*paths): declared\n")
+    pytester.makepyfile(
+        f"""
+        import csv
+        import os
+        import pytest
+
+        @pytest.mark.artifacts({REQUIRED_REL!r})
+        def test_a_gated_test(artifacts_dir):
+            path = os.path.join(artifacts_dir, {REQUIRED_REL!r})
+            with open(path, newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            assert [int(row["p_words_0x24"]) for row in rows] == [6]
+        """
+    )
+
+    result = pytester.runpytest("-rs")
+
+    result.assert_outcomes(failed=1, skipped=0, passed=0)
+    assert "SKIPPED: firmware artifact not available" not in result.stdout.str()
