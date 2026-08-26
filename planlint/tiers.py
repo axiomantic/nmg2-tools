@@ -39,12 +39,27 @@ from planlint.finding import ERROR, Finding, guard_no_input
 
 TIER_ORDER = {"T0": 0, "T1": 1, "T2": 2}
 
-# A task that states a disposition rather than a test tier. Section 1.4 names
-# the marks; the spike, operator, deferred and upstream tasks run no test tier.
-DISPOSITIONS = ("OPERATOR", "THROWAWAY", "DEFERRED", "UPSTREAM", "NO TIER")
-
 GATED = re.compile(r"NMG2_ARTIFACTS`?\s+(?:is\s+)?set\b", re.IGNORECASE)
 REACHED_THROUGH = re.compile(r"reached through\s+`?NMG2_ARTIFACTS", re.IGNORECASE)
+
+
+def dispositions(doc):
+    """Every section 1.5 tier substitute, read off the document's own table.
+
+    A header that states a substitute rather than a section 5.1 tier is not an
+    untiered header. WHICH WORDS THOSE ARE IS SECTION 1.5's TO SAY: it calls
+    itself the one home of the set and states the command that re-derives its
+    rows, so a tuple here would be that table copied into Python — a second
+    roster, amended by hand, that goes stale in silence. `gate` reads the same
+    register for the same reason, and this lint reads section 7.8's register
+    for it.
+
+    A document that states no section 1.5 table names no substitutes, so every
+    untiered header in it is a missing tier. That is the reading `gate`'s
+    `undisposed` gives an absent table: an absent table is silence, and silence
+    admits nothing.
+    """
+    return {row.substitute.upper() for row in doc.substitute_register}
 
 
 def max_tier(task):
@@ -187,10 +202,11 @@ def run(doc):
     edges, _ = graph.build_edges(doc)
     private_paths = [row for row in doc.fixture_register if not row.public]
     repositories = _repository_visibility(doc)
+    substitutes = dispositions(doc)
 
     for task in doc.tasks:
         upper = task.tier_text.upper()
-        if not task.tiers and not any(word in upper for word in DISPOSITIONS):
+        if not task.tiers and not any(word in upper for word in substitutes):
             findings.append(
                 Finding(
                     rule="missing-tier",

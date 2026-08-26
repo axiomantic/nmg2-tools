@@ -30,6 +30,49 @@ REPOSITORIES = """### 3.1 Layout B
 """
 
 
+SUBSTITUTE_TABLE_HEAD = (
+    "### 1.5 The tier substitutes\n"
+    "\n"
+    "| Substitute | Count | What it means | Where its check runs |\n"
+    "|---|---|---|---|\n"
+)
+
+SUBSTITUTE_ROWS = (
+    "| **THROWAWAY** | 1 | A spike task. | The operator's own machine. |\n"
+    "| **OPERATOR** | 1 | An outward action only the operator may take. | Nowhere automatic. |\n"
+)
+
+# The same two rows under two other names. Nothing else in the document moves,
+# so a verdict that changes between the two was read off this table.
+RENAMED_SUBSTITUTE_ROWS = (
+    "| **SANDBOX** | 1 | A spike task. | The operator's own machine. |\n"
+    "| **CUSTODIAN** | 1 | An outward action only the operator may take. | Nowhere automatic. |\n"
+)
+
+SUBSTITUTE_TASKS = (
+    "**SPK-0 · The spike workspace** — no tier (THROWAWAY)\n"
+    "Files: `spike/README.md`\n"
+    "Depends: none\n"
+    "Check: The workspace exists and the report names each criterion.\n"
+    "\n"
+    "**OP-1 · An operator action** — OPERATOR\n"
+    "Files: `docs/op.md`\n"
+    "Depends: none\n"
+    "Check: The operator confirms the action and records it.\n"
+)
+
+
+def substitute_doc(rows=""):
+    """A document carrying the two task blocks above, and section 1.5's table
+    only when `rows` is given.
+
+    An empty `rows` yields a document with NO section 1.5 table, which is the
+    absent-table case and not a document whose table is empty.
+    """
+    head = SUBSTITUTE_TABLE_HEAD + rows + "\n" if rows else ""
+    return head + "## 9. The tasks\n\n" + SUBSTITUTE_TASKS
+
+
 def admissibility_doc(register_rows, tasks):
     """A document carrying section 3.1's table, section 7.8's register and tasks."""
     body = REPOSITORIES + "### 7.8 The recorded-fixture register\n\n"
@@ -125,19 +168,50 @@ class TierLintTest(unittest.TestCase):
 
     def test_a_stated_non_tier_disposition_is_not_a_missing_tier(self):
         doc = PlanDocument.from_text(
-            "**SPK-0 · The spike workspace** — no tier (THROWAWAY)\n"
-            "Files: `spike/README.md`\n"
-            "Depends: none\n"
-            "Check: The workspace exists and the report names each criterion.\n"
-            "\n"
-            "**OP-1 · An operator action** — OPERATOR\n"
-            "Files: `docs/op.md`\n"
-            "Depends: none\n"
-            "Check: The operator confirms the action and records it.\n",
-            name="inline",
+            substitute_doc(SUBSTITUTE_ROWS), name="inline"
         )
 
         self.assertEqual(tiers.run(doc).findings, [])
+
+    def test_the_substitute_set_is_read_off_the_document_and_not_carried_here(self):
+        """The one home of the set is section 1.5, so a rename there moves this
+        lint's verdict. A tuple of substitute names kept in `tiers` would keep
+        `THROWAWAY` and `OPERATOR` admissible after the table stopped naming
+        them, and this pair is what refuses that: the SAME two headers are
+        clean under a table that names the words and are `missing-tier` under
+        a table that names two others.
+
+        The second half is the known positive. Without it the first half would
+        pass over a lint that admitted every word ever written, and a roster
+        that admits everything reads exactly like one read from the document.
+        """
+        named = PlanDocument.from_text(
+            substitute_doc(SUBSTITUTE_ROWS), name="inline"
+        )
+        renamed = PlanDocument.from_text(
+            substitute_doc(RENAMED_SUBSTITUTE_ROWS), name="inline"
+        )
+
+        self.assertEqual([f.rule for f in tiers.run(named).findings], [])
+        self.assertEqual(
+            sorted((f.rule, f.task) for f in tiers.run(renamed).findings),
+            [("missing-tier", "OP-1"), ("missing-tier", "SPK-0")],
+        )
+
+    def test_a_document_with_no_substitute_table_names_no_substitutes(self):
+        """An absent section 1.5 table is silence, and silence admits nothing —
+        the reading `gate.undisposed` gives the same absent table. A lint that
+        fell back to a built-in roster here would be carrying the second roster
+        this design exists to delete, and would report nothing.
+        """
+        doc = PlanDocument.from_text(
+            substitute_doc(), name="inline"
+        )
+
+        self.assertEqual(
+            sorted((f.rule, f.task) for f in tiers.run(doc).findings),
+            [("missing-tier", "OP-1"), ("missing-tier", "SPK-0")],
+        )
 
     def test_a_range_that_satisfies_the_conjuncts_is_a_range_defect_and_not_a_tier_defect(self):
         result = run("neg_tier_purity.md")
