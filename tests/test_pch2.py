@@ -26,7 +26,11 @@ import pytest
 
 from nmg2_tools import pch2
 from nmg2_tools.pch2 import Pch2Error, Pch2File, Pch2Object
-from nmg2_tools.synth_pch2 import CORPUS_DIRECTORY, OBJECT_TYPES
+from nmg2_tools.synth_pch2 import (
+    CORPUS_DIRECTORY,
+    OBJECT_TYPES,
+    UNKNOWN_OBJECT_TYPE,
+)
 
 
 def _corpus() -> dict[str, bytes]:
@@ -227,6 +231,21 @@ def test_truncated_object_raises_the_named_refusal():
     with pytest.raises(Pch2Error) as caught:
         pch2.parse(_corpus()["bad_truncated_object.pch2"])
     assert str(caught.value).startswith("PCH2-TRUNCATED-OBJECT")
+
+
+def test_the_parser_accepts_every_object_type_the_generator_writes():
+    """The parser reads its accepted set from its own module, so a type the
+    generator writes and the parser refuses is a real possibility and this is
+    the check that catches it. The refusal of `UNKNOWN_OBJECT_TYPE` is the
+    known positive: it shows the same membership test returning a non-empty
+    list, so an empty list above is a measurement and not a dead expression."""
+    refused = [t for t in OBJECT_TYPES if t not in pch2.ACCEPTED_OBJECT_TYPES]
+    assert refused == []
+
+    known_positive = [
+        t for t in (UNKNOWN_OBJECT_TYPE,) if t not in pch2.ACCEPTED_OBJECT_TYPES
+    ]
+    assert known_positive == [UNKNOWN_OBJECT_TYPE]
 
 
 def test_unknown_object_type_raises_the_named_refusal():

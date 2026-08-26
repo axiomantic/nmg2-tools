@@ -85,6 +85,28 @@ def test_every_demo_patch_parses(demo_corpus_dir):
         pch2.parse(path.read_bytes())
 
 
+def test_the_accepted_object_types_are_exactly_the_ones_real_patches_carry(
+    demo_corpus_dir,
+):
+    """The parser's accepted type set, held against bytes the synthesizer did
+    not write.
+
+    This is the assertion the T0 half CANNOT make. The synthesized corpus is
+    written from the same type set the parser reads, so a T0 sweep agrees with
+    the parser whatever that set holds. Real patches were written by a device
+    that has never seen this repository, so the census below can disagree, and
+    equality makes it disagree in both directions: a code a real patch carries
+    and the parser refuses raises out of `parse`, and a code the parser accepts
+    that no real patch carries -- an invented one -- fails the comparison."""
+    corpus = demo_corpus_dir
+
+    seen: set[int] = set()
+    for path in _patches(corpus):
+        seen.update(obj.type for obj in pch2.parse(path.read_bytes()).objects)
+
+    assert sorted(seen) == sorted(pch2.ACCEPTED_OBJECT_TYPES)
+
+
 def test_the_patch_count_matches_the_manifest(demo_corpus_dir):
     """The count is taken from the manifest's first line and compared with the
     tree. A manifest row count that disagrees with the directory -- in either

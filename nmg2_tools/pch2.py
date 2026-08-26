@@ -15,13 +15,22 @@ exclusive-or, stored big-endian. In a `.pch2` file it covers the version and
 type bytes and every chunk, and excludes only the trailing CRC. The text
 header is before the covered range.
 
-WHY THE PARSER IMPORTS FROM `synth_pch2` RATHER THAN RECOMPUTING.
+WHERE THE ACCEPTED TYPE SET COMES FROM, AND WHY IT IS NOT IMPORTED.
 
-The synthesized corpus is the authority of what a well-formed file is. Its
-generator carries the OBJECT_TYPES the specification names and the CRC routine
-the specification fixes. This parser imports both so that a generator mutation
-cannot leave a parser happily ignoring a type it no longer wrote. TOOL-12 owns
-that corpus and is a dependency of this task's T0 half.
+`ACCEPTED_OBJECT_TYPES` is stated in this module and is not read from the
+corpus generator. A parser that takes its accepted set from a generator accepts
+exactly what that generator writes, and the generator writes exactly what the
+specification names, so the two agree with each other for ANY set whatever and
+no run over synthesized files can disagree with either. The set below is the
+specification's union widened by type codes measured in real `.pch2` files.
+
+The guarantee an import would have given -- that no type the generator writes
+is refused here -- is asserted in the suite instead. An assertion can fail; an
+import cannot.
+
+The CRC routine is still imported. It is an algorithm design section 15.3
+fixes rather than a decision about what to accept, and every real file is read
+through it, so a wrong routine refuses real files loudly.
 
 WHAT THE PARSER PROVES, AND WHAT IT DOES NOT.
 
@@ -53,7 +62,30 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
-from nmg2_tools.synth_pch2 import OBJECT_TYPES, crc16_ccitt
+from nmg2_tools.synth_pch2 import crc16_ccitt
+
+# The object type codes this parser accepts, sorted. The provenance is mixed
+# and the mixture is the point: some are the codes design section 15.7 and
+# design section 18 name, and the rest were MEASURED in real `.pch2` files by
+# walking the framing and reading each frame's type byte.
+#
+# NO AUTHORITY AVAILABLE TO THIS REPOSITORY STATES WHAT ANY OF THESE CODES
+# MEAN. Accepting a code frames its payload and decodes nothing of it, so none
+# is named here and a name for one must not be invented: an invented name reads
+# as recovered knowledge and there is none behind it.
+ACCEPTED_OBJECT_TYPES = (
+    0x21,
+    0x4A,
+    0x4D,
+    0x52,
+    0x5A,
+    0x5B,
+    0x60,
+    0x62,
+    0x65,
+    0x69,
+    0x6F,
+)
 
 # The USB trailer design section 15.7 names: two raw bytes that follow the
 # 0x21 chunk in USB dumps and are not an object. An object header is three
@@ -92,7 +124,7 @@ class Pch2TruncatedObject(Pch2Error):
 
 
 class Pch2UnknownObjectType(Pch2Error):
-    """An object carries a type the format specification does not name."""
+    """An object carries a type code this parser does not accept."""
 
     NAME = "PCH2-UNKNOWN-OBJECT-TYPE"
 
@@ -232,11 +264,11 @@ def _walk_objects(body: bytes) -> tuple[tuple[Pch2Object, ...], bool]:
             continue
 
         type_byte = body[cursor]
-        if type_byte not in OBJECT_TYPES:
+        if type_byte not in ACCEPTED_OBJECT_TYPES:
             _raise(
                 Pch2UnknownObjectType,
-                f"0x{type_byte:02X} is not an object type the specification "
-                f"names ({', '.join(f'0x{t:02X}' for t in OBJECT_TYPES)})",
+                f"0x{type_byte:02X} is not an object type this parser accepts "
+                f"({', '.join(f'0x{t:02X}' for t in ACCEPTED_OBJECT_TYPES)})",
             )
 
         if cursor + 3 > body_len:
