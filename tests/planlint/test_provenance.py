@@ -143,9 +143,9 @@ class PopulationTest(unittest.TestCase):
 
 
 class HouseFormTest(unittest.TestCase):
-    """The record form is read off the six records this repository already
-    carries, not recalled. A change to the form that leaves those six behind
-    reddens here."""
+    """The record form is read off the records this repository already carries,
+    not recalled. A change to the form that leaves any carrier behind reddens
+    here, and so does a new carrier that this list does not name."""
 
     def test_every_shipped_record_satisfies_the_form_the_lint_requires(self):
         import pathlib
@@ -164,6 +164,7 @@ class HouseFormTest(unittest.TestCase):
                 "dsp56k_dis.py",
                 "flashimage.py",
                 "lzo1x.py",
+                "pch2.py",
                 "pe.py",
                 "rsrc.py",
             ],

@@ -30,8 +30,8 @@ WHAT IT DOES CHECK.
   * `imported-copyleft-artifact` — a copyleft SPDX identifier or a copyleft
     licence GRANT sitting in a file of this MIT repository. This is a fact about
     the bytes. Naming `GPL-2.0` in prose is not a grant and is not a finding;
-    the six provenance records this repository already carries all name a
-    copyleft licence and none of them trips this rule.
+    every provenance record this repository already carries names a copyleft
+    licence and none of them trips this rule.
 
   * `missing-provenance-record` — a shipped module the triggers reach whose
     module docstring carries no record.
@@ -41,16 +41,16 @@ WHAT IT DOES CHECK.
     heading alone.
 
 THE HOUSE FORM is `nmg2_tools/lzo1x.py`, this repository's first such record,
-and the five that followed it. Three elements are required, and each of the six
-carries all three:
+and the records that followed it. Three elements are required, and every
+carrier holds all three:
 
     a heading whose line reads `..., because the licence makes it matter`;
     a statement of THIS repository's own licence;
     a statement that no line of another implementation is copied, transliterated
     or paraphrased.
 
-`tests/planlint/test_provenance.py` holds those six against this lint, so the
-form is read off the records that exist rather than recalled here.
+`tests/planlint/test_provenance.py` holds every carrier against this lint, so
+the form is read off the records that exist rather than recalled here.
 
 THE TWO TRIGGERS, and why neither is a roster.
 
