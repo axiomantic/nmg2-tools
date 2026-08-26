@@ -40,12 +40,34 @@ code.
 
 The discriminator is section 1.5's TIER SUBSTITUTE, read off the dependency's
 own header, and never a roster of identifiers: a roster is amended once per case
-and states nothing about the case after it. THROWAWAY is deliberately absent
-from that table. Section 1.5 gives a spike a check the operator runs against
-`extracted/`, so it is work this plan schedules — and the pairs row W3-422 offers
-as its proof depend on spikes, so a table that excused THROWAWAY would silence
-its own evidence. A header that carries a section 5.1 tier is work
-this plan schedules whatever else the header says.
+and states nothing about the case after it. A header that carries a section 5.1
+tier is work this plan schedules whatever else the header says.
+
+THE TABLE STATES A VERDICT FOR EVERY SUBSTITUTE AND EXCUSES NONE BY OMISSION.
+THROWAWAY carries a row whose severity is ERROR: section 1.5's fourth column
+gives a spike a check that runs on the operator's own machine against
+`extracted/`, which is a check this plan can name, where OPERATOR's runs
+"nowhere automatic", `deferred`'s runs nowhere at all and `upstream`'s runs in a
+repository this project does not own. That fourth column is the discriminator,
+and the pairs row W3-422 offers as its proof depend on spikes, so a table that
+excused THROWAWAY would silence its own evidence. Leaving THROWAWAY OUT reached
+the same verdict and stated none: an omission and an oversight produced the
+identical silence, which is the shape this file exists to catch.
+
+WHAT THE SET IS AND WHAT THE VERDICT IS ARE TWO QUESTIONS WITH TWO AUTHORS.
+Section 1.5 is the one home of the substitute SET and says so, and it states no
+verdict, because whether the act that closes a dependency is an engineering one
+is a judgement the document does not make. So the set is READ from the document
+— as lint 3 reads section 7.8's register rather than carrying a list of its own,
+for the reason a second list goes stale — and the verdict is OWNED here. When
+the set outruns the verdicts, that is REPORTED rather than resolved by falling
+through. A document that states no section 1.5 table is silent: an absent table
+names no substitutes and is not a table whose substitutes are all undisposed of.
+
+WHAT IS READ OF THAT TABLE IS THE SUBSTITUTE NAME COLUMN AND NEVER WHAT A ROW
+SAYS. Section 1.5 states the command that re-derives its own rows, so the column
+is a computed set and not prose. Rewriting any row's meaning or check text keeps
+this rule green; only adding, renaming or deleting a substitute reddens it.
 """
 
 import dataclasses
@@ -57,34 +79,48 @@ from planlint.finding import ERROR, WARNING, Finding, guard_no_input
 
 @dataclasses.dataclass(frozen=True)
 class Disposition:
-    """One section 1.5 tier substitute whose task this plan does not schedule.
+    """One section 1.5 tier substitute and this lint's verdict on it.
 
     `why` is the substitute's own meaning as section 1.5 writes it, so the
     report states the plan's reason rather than this module's opinion of it.
+
+    `severity` is REQUIRED, which is what makes the table total: a substitute
+    cannot be carried here without a verdict, and a verdict cannot be given by
+    leaving a row out. An omission and an oversight produced the identical
+    silence, and that is the shape section 24.6 row W3-404 names.
     """
 
     substitute: str
     why: str
+    severity: str
 
 
-UNSCHEDULED = (
+SUBSTITUTES = (
+    Disposition(
+        "THROWAWAY",
+        "the task is a spike whose check the operator runs against `extracted/`",
+        ERROR,
+    ),
     Disposition(
         "OPERATOR",
         "the task needs an outward action only the operator may take",
+        WARNING,
     ),
     Disposition(
         "deferred",
         "the task is listed and not scheduled, and has no check to run",
+        WARNING,
     ),
     Disposition(
         "upstream",
         "the check is a pull request against a repository this project does not own",
+        WARNING,
     ),
 )
 
 
 def disposition_of(task):
-    """The row a task's header declares, or `None` for work this plan schedules.
+    """The row a task's header declares, or `None` when it declares no substitute.
 
     A header carrying a section 5.1 tier is answered before the table is read.
     Section 1.5's substitutes are what a header reaches for when it carries no
@@ -94,10 +130,23 @@ def disposition_of(task):
     """
     if task.has_tier:
         return None
-    for row in UNSCHEDULED:
+    for row in SUBSTITUTES:
         if re.search(rf"\b{row.substitute}\b", task.tier_text, re.IGNORECASE):
             return row
     return None
+
+
+def undisposed(doc):
+    """Every section 1.5 substitute the document names and this table does not.
+
+    The document is the authority for the SET and this module for the VERDICT,
+    because section 1.5 states what a substitute MEANS and never whether the
+    act that closes it is an engineering one. A document that states no section
+    1.5 table yields nothing: an absent table is a document that names no
+    substitutes, not a document whose substitutes are all undisposed of.
+    """
+    known = {row.substitute.upper() for row in SUBSTITUTES}
+    return [row for row in doc.substitute_register if row.substitute.upper() not in known]
 
 
 def marker_lines(doc):
@@ -126,7 +175,7 @@ def run(doc):
                 f"{other.ident} is on its `Depends:` line and carries none"
             )
             row = disposition_of(other)
-            if row is None:
+            if row is None or row.severity == ERROR:
                 findings.append(
                     Finding(
                         rule="done-marker-over-incomplete-dependency",
@@ -160,9 +209,32 @@ def run(doc):
                     section=task.section,
                     line=line,
                     evidence=f"{head}. {other.ident} is declared {row.substitute}: {row.why}",
-                    severity=WARNING,
+                    severity=row.severity,
                 )
             )
+
+    for row in undisposed(doc):
+        findings.append(
+            Finding(
+                rule="substitute-without-a-disposition",
+                message=(
+                    "section 1.5 names a tier substitute this lint states no "
+                    "disposition for. The two rules here are separated by what "
+                    "the dependency declares about itself, so a substitute with "
+                    "no row is decided by falling through to the engineering-work "
+                    "rule, and that silence is indistinguishable from a verdict "
+                    "someone took"
+                ),
+                section=doc.section_at(row.line),
+                line=row.line,
+                evidence=(
+                    f"section 1.5 names {row.substitute} at line {row.line}; this "
+                    "lint states no disposition for it, so a task declaring it is "
+                    "read as work this plan schedules without that having been decided"
+                ),
+                severity=ERROR,
+            )
+        )
 
     return guard_no_input(
         "gate", findings, len(doc.tasks), "task bodies", "completion-gate lint"

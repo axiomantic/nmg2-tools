@@ -316,6 +316,7 @@ reports it. A lint with no negative fixture is not done.
 | `pos_gate_complete.md` | **No defect.** The SILENT half of the completion gate's calibrated pair: a marked task whose dependency carries a live marker. |
 | `neg_gate_incomplete.md` | The REPORTED half. It is `pos_gate_complete.md` with two `~~` pairs added to the dependency's marker line and nothing else changed, so the strike alone separates a report from a silence. |
 | `neg_gate_dispositions.md` | One marked dependant per §1.5 tier substitute a dependency can carry — `OPERATOR`, `deferred`, `upstream` and `THROWAWAY` — and a three-task chain whose tail is unmarked, so the edge above the gap is the one reported. |
+| `neg_gate_unknown_substitute.md` | A §1.5 table naming a substitute the completion-gate lint states no disposition for. The document is the authority for the substitute SET and the lint for the VERDICT, so the set outrunning the verdicts is reported rather than resolved by falling through to the engineering-work rule. |
 | `repo_public_bad/`, `repo_public_good/` | A repository tree with each breach route, and one with none. |
 
 ### Mutation check, per RULE

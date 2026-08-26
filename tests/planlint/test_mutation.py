@@ -141,6 +141,7 @@ DOCUMENT_RULES = frozenset(
         # gate
         "done-marker-over-a-dependency-this-plan-does-not-schedule",
         "done-marker-over-incomplete-dependency",
+        "substitute-without-a-disposition",
         # structure
         "done-marker-not-line-anchored",
         "table-column-count-undecided",
@@ -633,6 +634,17 @@ MUTATIONS = [
     ),
     # ------------------------------------------------------------------- gate
     (
+        # The drift this rule exists for, injected at the DOCUMENT end rather
+        # than at the lint's: section 1.5 renames a substitute and the lint's
+        # table still carries the old name. No task in this fixture declares
+        # either name, so what reddens is the correspondence alone and not a
+        # pair the rename reclassified.
+        "a section 1.5 substitute the completion-gate lint has no disposition for",
+        "| **upstream** | 1 |",
+        "| **SIDEBAND** | 1 |",
+        {"substitute-without-a-disposition"},
+    ),
+    (
         "a completion marker over a dependency that carries none",
         "Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered "
         "with `add_test(NAME t0_beta ...)` through the track test list.",
@@ -859,10 +871,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 63)
+        self.assertEqual(len(MUTATIONS), 64)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 63)
+        self.assertEqual(len(rules_the_lints_emit()), 64)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {

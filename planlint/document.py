@@ -401,6 +401,20 @@ class FixtureRow:
 
 
 @dataclasses.dataclass(frozen=True)
+class SubstituteRow:
+    """One row of the section 1.5 tier-substitute table.
+
+    Only the substitute's NAME and the row's line are kept. The lint that reads
+    this register holds the table against its own dispositions and never
+    against what a row says, so the meaning and check columns would be prose a
+    reader could not edit without reddening a test.
+    """
+
+    substitute: str
+    line: int
+
+
+@dataclasses.dataclass(frozen=True)
 class DoneMarker:
     """One completion marker inside a task body.
 
@@ -530,6 +544,7 @@ class PlanDocument:
         self.repositories = {}
         self.track_repositories = {}
         self.fixture_register = []
+        self.substitute_register = []
         self.owned_paths = {}
         self.owner_mechanisms = {}
         self.cross_track_edges = []
@@ -745,6 +760,8 @@ class PlanDocument:
                 self._read_repository_table(body)
             elif header[:5] == ["fixture", "path", "named by", "repository", "visibility"]:
                 self._read_fixture_table(body)
+            elif header[:2] == ["substitute", "count"]:
+                self._read_substitute_table(body)
             elif header[:4] == ["track", "worktree name", "repository", "task prefix"]:
                 self._read_track_table(body)
             elif header[:2] == ["track", "tasks"]:
@@ -823,6 +840,22 @@ class PlanDocument:
                     line=line,
                 )
             )
+
+    def _read_substitute_table(self, body):
+        """Section 1.5: the tier substitutes a task header may carry.
+
+        Section 1.5 calls itself the one home of this set and states the
+        command that re-derives every row, so a reader that wanted the set and
+        kept its own tuple would be that table copied into Python — the shape
+        section 24.6 row W3-404 names as a missing predicate, and the reason
+        section 7.8's register is read here rather than listed.
+        """
+        for line, cells in body:
+            substitute = strip_markup(cells[0])
+            if substitute:
+                self.substitute_register.append(
+                    SubstituteRow(substitute=substitute, line=line)
+                )
 
     def _read_owner_table(self, header, body):
         """Section 7.4.2: the shared paths that are not CMake lists.

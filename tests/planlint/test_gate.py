@@ -132,6 +132,83 @@ class DispositionTest(unittest.TestCase):
         )
 
 
+class SubstituteCorrespondenceTest(unittest.TestCase):
+    """Section 1.5 is the one home of the substitute SET; this lint owns the
+    VERDICT. A substitute the document names and the table has no row for is
+    REPORTED, because a silent fall-through to the engineering-work rule reads
+    exactly like a considered verdict.
+
+    What is read is the substitute NAME COLUMN of a structured table the plan
+    itself states a command for, and never what any row SAYS — the distinction
+    `ReadmeLintTableTest` draws about the README's lint table.
+    """
+
+    def test_a_substitute_with_no_disposition_is_reported(self):
+        self.assertEqual(
+            reported(run("neg_gate_unknown_substitute.md")),
+            [
+                (
+                    "done-marker-over-incomplete-dependency",
+                    "GGG-1",
+                    "ERROR",
+                    "GGG-1 carries a completion marker at line 39; SND-1 is on "
+                    "its `Depends:` line and carries none",
+                ),
+                (
+                    "substitute-without-a-disposition",
+                    "",
+                    "ERROR",
+                    "section 1.5 names SANDBOX at line 18; this lint states no "
+                    "disposition for it, so a task declaring it is read as work "
+                    "this plan schedules without that having been decided",
+                ),
+            ],
+        )
+
+    def test_the_four_substitutes_the_lint_disposes_of_are_not_reported(self):
+        """The same table names four substitutes the lint does carry. Only the
+        fifth reports, so the rule fires on the gap and not on the table."""
+        self.assertEqual(
+            [
+                f.evidence
+                for f in run("neg_gate_unknown_substitute.md").findings
+                if f.rule == "substitute-without-a-disposition"
+            ],
+            [
+                "section 1.5 names SANDBOX at line 18; this lint states no "
+                "disposition for it, so a task declaring it is read as work "
+                "this plan schedules without that having been decided"
+            ],
+        )
+
+    def test_a_document_that_states_no_substitute_table_is_silent(self):
+        """A fixture carries no section 1.5. An absent table is not a document
+        whose substitutes are all undisposed of; it is a document that states
+        none, and the rule has nothing to hold the table against."""
+        self.assertEqual(
+            [
+                f.rule
+                for f in run("neg_gate_dispositions.md").findings
+                if f.rule == "substitute-without-a-disposition"
+            ],
+            [],
+        )
+
+    def test_every_substitute_the_live_table_names_carries_a_severity(self):
+        """Totality by construction: `severity` is a required field of the row,
+        so a substitute cannot be added to the table without a verdict. The
+        silent omission this replaces was indistinguishable from an oversight."""
+        self.assertEqual(
+            sorted((row.substitute, row.severity) for row in gate.SUBSTITUTES),
+            [
+                ("OPERATOR", "WARNING"),
+                ("THROWAWAY", "ERROR"),
+                ("deferred", "WARNING"),
+                ("upstream", "WARNING"),
+            ],
+        )
+
+
 class NoInputTest(unittest.TestCase):
     def test_a_document_with_no_task_block_is_a_hard_error(self):
         result = gate.run(PlanDocument.from_text("# A plan with no task\n", name="inline"))

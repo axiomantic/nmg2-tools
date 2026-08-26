@@ -165,3 +165,22 @@ Of the two conditional tasks, neither one blocks a milestone.
 |---|---|
 | CCC-1 | Exists only if the probe reports a result. |
 | CCC-2 | Exists only if the probe reports a second result. |
+
+## 1.5 The tier substitutes
+
+The substitute set the completion-gate lint holds its dispositions against.
+Every substitute here has a row in that lint, so the clean document reports no
+correspondence finding; a mutation that renames one leaves the lint with no
+disposition for the new name.
+
+It sits BELOW section 24 rather than in numeric order because several tests
+assert a LINE NUMBER in this fixture. No lint reads the order of these sections;
+the line numbers are read, so a section added anywhere above them moves an
+assertion that has nothing to do with the edit.
+
+| Substitute | Count | What it means | Where its check runs |
+|---|---|---|---|
+| **THROWAWAY** | 1 | A spike task. The code does not become production code. | The operator's own machine, against `extracted/`. |
+| **OPERATOR** | 1 | The task needs an outward action only the operator may take. | Nowhere automatic. The operator performs it and records the result. |
+| **deferred** | 1 | Listed, not scheduled. | Nowhere. A deferred task has no check to run. |
+| **upstream** | 1 | The check is a pull request against a repository this project does not own. | The upstream maintainer's own continuous integration. |
