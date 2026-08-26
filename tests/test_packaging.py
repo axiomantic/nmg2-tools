@@ -52,6 +52,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "implicit.py",
         "markers.py",
         "payload.py",
+        "provenance.py",
         "registrar.py",
         "removed.py",
         "rule9.py",
@@ -88,7 +89,7 @@ def test_planlint_cli_exposes_every_lint():
     # `citations` runs `git`, so it is CONDITIONAL and declares `--clone`.
     # Membership here is asserted to be exactly the requirement table, or a
     # lint could leave the default run with no reason to print.
-    assert cli.CONDITIONAL_LINTS == ("citations", "payload")
+    assert cli.CONDITIONAL_LINTS == ("citations", "payload", "provenance")
     assert sorted(cli.LINT_REQUIREMENTS) == sorted(cli.CONDITIONAL_LINTS)
     assert cli.ALL_LINTS == [
         "structure",
@@ -108,6 +109,7 @@ def test_planlint_cli_exposes_every_lint():
         "gate",
         "citations",
         "payload",
+        "provenance",
     ]
 
 

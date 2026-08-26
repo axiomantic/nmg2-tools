@@ -66,8 +66,8 @@ class ExitCodeTest(unittest.TestCase):
         self.assertIn("graph: clean", text)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 2 lints SKIPPED (citations, "
-            "payload). A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
+            "payload, provenance). A skipped lint is not a clean lint.",
         )
 
     def test_the_anchors_lint_runs_in_the_default_set_and_states_its_count(self):
@@ -281,8 +281,8 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 2 lints SKIPPED (citations, "
-            "payload). A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
+            "payload, provenance). A skipped lint is not a clean lint.",
         )
 
     def test_a_run_with_findings_and_a_skip_states_both(self):
@@ -292,8 +292,8 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(
             result_line(text),
             "RESULT: findings reported. See each rule above. "
-            "2 lints SKIPPED (citations, payload). A skipped lint is not a "
-            "clean lint.",
+            "3 lints SKIPPED (citations, payload, provenance). A skipped lint "
+            "is not a clean lint.",
         )
 
     def test_a_run_in_which_every_lint_ran_says_nothing_about_a_skip(self):
@@ -397,6 +397,7 @@ class LintRegistryTest(unittest.TestCase):
                 "implicit",
                 "markers",
                 "payload",
+                "provenance",
                 "registrar",
                 "removed",
                 "rule9",
@@ -524,6 +525,7 @@ class LintOrdinalTest(unittest.TestCase):
                 "tiers": 3,
                 "checks": 4,
                 "payload": 5,
+                "provenance": 18,
                 "counts": 6,
                 "implicit": 7,
                 "registrar": 8,

@@ -34,6 +34,7 @@ from planlint import (
     implicit,
     markers,
     payload,
+    provenance,
     registrar,
     removed,
     rule9,
@@ -73,7 +74,7 @@ DOCUMENT_LINTS = {
 # here and in `LINT_REQUIREMENTS` is asserted to be the SAME set, so a lint
 # cannot be moved out of the default run without also acquiring the reason the
 # report prints for it.
-CONDITIONAL_LINTS = ("citations", "payload")
+CONDITIONAL_LINTS = ("citations", "payload", "provenance")
 ALL_LINTS = list(DOCUMENT_LINTS) + list(CONDITIONAL_LINTS)
 
 
@@ -95,6 +96,7 @@ class Requirement:
 LINT_REQUIREMENTS = {
     "citations": Requirement("--clone", lambda args: bool(args.clone)),
     "payload": Requirement("--repo", lambda args: bool(args.repo)),
+    "provenance": Requirement("--repo", lambda args: bool(args.repo)),
 }
 
 
@@ -286,6 +288,10 @@ def main(argv=None, stream=None):
         stream.write("--repo is required to run the payload lint\n")
         return 2
 
+    if "provenance" in selected and not args.repo:
+        stream.write("--repo is required to run the provenance lint\n")
+        return 2
+
     if "citations" in selected and not args.clone:
         stream.write("--clone is required to run the citations lint\n")
         return 2
@@ -345,6 +351,8 @@ def main(argv=None, stream=None):
                 result = DOCUMENT_LINTS[name](doc)
         elif name == "citations":
             result = citations.run(doc, clones=clones)
+        elif name == "provenance":
+            result = provenance.run(args.repo)
         else:
             result = payload.run(
                 args.repo, public=not args.private, register=doc.fixture_register
