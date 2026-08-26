@@ -13,7 +13,7 @@ import pathlib
 import tempfile
 import unittest
 
-from planlint import rule9
+from planlint import checks, rule9
 from planlint.document import PlanDocument
 from planlint.finding import ERROR
 
@@ -234,6 +234,60 @@ class HalfBTest(unittest.TestCase):
 
     def test_half_b_is_silent_when_no_repository_is_given(self):
         self.assertEqual(rule9.run(plan(COMPLIANT)).findings, [])
+
+
+class RegistrationPatternAgreementTest(unittest.TestCase):
+    """One rule, one answer, whichever input asks it.
+
+    `planlint.checks` reads registrations out of the plan's PROSE and this
+    module reads them out of CMake SOURCE. The question both ask is the same —
+    which name does `add_test(NAME <name> ...)` register — so a spelling that
+    names a test to one reader and nothing to the other is a divergence, not a
+    difference of input.
+
+    Two spellings decide it and each was answered differently by one reader
+    only. `...` is the documentation placeholder, a name no test can carry, and
+    a CMake comment is as free to write the form in prose as the plan is. The
+    space before the parenthesis is CMake's own grammar, and a plan quoting a
+    registration as its repository actually spells it must read as one.
+
+    Each spelling is fed to BOTH call sites in one subtest, so a second pattern
+    written beside the shared one reddens here the moment the two disagree.
+    """
+
+    SPELLINGS = {
+        "t0_alpha": {"t0_alpha"},
+        # A dot is legal inside a ctest name. This probe separates rejecting
+        # the placeholder from dropping `.` out of the character class, which
+        # would truncate this name rather than reject the placeholder.
+        "t0_alpha.suffix": {"t0_alpha.suffix"},
+        "...": set(),
+    }
+
+    def plan_names(self, token, spacing):
+        body = (
+            "**AAA-1 · A task** — T0\n"
+            "Files: `tests/t0_alpha.cpp`\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`. "
+            f"The registration reads `add_test{spacing}(NAME {token} "
+            "COMMAND t0_alpha)`.\n"
+        )
+        return checks.registered_names(PlanDocument.from_text(body, name="inline"))
+
+    def cmake_names(self, token, spacing):
+        with tempfile.TemporaryDirectory() as root:
+            (pathlib.Path(root) / "tests_alpha.cmake").write_text(
+                f"add_test{spacing}(NAME {token} COMMAND t0_alpha)\n"
+            )
+            return rule9.registered_names(root)
+
+    def test_the_plan_reader_and_the_cmake_reader_extract_the_same_names(self):
+        for spacing in ("", " "):
+            for token, expected in self.SPELLINGS.items():
+                with self.subTest(spacing=repr(spacing), token=token):
+                    self.assertEqual(self.plan_names(token, spacing), expected)
+                    self.assertEqual(self.cmake_names(token, spacing), expected)
 
 
 if __name__ == "__main__":

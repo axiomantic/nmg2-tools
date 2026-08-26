@@ -194,12 +194,23 @@ SHELL_QUOTED = re.compile(r"^(?P<quote>['\"])(?P<inner>.+)(?P=quote)$")
 TARGET_ARGUMENT = re.compile(r"--target\s+(\S+)")
 FORWARDED = re.compile(r"(?:^|\s)--(?:\s|$)")
 NO_TESTS_ERROR = "--no-tests=error"
+# The one pattern for `add_test(NAME <name> ...)`. `planlint.rule9` reads it
+# from here rather than carrying its own: the plan's prose and a repository's
+# CMake ask the same question, and two patterns for one question are repaired
+# one at a time.
+#
 # The lookahead requires one alphanumeric somewhere in the name, which is what
 # separates a registration from the prose placeholder `add_test(NAME ...)`. The
 # alternative repair — dropping `.` from the class — is worse: a dot is a legal
 # character in a ctest name, and a class without it reads `add_test(NAME a.b)`
 # as the name `a`, turning a rejection into a silent truncation.
-ADD_TEST = re.compile(r"add_test\(\s*NAME\s+(?=[A-Za-z0-9_.\-]*[A-Za-z0-9])([A-Za-z0-9_.\-]+)")
+#
+# The space before the parenthesis is CMake's own grammar, so the CMake reader
+# must accept it; a plan quoting a registration as its repository spells it
+# reads as one registration and not as prose.
+ADD_TEST = re.compile(
+    r"add_test\s*\(\s*NAME\s+(?=[A-Za-z0-9_.\-]*[A-Za-z0-9])([A-Za-z0-9_.\-]+)"
+)
 PYTEST_PATH = re.compile(r"pytest\s+(\S+\.py)")
 AXIOMANTIC = re.compile(r"\baxiomantic/[A-Za-z0-9_.\-]+")
 

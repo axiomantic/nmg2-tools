@@ -1,2 +1,0 @@
-nmg2_tools
-planlint

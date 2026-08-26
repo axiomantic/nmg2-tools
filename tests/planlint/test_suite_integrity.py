@@ -15,7 +15,10 @@ Both are asserted here mechanically, so neither can reopen.
 import ast
 import os
 import pathlib
+import re
 import unittest
+
+from planlint import cli
 
 TESTS = pathlib.Path(__file__).resolve().parent
 FIXTURES = TESTS / "fixtures"
@@ -25,6 +28,10 @@ FIXTURES = TESTS / "fixtures"
 # the repository.
 ROOT = TESTS.parents[1]
 README = ROOT / "planlint" / "README.md"
+# A row of the README's lint table: an ordinal, then the lint's module name in
+# backticks. The exit-code table also opens with a bare number and is not
+# matched, because its second cell carries a sentence and no backticked name.
+LINT_TABLE_ROW = re.compile(r"^\|\s*\d+\s*\|\s*`(?P<lint>[a-z][a-z0-9_]*)`\s*\|")
 
 
 def discover_test_modules():
@@ -174,6 +181,42 @@ class ReadmeFixtureTableTest(unittest.TestCase):
         rows = {name for name in self.documented() if name.startswith(("neg_", "pos_", "clean_", "repo_"))}
         self.assertIn("clean_plan.md", rows)  # an empty table makes the next line pass
         self.assertEqual(sorted(rows - self.committed()), [])
+
+
+class ReadmeLintTableTest(unittest.TestCase):
+    """Every lint the package holds has a row in the README table, and every
+    row names a lint the package holds.
+
+    The population comes from the tool's own filesystem scan, so the table is
+    held against the CODE and never the code against the table. A lint added
+    with no row reddens here on the edit that adds it.
+
+    What is asserted about the README is COVERAGE — that a lint's name has a
+    row — and never what a row SAYS. Rewriting a row's prose keeps this green;
+    the only edit that reddens it is one that adds, renames, or deletes a lint
+    without carrying the table along.
+    """
+
+    def documented(self):
+        found = set()
+        for line in README.read_text(encoding="utf-8").splitlines():
+            match = LINT_TABLE_ROW.match(line)
+            if match:
+                found.add(match.group("lint"))
+        return found
+
+    def test_every_lint_has_a_row_in_the_readme_table(self):
+        discovered = set(cli.discover_lint_modules())
+        # An empty scan accounts for every lint vacuously and makes the next
+        # line pass while examining nothing.
+        self.assertIn("structure", discovered)
+        self.assertEqual(sorted(discovered - self.documented()), [])
+
+    def test_every_readme_row_names_a_lint_that_exists(self):
+        rows = self.documented()
+        # An empty table does the same in the other direction.
+        self.assertIn("structure", rows)
+        self.assertEqual(sorted(rows - set(cli.discover_lint_modules())), [])
 
 
 class TestModuleDiscoveryTest(unittest.TestCase):

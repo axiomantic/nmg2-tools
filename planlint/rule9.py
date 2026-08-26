@@ -94,7 +94,6 @@ SOURCE_SUFFIXES = (".cpp", ".c", ".cc", ".nim", ".py")
 CMAKE_NAMES = ("CMakeLists.txt",)
 CMAKE_SUFFIX = ".cmake"
 
-LITERAL_ADD_TEST = re.compile(r"add_test\s*\(\s*NAME\s+([A-Za-z0-9_.\-]+)")
 WRAPPER = re.compile(
     r"^[ \t]*(?:function|macro)\s*\(\s*([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)\s*\)"
     r"(.*?)^[ \t]*end(?:function|macro)\s*\(",
@@ -175,7 +174,7 @@ def registered_names(root):
         except OSError:
             continue
         texts.append(text)
-        names.update(LITERAL_ADD_TEST.findall(text))
+        names.update(checks.ADD_TEST.findall(text))
         for wrapper_name, parameter, body in WRAPPER.findall(text):
             if re.search(
                 r"add_test\s*\(\s*NAME\s+\$\{" + re.escape(parameter) + r"\}", body

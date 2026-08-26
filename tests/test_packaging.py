@@ -11,8 +11,12 @@ exited 0 when it parsed nothing. None of its rules survive.
 """
 
 import pathlib
+import shutil
+import subprocess
 import sys
 import tomllib
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -57,7 +61,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
     ]
 
 
-def test_planlint_cli_exposes_the_fifteen_lints():
+def test_planlint_cli_exposes_every_lint():
     from planlint import cli
 
     # `structure` runs FIRST. Every lint below it reads a parsed document, so
@@ -188,6 +192,40 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "test_synth_pch2.py",
     ]
+
+
+def tracked_paths():
+    """Every path this repository tracks, or a stated reason there is no answer.
+
+    A missing `git` and a repository that tracks nothing produce the same empty
+    list, which is this project's signature failure mode. Each absence skips
+    with its own reason instead.
+    """
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH, so the tracked file set cannot be read")
+    if not (ROOT / ".git").exists():
+        pytest.skip(f"{ROOT} is not a git checkout, so it tracks nothing to read")
+    listing = subprocess.run(
+        [git, "ls-files", "-z"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [path for path in listing.split("\0") if path]
+
+
+def test_no_generated_metadata_tree_is_tracked():
+    """`setuptools` writes `*.egg-info/` and rewrites it on every build. Under
+    version control it disagrees with the tree between builds and nothing
+    notices: `SOURCES.txt` named no `planlint/removed.py` for as long as no one
+    reran `pip install .`, and a `grep -r` over this repository finds no reader
+    for any file in it.
+    """
+    tracked = tracked_paths()
+    assert "pyproject.toml" in tracked  # an empty listing makes the next line pass
+    assert [path for path in tracked if ".egg-info/" in path] == []
 
 
 def test_planlint_is_imported_from_this_repository_and_not_elsewhere():
