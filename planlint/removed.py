@@ -109,7 +109,10 @@ class Predicate:
     `names` is the NOUN question: every SPELLING a block reaches for, the call
     and the English nouns beside it. Section 24.6 rows W3-405 and W3-408 refuse
     to narrow it "until the count resembles the roster", and it is not narrowed
-    here.
+    here. The CALL half of it WAS widened, which is the opposite direction and
+    reverses no adjudication: it had asked for literal empty parentheses, so it
+    reached no `assert(expr)` in the document and the rule §7.7's boxed
+    sentence is actually about had no witness among the findings.
 
     `rests its verdict on the not-firing of` is the SHAPE question, and it is
     the one section 7.7's boxed RULE actually states: "No `Check:` line may
@@ -133,8 +136,10 @@ class Predicate:
 class RemovedMechanism:
     """One mechanism a build setting deletes, and how a block names it.
 
-    `clause_pattern` reads every SPELLING a block reaches for — the call
-    `assert()` and the English nouns beside it. IN THIS DOCUMENT THE NOUN IS
+    `clause_pattern` reads every SPELLING a block reaches for — the call, in
+    the `assert(expr)` form a compiler sees and in the empty-paren `assert()`
+    form prose uses to name it, and the English nouns beside it. IN THIS
+    DOCUMENT THE NOUN IS
     OFTEN NOT THE MECHANISM: a block writing "the assertion is that the model
     rejects the access" names a test case, and section 7.7's rule does not
     reach it.
@@ -170,11 +175,37 @@ REMOVED_MECHANISMS = (
             Predicate(
                 rule="check-predicate-removed-by-default-build",
                 names="names",
-                # NOT NARROWED. §24.6 row W3-405 refused that "until the count
-                # resembles the roster" and row W3-408 restates the refusal.
-                # The refusal stands, so the answer to the shape question is
-                # the row BELOW rather than an edit here.
-                clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                # The NOUN alternative is NOT NARROWED. §24.6 row W3-405
+                # refused that "until the count resembles the roster" and row
+                # W3-408 restates the refusal. The refusal stands, so the
+                # answer to the shape question is the row BELOW rather than an
+                # edit to it.
+                #
+                # The CALL alternative is WIDENED, which is the opposite
+                # direction and orthogonal to that refusal. It shipped as
+                # `\bassert\(\)`, which requires LITERAL EMPTY PARENTHESES: a C
+                # assertion is always `assert(expr)`, so the alternative could
+                # reach no call in the document and every finding this rule
+                # reported was convicted by the English noun beside it. The
+                # call spelling §7.7's boxed rule is about had no witness.
+                #
+                # The leading boundary is a LOOKBEHIND and not `\b`, for the
+                # reason `kept_by` form 1 already carries: `\b` does not sit
+                # between the `_` and the `a` of `static_assert`, so `\bassert`
+                # matches INSIDE `static_assert(`, `_Static_assert(` and
+                # `g2_assert(` — none of which NDEBUG removes. The trailing
+                # half refuses `assert_eq(`, whose next character is `_` and
+                # not `(`, and the bare English word `assert`, which opens no
+                # parenthesis at all. `assert()` still matches, because that
+                # empty-paren form is how prose names the mechanism.
+                #
+                # The whitespace class is HORIZONTAL and not `\s`. `run()`
+                # searches the joined block and `_clause` re-searches it line
+                # by line; a class that crossed a line break could match in the
+                # first and not the second, and the finding would then quote
+                # the `Check:` line rather than the line it matched on.
+                clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
+                r"|\bassert(?:ion|ions)\b",
                 severity=ERROR,
             ),
             Predicate(

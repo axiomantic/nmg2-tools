@@ -648,7 +648,8 @@ class PredicateTableTest(unittest.TestCase):
                 (
                     RULE,
                     "names",
-                    r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                    r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
+                    r"|\bassert(?:ion|ions)\b",
                     "ERROR",
                 ),
                 (
@@ -669,7 +670,7 @@ class PredicateTableTest(unittest.TestCase):
         withdrawn."""
         self.assertEqual(
             removed.REMOVED_MECHANISMS[0].predicates[0].clause_pattern,
-            r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+            r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(|\bassert(?:ion|ions)\b",
         )
 
 
@@ -736,6 +737,111 @@ class NotTheMechanismTest(unittest.TestCase):
                 ),
             ],
         )
+
+
+class CallSpellingTest(unittest.TestCase):
+    r"""The CALL half of the noun predicate, read on its own.
+
+    The alternative shipped as `\bassert\(\)`, which requires LITERAL EMPTY
+    PARENTHESES. A C assertion is always written `assert(expr)`, so that
+    alternative could not reach one: every live finding the lint reported was
+    convicted by the English noun beside it, and the call spelling §7.7's boxed
+    rule is actually about had no witness at all. A guard never seen to fire is
+    not a guard.
+
+    This WIDENS the call side. It is not the narrowing §24.6 rows W3-405 and
+    W3-408 refused: those rows govern the NOUN alternative, which nothing here
+    touches and which the pins in `PredicateTableTest` still carry byte for
+    byte.
+
+    Each synthetic block below states its spelling and NO English noun, so
+    whatever it reports is the call alternative's answer alone.
+    """
+
+    # (spelling, does the noun predicate's pattern reach it)
+    #
+    # The three refusals are the reason the call side needs a LOOKBEHIND rather
+    # than `\b`: `\bassert\s*\(` matches inside `static_assert(`, `_Static_assert(`
+    # and `g2_assert(`, because `\b` sits between `_` and `a` in none of them —
+    # it does not sit there at all, and the match starts at the `assert` the
+    # prefix owns. `assert_eq(` is refused by the opposite half: the character
+    # after `assert` is `_` and not `(`.
+    SPELLINGS = (
+        ("assert(status == g2::Status::Ok)", True),
+        ("assert (status)", True),
+        ("assert()", True),
+        ("ASSERT(x)", True),
+        ("static_assert(sizeof(Frame) == 64)", False),
+        ("_Static_assert(sizeof(Frame) == 64)", False),
+        ("g2_assert(x)", False),
+        ("assert_eq(a, b)", False),
+        ("no assert guards the path", False),
+    )
+
+    def test_the_noun_predicates_pattern_answers_each_call_spelling(self):
+        pattern = re.compile(
+            removed.REMOVED_MECHANISMS[0].predicates[0].clause_pattern
+        )
+
+        self.assertEqual(
+            [(text, bool(pattern.search(text))) for text, _ in self.SPELLINGS],
+            list(self.SPELLINGS),
+        )
+
+    @staticmethod
+    def _findings(predicate):
+        text = (
+            "## 9. The tasks\n"
+            "\n"
+            "**ZZZ-8 · A call-spelling predicate** — T0\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_zzz$`. "
+            f"{predicate}\n"
+        )
+        result = removed.run(PlanDocument.from_text(text, name="synthetic"))
+        return [(f.rule, f.task, f.evidence) for f in result.findings]
+
+    REAL_CALL = (
+        "The registered test drives one case and the code calls "
+        "assert(status == g2::Status::Ok) on the result."
+    )
+    DOCUMENTATION_SPELLING = (
+        "The registered test drives one case and the bare assert() in the "
+        "helper is what the verdict rests on."
+    )
+    STATIC = (
+        "The registered test drives one case and the code calls "
+        "static_assert(sizeof(Frame) == 64) on the type."
+    )
+    BARE_WORD = "The registered test drives one case and no assert guards the path."
+
+    def test_a_block_whose_only_spelling_is_a_real_call_is_reported(self):
+        """The live witness. This is the case the shipped alternative could not
+        reach, and it carries no English noun, so the conviction is
+        attributable to the call spelling and to nothing else."""
+        self.assertEqual(
+            self._findings(self.REAL_CALL), [(RULE, "ZZZ-8", self.REAL_CALL)]
+        )
+
+    def test_a_block_whose_only_spelling_is_the_documentation_form_is_reported(self):
+        """`assert()` with empty parentheses is how prose names the mechanism,
+        so widening the call side must not cost this conviction."""
+        self.assertEqual(
+            self._findings(self.DOCUMENTATION_SPELLING),
+            [(RULE, "ZZZ-8", self.DOCUMENTATION_SPELLING)],
+        )
+
+    def test_a_block_whose_only_spelling_is_a_static_assertion_is_spared(self):
+        """Two mechanisms answer this one: `not_the_mechanism` masks the span,
+        and the pattern refuses it unmasked. The spelling test above is the one
+        that holds the pattern's half shut, because this test would stay green
+        on a pattern that reached inside `static_assert(`."""
+        self.assertEqual(self._findings(self.STATIC), [])
+
+    def test_a_block_whose_only_spelling_is_the_bare_word_is_spared(self):
+        """`assert` with no parentheses is English, not a call. Nothing masks
+        it, so this conviction — or its absence — is the pattern's alone."""
+        self.assertEqual(self._findings(self.BARE_WORD), [])
 
 
 class RepositoryScopeTest(unittest.TestCase):
@@ -1062,7 +1168,8 @@ class MechanismTableTest(unittest.TestCase):
                         removed.Predicate(
                             rule=RULE,
                             names="names",
-                            clause_pattern=r"(?i)\bassert\(\)|\bassert(?:ion|ions)\b",
+                            clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
+                            r"|\bassert(?:ion|ions)\b",
                             severity="ERROR",
                         ),
                         removed.Predicate(
