@@ -32,6 +32,7 @@ from planlint import (
     checks,
     closure,
     counts,
+    gate,
     graph,
     implicit,
     markers,
@@ -58,6 +59,7 @@ LINTS = {
     "markers": markers.run,
     "secondwrite": secondwrite.run,
     "removed": removed.run,
+    "gate": gate.run,
 }
 
 CLEAN = fixture_path("clean_plan.md").read_text(encoding="utf-8")
@@ -136,6 +138,9 @@ DOCUMENT_RULES = frozenset(
         # removed
         "check-predicate-removed-by-default-build",
         "check-verdict-rests-on-an-assertion-not-firing",
+        # gate
+        "done-marker-over-a-dependency-this-plan-does-not-schedule",
+        "done-marker-over-incomplete-dependency",
         # structure
         "done-marker-not-line-anchored",
         "table-column-count-undecided",
@@ -516,7 +521,13 @@ MUTATIONS = [
         # and reports that its citation is not in the per-path form. Both rules
         # are true of the same line and neither subsumes the other: one is about
         # where the marker sits, the other about what its citation states.
-        {"done-marker-not-line-anchored", "done-marker-citation-not-in-form"},
+        # EEE-1's marker is live and CCC-1 and CCC-2 carry none, so the
+        # completion gate reports the pair as a third true statement.
+        {
+            "done-marker-not-line-anchored",
+            "done-marker-citation-not-in-form",
+            "done-marker-over-incomplete-dependency",
+        },
     ),
     (
         "a fenced block opened and never closed",
@@ -545,7 +556,9 @@ MUTATIONS = [
         "`add_test(NAME t2_zeta ...)`.\n"
         "**DONE on 2026-01-01, 1 commit. CITED PER DECLARED PATH:** "
         "`axiomantic/core` `1111111` → `tests/t2_zeta.cpp`.",
-        {"done-marker-path-uncited"},
+        # DDD-2's marker is live and DDD-1 carries none, so the completion gate
+        # reports the pair as well.
+        {"done-marker-path-uncited", "done-marker-over-incomplete-dependency"},
     ),
     (
         # EEE-1 already depends on CCC-1 and CCC-2, so the added task's
@@ -614,7 +627,57 @@ MUTATIONS = [
         "a completion marker written in the grammar that predates the form",
         "`add_test(NAME t2_zeta ...)`.",
         "`add_test(NAME t2_zeta ...)`.\n**DONE on 2026-01-01, commit `1111111`.**",
-        {"done-marker-citation-not-in-form"},
+        # DDD-2's marker is live and DDD-1 carries none, so the completion gate
+        # reports the pair as well. Two true statements about one edit.
+        {"done-marker-citation-not-in-form", "done-marker-over-incomplete-dependency"},
+    ),
+    # ------------------------------------------------------------------- gate
+    (
+        "a completion marker over a dependency that carries none",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered "
+        "with `add_test(NAME t0_beta ...)` through the track test list.",
+        "Check: `ctest --test-dir build --no-tests=error -R t0_beta`. Registered "
+        "with `add_test(NAME t0_beta ...)` through the track test list.\n"
+        "**DONE on 2026-01-02. CITED PER DECLARED PATH:** `axiomantic/core` "
+        "`2222222` \u2192 `testdata/synth/`, `testdata/shared.json`, "
+        "`tests/t0_beta.cpp`, `tests/tests_core.cmake`.",
+        {"done-marker-over-incomplete-dependency"},
+    ),
+    (
+        # ONE replacement spanning two blocks, because the pair this rule reads
+        # has two ends: the marker goes on DDD-2 and the substitute goes on the
+        # dependency DDD-1. Marking DDD-2 alone would earn the ERROR rule above
+        # instead, so the two edits cannot be split into two mutations.
+        "a completion marker over a dependency the plan does not schedule",
+        "**DDD-1 \u00b7 The Python half** \u2014 T0\n"
+        "Files: `tools/test_delta.py`, `testdata/shared.json`\n"
+        "Design: 6\n"
+        "Depends: AAA-2\n"
+        "Check: `pytest tools/test_delta.py`. The suite carries a failing case "
+        "of its own.\n"
+        "\n"
+        "**DDD-2 \u00b7 The oracle comparison** \u2014 T2\n"
+        "Files: `tests/t2_zeta.cpp`, `tests/tests_core.cmake`\n"
+        "Design: 7\n"
+        "Depends: DDD-1\n"
+        "Check: `ctest --test-dir build --no-tests=error -R '^t2_zeta$'`. "
+        "Registered with `add_test(NAME t2_zeta ...)`.",
+        "**DDD-1 \u00b7 The Python half** \u2014 OPERATOR\n"
+        "Files: `tools/test_delta.py`, `testdata/shared.json`\n"
+        "Design: 6\n"
+        "Depends: AAA-2\n"
+        "Check: `pytest tools/test_delta.py`. The suite carries a failing case "
+        "of its own.\n"
+        "\n"
+        "**DDD-2 \u00b7 The oracle comparison** \u2014 T2\n"
+        "Files: `tests/t2_zeta.cpp`, `tests/tests_core.cmake`\n"
+        "Design: 7\n"
+        "Depends: DDD-1\n"
+        "Check: `ctest --test-dir build --no-tests=error -R '^t2_zeta$'`. "
+        "Registered with `add_test(NAME t2_zeta ...)`.\n"
+        "**DONE on 2026-01-03. CITED PER DECLARED PATH:** `axiomantic/core` "
+        "`3333333` \u2192 `tests/t2_zeta.cpp`, `tests/tests_core.cmake`.",
+        {"done-marker-over-a-dependency-this-plan-does-not-schedule"},
     ),
 ]
 
@@ -679,7 +742,7 @@ def rules_the_lints_emit():
     out = set()
     for module in (
         graph, waves, tiers, checks, counts, implicit, registrar, closure,
-        structure, anchors, markers, secondwrite, removed,
+        structure, anchors, markers, secondwrite, removed, gate,
     ):
         out |= rules_in_source(module)
     return out
@@ -796,10 +859,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 61)
+        self.assertEqual(len(MUTATIONS), 63)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 61)
+        self.assertEqual(len(rules_the_lints_emit()), 63)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
@@ -807,6 +870,7 @@ class RuleCoverageTest(unittest.TestCase):
             "counts": counts, "implicit": implicit, "registrar": registrar,
             "closure": closure, "structure": structure, "anchors": anchors,
             "markers": markers, "secondwrite": secondwrite, "removed": removed,
+            "gate": gate,
         }
         self.assertEqual(
             sorted(

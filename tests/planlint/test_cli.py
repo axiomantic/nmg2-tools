@@ -392,6 +392,7 @@ class LintRegistryTest(unittest.TestCase):
                 "citations",
                 "closure",
                 "counts",
+                "gate",
                 "graph",
                 "implicit",
                 "markers",
@@ -534,6 +535,7 @@ class LintOrdinalTest(unittest.TestCase):
                 "secondwrite": 14,
                 "removed": 15,
                 "rule9": 16,
+                "gate": 17,
             },
         )
 

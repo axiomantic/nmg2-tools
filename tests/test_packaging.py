@@ -47,6 +47,7 @@ def test_planlint_package_directory_holds_every_module_the_cli_imports():
         "counts.py",
         "document.py",
         "finding.py",
+        "gate.py",
         "graph.py",
         "implicit.py",
         "markers.py",
@@ -82,6 +83,7 @@ def test_planlint_cli_exposes_every_lint():
         "markers",
         "secondwrite",
         "removed",
+        "gate",
     ]
     # `citations` runs `git`, so it is CONDITIONAL and declares `--clone`.
     # Membership here is asserted to be exactly the requirement table, or a
@@ -103,6 +105,7 @@ def test_planlint_cli_exposes_every_lint():
         "markers",
         "secondwrite",
         "removed",
+        "gate",
         "citations",
         "payload",
     ]

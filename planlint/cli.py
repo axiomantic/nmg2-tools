@@ -29,6 +29,7 @@ from planlint import (
     citations,
     closure,
     counts,
+    gate,
     graph,
     implicit,
     markers,
@@ -65,6 +66,7 @@ DOCUMENT_LINTS = {
     "markers": markers.run,
     "secondwrite": secondwrite.run,
     "removed": removed.run,
+    "gate": gate.run,
 }
 
 # A lint that runs only when the invocation supplies what it reads. Membership
