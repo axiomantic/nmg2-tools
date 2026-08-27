@@ -106,13 +106,16 @@ class Predicate:
 
     Two questions reach the same mechanism and they are not the same question.
 
-    `names` is the NOUN question: every SPELLING a block reaches for, the call
-    and the English nouns beside it. Section 24.6 rows W3-405 and W3-408 refuse
-    to narrow it "until the count resembles the roster", and it is not narrowed
-    here. The CALL half of it WAS widened, which is the opposite direction and
-    reverses no adjudication: it had asked for literal empty parentheses, so it
-    reached no `assert(expr)` in the document and the rule §7.7's boxed
-    sentence is actually about had no witness among the findings.
+    `names` is the CALL question: the spelling `assert(`, in the `assert(expr)`
+    form a compiler sees and in the empty-paren `assert()` form prose uses to
+    name it. It once carried an English-noun alternative beside the call.
+    Section 24.6 rows W3-405 and W3-408 declined to narrow that alternative
+    "until the count resembles the roster"; the count arrived — 38 of 40
+    findings convicted by the bare noun, over a document that spells the noun
+    981 times and the call 48 — and the refusal was WITHDRAWN by operator
+    decision. What followed is a DELETION and not a narrowing: an alternative
+    never once shown to reach the mechanism is gone, and the one that does
+    reach it is kept in full.
 
     `rests its verdict on the not-firing of` is the SHAPE question, and it is
     the one section 7.7's boxed RULE actually states: "No `Check:` line may
@@ -136,22 +139,20 @@ class Predicate:
 class RemovedMechanism:
     """One mechanism a build setting deletes, and how a block names it.
 
-    `clause_pattern` reads every SPELLING a block reaches for — the call, in
-    the `assert(expr)` form a compiler sees and in the empty-paren `assert()`
-    form prose uses to name it, and the English nouns beside it. IN THIS
-    DOCUMENT THE NOUN IS
-    OFTEN NOT THE MECHANISM: a block writing "the assertion is that the model
-    rejects the access" names a test case, and section 7.7's rule does not
-    reach it.
+    `clause_pattern` reads the CALL — `assert(expr)` as a compiler sees it and
+    the empty-paren `assert()` form prose uses to name it — and it no longer
+    reads the English noun beside it. IN THIS DOCUMENT THE NOUN IS OFTEN NOT
+    THE MECHANISM: a block writing "the assertion is that the model rejects the
+    access" names a test case, and section 7.7's rule does not reach it.
 
-    THAT IS STATED HERE RATHER THAN REPAIRED BY NARROWING THE PATTERN. This
-    docstring once claimed the pattern read "the MECHANISM — the call and its
-    noun — and not the English verb `asserts`", which was the record of an
-    intention the pattern did not carry out; section 24.6 row W3-408 measured
-    the gap. THE CLAIM IS WHAT MOVED, because row W3-405 refused to narrow
-    `clause_pattern` "until the count resembles the roster" and row W3-408
-    restates that refusal: narrowing to make a count look right is the roster
-    written in Python.
+    THAT WAS ONCE STATED HERE AND LEFT UNREPAIRED, on the ground that section
+    24.6 row W3-405 refused to narrow `clause_pattern` "until the count
+    resembles the roster" and row W3-408 restated the refusal. The count is
+    taken: 40 findings, of which 38 carried the noun and no call. The refusal
+    was WITHDRAWN and the noun alternative DELETED — not narrowed, deleted —
+    because an alternative that has never been shown to reach the mechanism
+    discriminates nothing, and section 7.7's boxed rule is about the call and
+    about the SHAPE of the verdict.
 
     What the module excludes instead is `not_the_mechanism` — spellings that
     are provably NOT this mechanism, each carrying its own reason — and
@@ -175,19 +176,13 @@ REMOVED_MECHANISMS = (
             Predicate(
                 rule="check-predicate-removed-by-default-build",
                 names="names",
-                # The NOUN alternative is NOT NARROWED. §24.6 row W3-405
-                # refused that "until the count resembles the roster" and row
-                # W3-408 restates the refusal. The refusal stands, so the
-                # answer to the shape question is the row BELOW rather than an
-                # edit to it.
-                #
-                # The CALL alternative is WIDENED, which is the opposite
-                # direction and orthogonal to that refusal. It shipped as
-                # `\bassert\(\)`, which requires LITERAL EMPTY PARENTHESES: a C
-                # assertion is always `assert(expr)`, so the alternative could
-                # reach no call in the document and every finding this rule
-                # reported was convicted by the English noun beside it. The
-                # call spelling §7.7's boxed rule is about had no witness.
+                # The NOUN alternative is DELETED, and the deletion is not the
+                # narrowing §24.6 rows W3-405 and W3-408 refused: those rows
+                # declined to narrow it "until the count resembles the roster",
+                # the count arrived, and the operator withdrew the refusal. The
+                # noun is this document's own word for a proposition a check
+                # asserts, so it cannot discriminate. What answers §7.7's boxed
+                # rule instead is this call spelling and the SHAPE row below.
                 #
                 # The leading boundary is a LOOKBEHIND and not `\b`, for the
                 # reason `kept_by` form 1 already carries: `\b` does not sit
@@ -204,8 +199,7 @@ REMOVED_MECHANISMS = (
                 # by line; a class that crossed a line break could match in the
                 # first and not the second, and the finding would then quote
                 # the `Check:` line rather than the line it matched on.
-                clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
-                r"|\bassert(?:ion|ions)\b",
+                clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(",
                 severity=ERROR,
             ),
             Predicate(

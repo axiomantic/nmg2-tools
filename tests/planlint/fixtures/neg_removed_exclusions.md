@@ -22,11 +22,13 @@ unless the same command returns non-zero somewhere.
   * **KEP-2 — A STATIC ASSERTION.** `NDEBUG` does not remove `static_assert`:
     it is a compile-time construct present in every build type, and the class
     this lint reads is *a mechanism the default build removes*. Its pair says
-    `assertion` where this one says `static assertion`, and nothing else.
+    `assert(` where this one says `static_assert(`, and nothing else.
   * **KEP-3 — A CITATION OF ONE OF THE PLAN'S OWN NUMBERED GRAPH ASSERTIONS.**
     §7.6's assertions are sentences in this document, checked by `planlint`
     itself; no build type deletes a sentence. Its pair drops the number and
-    nothing else, which is the whole of the recognizer.
+    nothing else, which is the whole of the recognizer. The pair is driven
+    through the SHAPE-keyed rule, because the noun alone convicts under
+    neither rule.
   * **KEP-4 — A LIVE `debug build` SENTENCE.** §7.7's FORM 1 — *"it names
     `-DCMAKE_BUILD_TYPE=Debug` on a command inside the same block"* — in the
     ordinary case. Its pair is the identical block with that one sentence
@@ -86,47 +88,47 @@ unless the same command returns non-zero somewhere.
 **KEP-1 · A predicate withdrawn by a strike** — T0
 Files: `g2Lib/test/t0_kep_one.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_one$`. ~~The registered test drives one case and the bound is held by an assertion in the helper.~~ **THE STRUCK CLAUSE IS REPLACED AND IT IS QUOTED RATHER THAN OVERWRITTEN.** The registered test drives one case and reads the bound back out of the helper's own counter.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_one$`. ~~The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper.~~ **THE STRUCK CLAUSE IS REPLACED AND IT IS QUOTED RATHER THAN OVERWRITTEN.** The registered test drives one case and reads the bound back out of the helper's own counter.
 
 **KEP-2 · A compile-time bound** — T0
 Files: `g2Lib/test/t0_kep_two.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_two$`. The registered test drives one case and the bound is held by a static assertion in the helper.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_two$`. The registered test drives one case and the bound is held by a `static_assert(lo <= hi)` in the helper.
 
 **KEP-3 · A graph invariant this document states** — T0
 Files: `g2Lib/test/t0_kep_three.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_three$`. The registered test drives the row and reports whether assertion 5 still holds.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_three$`. The registered test drives the row and reports that no assertion 5 trips.
 
 **KEP-4 · A bound the debug build keeps** — T0
 Files: `g2Lib/test/t0_kep_four.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_four$`. The registered test drives one case and the bound is held by an assertion in the helper. A debug build keeps it.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_four$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper. A debug build keeps it.
 
 **UNM-1 · A bound in the unmeasured repository** — T0
 Files: `tests/t_unm_one.nim`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_unm_one$`. The registered test drives one case and the bound is held by an assertion in the helper.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_unm_one$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper.
 
 **SPN-1 · A bound in a track that spans two repositories** — T0
 Files: `g2Lib/test/t0_spn_one.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_spn_one$`. The registered test drives one case and the bound is held by an assertion in the helper.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_spn_one$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper.
 
 **KEP-7 · A bound converted to an observable, in BRD-7's wording** — T0
 Files: `g2Lib/test/t0_kep_seven.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_seven$`. The registered test drives one case and the bound is held by an assertion in the helper. Nine bare `assert()`s are replaced by `checkEqual`, which is compiled in every build type.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_seven$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper. Nine bare `assert()`s are replaced by `checkEqual`, which is compiled in every build type.
 
 **KEP-8 · A bound converted to an observable, in DSP-7's wording** — T0
 Files: `g2Lib/test/t0_kep_eight.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_eight$`. The registered test drives one case and the bound is held by an assertion in the helper. The test asserts the arming by reading back that channel's own registers through the peripheral set, which is an observable no build type deletes.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_eight$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper. The test asserts the arming by reading back that channel's own registers through the peripheral set, which is an observable no build type deletes.
 
 **KEP-9 · A bound declared unchecked in the default build** — T0
 Files: `g2Lib/test/t0_kep_nine.cpp`
 Depends: none
-Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_nine$`. The registered test drives one case and the bound is held by an assertion in the helper. The property is unchecked in the default build and KEP-4 is the task that checks it.
+Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_nine$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper. The property is unchecked in the default build and KEP-4 is the task that checks it.
 
 **KEP-10 · A verdict-shape predicate the debug build keeps** — T0
 Files: `g2Lib/test/t0_kep_ten.cpp`
@@ -136,4 +138,4 @@ Check: `ctest --test-dir build --no-tests=error -R ^t0_kep_ten$`. The registered
 **KEP-11 · A bound the debug build keeps, named on the check command** — T0
 Files: `g2Lib/test/t0_kep_eleven.cpp`
 Depends: none
-Check: `cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug` then `ctest --test-dir build-debug --no-tests=error -R ^t0_kep_eleven$`. The registered test drives one case and the bound is held by an assertion in the helper.
+Check: `cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug` then `ctest --test-dir build-debug --no-tests=error -R ^t0_kep_eleven$`. The registered test drives one case and the bound is held by an `assert(lo <= hi)` in the helper.

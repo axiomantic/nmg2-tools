@@ -97,22 +97,46 @@ class NegativeFixtureTest(unittest.TestCase):
         self.assertEqual([f.task for f in result.findings if f.task == "TOOL-14"], [])
 
 
+DSP7_CALL_EVIDENCE = (
+    "**THE CLAUSE `asserts no assertion trips` IS UNFALSIFIABLE IN THIS "
+    "REPOSITORY'S DEFAULT BUILD, AND IT IS STRUCK 2026-08-25 — §24.6 row "
+    "W3-404 — RATHER THAN LEFT TO CERTIFY NOTHING.** **THE DOCUMENT REFUTES "
+    "THIS AGAINST ITSELF, WHICH IS WHY THE FINDING IS CONFIRMED RATHER THAN "
+    "SUSPECTED: DSP-4, THREE BLOCKS EARLIER, REFUSES THE IDENTICAL WORDING IN "
+    "ITS OWN TEXT** on the ground that **a Release build defines `NDEBUG`, "
+    "which removes every `assert()`** — so the predicate names a mechanism the "
+    "default build deletes."
+)
+
+
 class PositiveFixtureTest(unittest.TestCase):
-    def test_the_positive_fixture_reports_the_five_blocks_and_no_other(self):
-        """Five blocks, seven findings. BRD-17 and DSP-7 state the verdict in
-        the SHAPE §7.7's boxed rule names as well as in the noun, so each is
-        reported under both rules — two true statements about one block, and
-        not a duplicate. SCH-28 asserts that an assertion DOES trip, which the
-        shape rule does not read: its id says `not-firing` and it means it."""
+    """Five blocks examined, and THREE of them reported after the noun
+    alternative was deleted.
+
+    The fixture is the pair §24.6 row W3-408's TOOL-14 block states BY NAME, so
+    it is not edited to preserve a count: what moved is what the lint reports
+    about it. SCH-20 and SCH-28 are now SPARED, and they are the R1 class in
+    the calibration fixture itself — each states the plan's own noun and no
+    `assert()` call, and `NDEBUG` deletes nothing in either sentence.
+
+    TOOL-14's own block still says the findings list holds "exactly five"
+    entries with task fields `{BRD-17, SCH-7, SCH-20, SCH-28, DSP-7}`. That
+    sentence is now FALSE and it is left standing: the plan is not edited by
+    this pass, and the debt is recorded rather than paid here.
+    """
+
+    def test_the_positive_fixture_reports_three_blocks_and_no_other(self):
+        """Three blocks, four findings. DSP-7 answers both questions badly and
+        is reported under each — two true statements about one block, and not a
+        duplicate. BRD-17 is reported under the SHAPE rule ALONE, which is the
+        case that proves the shape rule is not the noun rule wearing a second
+        name."""
         result = run("pos_removed_mechanism.md")
 
         self.assertEqual(
             sorted((f.rule, f.task) for f in result.findings),
             [
-                (RULE, "BRD-17"),
                 (RULE, "DSP-7"),
-                (RULE, "SCH-20"),
-                (RULE, "SCH-28"),
                 (RULE, "SCH-7"),
                 (SHAPE_RULE, "BRD-17"),
                 (SHAPE_RULE, "DSP-7"),
@@ -120,15 +144,20 @@ class PositiveFixtureTest(unittest.TestCase):
         )
         self.assertEqual(result.examined, 5)
 
-    def test_the_reconstructed_brd17_block_is_reported(self):
-        self.assertIn(
-            (
-                RULE,
-                "BRD-17",
-                "The registered test drives more words than the capacity in one "
-                "quantum and asserts that no assertion trips.",
-            ),
-            tuples(run("pos_removed_mechanism.md")),
+    def test_the_reconstructed_brd17_block_is_reported_under_the_shape_rule(self):
+        """`asserts that no assertion trips` is the verdict SHAPE §7.7's boxed
+        rule names. The block carries no `assert()` call, so this conviction is
+        the surviving shape predicate's alone."""
+        self.assertEqual(
+            [f for f in tuples(run("pos_removed_mechanism.md")) if f[1] == "BRD-17"],
+            [
+                (
+                    SHAPE_RULE,
+                    "BRD-17",
+                    "The registered test drives more words than the capacity in one "
+                    "quantum and asserts that no assertion trips.",
+                )
+            ],
         )
 
     def test_the_reconstructed_sch7_block_is_reported(self):
@@ -137,47 +166,48 @@ class PositiveFixtureTest(unittest.TestCase):
             tuples(run("pos_removed_mechanism.md")),
         )
 
-    def test_the_reconstructed_sch20_block_is_reported(self):
-        self.assertIn(
-            (
-                RULE,
-                "SCH-20",
-                "The four accessors reject an index above `dspCount`, and the test "
-                "drives that case and the rejection is an assertion in the accessor.",
-            ),
-            tuples(run("pos_removed_mechanism.md")),
+    def test_the_reconstructed_sch20_block_is_spared(self):
+        """*"the rejection is an assertion in the accessor"* names a rejection
+        the accessor performs, not the C macro. The block states no `assert()`
+        call and no verdict shape, so §7.7's rule does not reach it."""
+        self.assertEqual(
+            [f for f in tuples(run("pos_removed_mechanism.md")) if f[1] == "SCH-20"],
+            [],
         )
 
-    def test_the_reconstructed_sch28_block_is_reported(self):
-        self.assertIn(
-            (
-                RULE,
-                "SCH-28",
-                "Ownership moves exactly once, and the registered test calls an "
-                "audio-thread method from the boot thread and asserts the ownership "
-                "assertion trips.",
-            ),
-            tuples(run("pos_removed_mechanism.md")),
+    def test_the_reconstructed_sch28_block_is_spared(self):
+        """*"asserts the ownership assertion trips"* states that an assertion
+        DOES trip, which the shape rule does not read — its id says
+        `not-firing` and it means it — and the block carries no call."""
+        self.assertEqual(
+            [f for f in tuples(run("pos_removed_mechanism.md")) if f[1] == "SCH-28"],
+            [],
         )
 
-    def test_the_verbatim_dsp7_block_is_reported_by_name(self):
+    def test_the_verbatim_dsp7_block_is_reported_by_name_under_both_rules(self):
         """The live-expectation case, and the one the `kept_by` exclusion is
         falsifiable through: DSP-7 names `Release` and `NDEBUG` in the sentence
         that DIAGNOSES its defect and names no build type that keeps the
-        mechanism."""
-        self.assertIn(
-            (
-                RULE,
-                "DSP-7",
-                "The test arms one DMA channel on each and asserts no assertion trips.",
-            ),
-            tuples(run("pos_removed_mechanism.md")),
+        mechanism. That same sentence is what carries its `assert()` call, so
+        the call rule quotes the diagnosis and the shape rule quotes the
+        predicate."""
+        self.assertEqual(
+            sorted(f for f in tuples(run("pos_removed_mechanism.md")) if f[1] == "DSP-7"),
+            [
+                (RULE, "DSP-7", DSP7_CALL_EVIDENCE),
+                (
+                    SHAPE_RULE,
+                    "DSP-7",
+                    "The test arms one DMA channel on each and asserts no "
+                    "assertion trips.",
+                ),
+            ],
         )
 
 
 BOUND = (
     "The registered test drives one case and the bound is held by an "
-    "assertion in the helper."
+    "`assert(lo <= hi)` in the helper."
 )
 
 
@@ -206,7 +236,6 @@ class ExclusionFixturePairTest(unittest.TestCase):
                 (RULE, "KEP-1"),
                 (RULE, "KEP-11"),
                 (RULE, "KEP-2"),
-                (RULE, "KEP-3"),
                 (RULE, "KEP-4"),
                 (RULE, "KEP-5"),
                 (RULE, "KEP-6"),
@@ -214,6 +243,7 @@ class ExclusionFixturePairTest(unittest.TestCase):
                 (RULE, "KEP-8"),
                 (RULE, "KEP-9"),
                 (SHAPE_RULE, "KEP-10"),
+                (SHAPE_RULE, "KEP-3"),
             ],
         )
         self.assertEqual(result.examined, 11)
@@ -437,7 +467,7 @@ class ObservableFormTest(unittest.TestCase):
                 RULE,
                 "KEP-7",
                 "The registered test drives one case and the bound is held by an "
-                "assertion in the helper.",
+                "`assert(lo <= hi)` in the helper.",
             ),
             tuples(run("pos_removed_exclusions.md")),
         )
@@ -454,7 +484,7 @@ class ObservableFormTest(unittest.TestCase):
                 RULE,
                 "KEP-8",
                 "The registered test drives one case and the bound is held by an "
-                "assertion in the helper.",
+                "`assert(lo <= hi)` in the helper.",
             ),
             tuples(run("pos_removed_exclusions.md")),
         )
@@ -482,7 +512,7 @@ class UncheckedFormTest(unittest.TestCase):
                 RULE,
                 "KEP-9",
                 "The registered test drives one case and the bound is held by an "
-                "assertion in the helper.",
+                "`assert(lo <= hi)` in the helper.",
             ),
             tuples(run("pos_removed_exclusions.md")),
         )
@@ -555,7 +585,7 @@ class ShapePredicateTest(unittest.TestCase):
                 for f in run("pos_removed_exclusions.md").findings
                 if f.rule == SHAPE_RULE
             ),
-            [("KEP-10", "ERROR", SHAPE_MESSAGE)],
+            [("KEP-10", "ERROR", SHAPE_MESSAGE), ("KEP-3", "ERROR", SHAPE_MESSAGE)],
         )
 
     def test_the_shape_pattern_does_not_reach_the_english_noun_alone(self):
@@ -648,8 +678,7 @@ class PredicateTableTest(unittest.TestCase):
                 (
                     RULE,
                     "names",
-                    r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
-                    r"|\bassert(?:ion|ions)\b",
+                    r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(",
                     "ERROR",
                 ),
                 (
@@ -662,15 +691,15 @@ class PredicateTableTest(unittest.TestCase):
             ],
         )
 
-    def test_the_noun_predicates_pattern_is_the_one_w3_405_refused_to_narrow(self):
-        """The refusal is the point. §24.6 row W3-405 declined to narrow this
-        pattern "until the count resembles the roster" and row W3-408 restates
-        it. The shape rule is an ADDITION beside it, so this pattern is
-        pinned here byte for byte and moves only when that refusal is
-        withdrawn."""
+    def test_the_call_predicates_pattern_reaches_the_call_and_nothing_else(self):
+        """§24.6 rows W3-405 and W3-408 declined to narrow this pattern "until
+        the count resembles the roster". The count arrived — 38 of 40 findings
+        convicted by the bare noun — and the refusal was WITHDRAWN by operator
+        decision. The noun alternative is deleted rather than narrowed, so what
+        is pinned here is the call spelling alone."""
         self.assertEqual(
             removed.REMOVED_MECHANISMS[0].predicates[0].clause_pattern,
-            r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(|\bassert(?:ion|ions)\b",
+            r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(",
         )
 
 
@@ -704,12 +733,16 @@ class NotTheMechanismTest(unittest.TestCase):
         )
 
     def test_the_same_sentence_without_the_number_is_reported(self):
+        """The pair is driven through the SHAPE-keyed rule, because the bare
+        noun convicts under neither rule and a pair whose positive half reports
+        nothing proves nothing. `no assertion 5 trips` is masked and spared;
+        `no assertion trips` is the shape §7.7's boxed rule names."""
         self.assertIn(
             (
-                RULE,
+                SHAPE_RULE,
                 "KEP-3",
-                "The registered test drives the row and reports whether the "
-                "assertion still holds.",
+                "The registered test drives the row and reports that no "
+                "assertion trips.",
             ),
             tuples(run("pos_removed_exclusions.md")),
         )
@@ -844,6 +877,99 @@ class CallSpellingTest(unittest.TestCase):
         self.assertEqual(self._findings(self.BARE_WORD), [])
 
 
+class BareNounTest(unittest.TestCase):
+    r"""The English noun `assertion` convicts nothing, and this class holds it out.
+
+    §24.6 rows W3-405 and W3-408 declined to narrow the noun alternative *"until
+    the count resembles the roster"*. The count arrived. Over the plan whose
+    content is `sha256 464ea03c029345022a8ae7d3250fd82901c9b81572c451aa3570ef41e56bdc41`
+    the lint reported 40 findings, and 38 of them were convicted by the bare
+    English noun with no `assert(` call anywhere in the block; the noun occurs
+    981 times in that document and the call spelling 48. The refusal is
+    withdrawn by operator decision, and what replaces the alternative is not a
+    NARROWING of it — the two questions that remain are §7.7's boxed rule read
+    as the SHAPE of the verdict, and the call spelling the section is about.
+
+    Both sentences below are VERBATIM from that document and each was one of
+    the 38. `NDEBUG` deletes nothing in either: the noun is the plan's own word
+    for a proposition a check asserts, and the module's own `RemovedMechanism`
+    docstring said so in its own words before the count existed to act on.
+    """
+
+    # Verbatim, SCH-12. The block's own words, and the mechanism is absent.
+    SCH_12 = (
+        "An assertion of zero drift with no named workload is false and rule 3 "
+        "falsifies it on the first `WAIT`."
+    )
+    # Verbatim, BRD-2.
+    BRD_2 = (
+        "Each register the width table RESTRICTS is then driven at a forbidden "
+        "width, and the assertion is that the model REJECTS the access and "
+        "writes one log line naming the offset, the width and the direction."
+    )
+    # SCH-12's sentence with the noun replaced by the call §7.7 is about, and
+    # nothing else changed. The pair is what makes the deletion falsifiable in
+    # both directions rather than a rule that now convicts nothing.
+    SCH_12_AS_A_CALL = (
+        "An assert(drift == 0) with no named workload is false and rule 3 "
+        "falsifies it on the first `WAIT`."
+    )
+    # The plural, which the deleted alternative also reached.
+    PLURAL = (
+        "The registered test drives one case and the assertions in the helper "
+        "hold the bound."
+    )
+
+    @staticmethod
+    def _findings(predicate):
+        text = (
+            "## 9. The tasks\n"
+            "\n"
+            "**ZZZ-12 · A predicate carrying the plan's own noun** — T0\n"
+            "Depends: none\n"
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_zzz$`. "
+            f"{predicate}\n"
+        )
+        result = removed.run(PlanDocument.from_text(text, name="synthetic"))
+        return [(f.rule, f.task, f.evidence) for f in result.findings]
+
+    def test_sch12s_verbatim_sentence_is_spared(self):
+        self.assertEqual(self._findings(self.SCH_12), [])
+
+    def test_brd2s_verbatim_sentence_is_spared(self):
+        self.assertEqual(self._findings(self.BRD_2), [])
+
+    def test_the_plural_noun_is_spared(self):
+        self.assertEqual(self._findings(self.PLURAL), [])
+
+    def test_the_same_sentence_carrying_the_call_instead_is_reported(self):
+        """The other direction, and it differs from `SCH_12` by the spelling
+        alone. Without it the deletion would be indistinguishable from a rule
+        that stopped convicting anything."""
+        self.assertEqual(
+            self._findings(self.SCH_12_AS_A_CALL),
+            [(RULE, "ZZZ-12", self.SCH_12_AS_A_CALL)],
+        )
+
+    def test_the_noun_predicates_pattern_reaches_no_bare_noun(self):
+        """The pattern read directly, so a conviction that arrived through the
+        mask or the scope could not stand in for this."""
+        pattern = re.compile(
+            removed.REMOVED_MECHANISMS[0].predicates[0].clause_pattern
+        )
+        spellings = (
+            ("an assertion in the helper", False),
+            ("the assertions in the helper", False),
+            ("Assertion 5 still holds", False),
+            ("assert(drift == 0)", True),
+        )
+
+        self.assertEqual(
+            [(text, bool(pattern.search(text))) for text, _ in spellings],
+            list(spellings),
+        )
+
+
 class RepositoryScopeTest(unittest.TestCase):
     """Section 7.7: the rule "binds each repository from its own transcript".
 
@@ -963,12 +1089,9 @@ class FindingEvidenceTest(unittest.TestCase):
         self.assertEqual(
             sorted((f.task, f.rule, f.severity, f.section, f.message) for f in result.findings),
             [
-                ("BRD-17", RULE, "ERROR", "9. The tasks", MESSAGE),
                 ("BRD-17", SHAPE_RULE, "ERROR", "9. The tasks", SHAPE_MESSAGE),
                 ("DSP-7", RULE, "ERROR", "9. The tasks", MESSAGE),
                 ("DSP-7", SHAPE_RULE, "ERROR", "9. The tasks", SHAPE_MESSAGE),
-                ("SCH-20", RULE, "ERROR", "9. The tasks", MESSAGE),
-                ("SCH-28", RULE, "ERROR", "9. The tasks", MESSAGE),
                 ("SCH-7", RULE, "ERROR", "9. The tasks", MESSAGE),
             ],
         )
@@ -979,12 +1102,9 @@ class FindingEvidenceTest(unittest.TestCase):
         self.assertEqual(
             sorted((f.task, f.rule, f.line) for f in result.findings),
             [
-                ("BRD-17", RULE, 38),
                 ("BRD-17", SHAPE_RULE, 38),
                 ("DSP-7", RULE, 62),
                 ("DSP-7", SHAPE_RULE, 62),
-                ("SCH-20", RULE, 50),
-                ("SCH-28", RULE, 56),
                 ("SCH-7", RULE, 44),
             ],
         )
@@ -1027,16 +1147,17 @@ class TranscriptFenceTest(unittest.TestCase):
         return removed.run(PlanDocument.from_text(self.DOCUMENT, name="synthetic"))
 
     def test_the_prose_below_the_transcript_is_reported(self):
+        """The transcript inside the fence carries `assert()` twice and the
+        prose below it carries only the verdict SHAPE. One finding is therefore
+        the whole answer, and it is the shape rule's — a second finding here
+        would mean the fence was read."""
         evidence = (
             "The registered test drives one case and asserts that no assertion trips."
         )
 
         self.assertEqual(
             sorted((f.rule, f.task, f.evidence) for f in self.result().findings),
-            [
-                (RULE, "ZZZ-2", evidence),
-                (SHAPE_RULE, "ZZZ-2", evidence),
-            ],
+            [(SHAPE_RULE, "ZZZ-2", evidence)],
         )
 
     def test_no_finding_quotes_a_line_inside_the_transcript_fence(self):
@@ -1168,8 +1289,7 @@ class MechanismTableTest(unittest.TestCase):
                         removed.Predicate(
                             rule=RULE,
                             names="names",
-                            clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\("
-                            r"|\bassert(?:ion|ions)\b",
+                            clause_pattern=r"(?i)(?<![A-Za-z0-9_])assert[ \t]*\(",
                             severity="ERROR",
                         ),
                         removed.Predicate(
