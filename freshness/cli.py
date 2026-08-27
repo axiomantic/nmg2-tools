@@ -2,11 +2,18 @@
 
 Exit codes:
 
-  0  every note examined declared at least one pin and every pin was
-     re-derived and held.
+  0  every note examined either declared at least one pin and had every pin
+     re-derived and hold, or EARNED a SETTLED verdict — and at least one real
+     pin was resolved.
   1  a pin MOVED, a pin could not be re-derived, a line was not a pin, a note
-     declared no pins at all, no note was examined, or no pin was resolved.
+     declared no pins at all, a note declared itself settled without a pointer
+     this run could re-derive, no note was examined, or no pin was resolved.
   2  the invocation itself is wrong: a path that is not there.
+
+A SETTLED note does not fail the run and cannot on its own pass it. A settled
+note is not counted as a resolved pin, so a corpus of nothing but settled
+tombstones still exits 1 on "no pins resolved". The exemption removes a false
+alarm; it never manufactures a clean run.
 
 `ctest -R` exits 0 when its pattern matches no test, and `planlint` states the
 same reasoning for itself one repository over. This tool therefore never exits 0

@@ -692,8 +692,13 @@ def test_a_note_that_declares_no_pins_is_unpinned(tmp_path):
 
     result = checker.check_note(path)
 
-    assert result == checker.NoteResult(path=path, results=[])
+    assert result.path == path
+    assert result.results == []
     assert result.verdict == checker.UNPINNED
+    # The lead declares nothing, so nothing was earned and the standing
+    # UNPINNED reason is what the reader gets.
+    assert result.settlement.word == ""
+    assert "An unpinned note is not a checked note." in result.settlement.detail
 
 
 def test_a_note_verdict_is_the_worst_of_its_pins(tmp_path):
@@ -1035,3 +1040,412 @@ def test_the_checker_is_imported_from_this_repository():
 
     assert pathlib.Path(freshness.__file__).resolve().parent == ROOT / "freshness"
     assert sys.modules["freshness"].__name__ == "freshness"
+
+
+# -------------------------------------------------------------- settlement
+#
+# SETTLED is the one verdict in this tool that lets a note OUT of being
+# checked, so it is the one place a silent skip could enter. The whole section
+# below is built around that: for every way a note can claim settlement, there
+# is a test that the claim is REFUSED unless a pointer was actually re-derived.
+#
+# The known negative is `test_a_bare_settlement_word_with_no_pointer_is_not_settled`
+# and the known positive is `test_a_note_is_settled_by_a_sibling_note_that_exists`.
+# They differ by exactly one thing — whether the lead names a pointer that
+# resolves — and they run through the same `settle`.
+
+
+@pytest.fixture
+def corpus(tmp_path):
+    """A notes directory with a sibling checkout, laid out as the real one is.
+
+    Notes live in `<root>/notes/` and name repositories by bare name; those
+    checkouts sit beside the notes directory. `_commit_pointers` resolves a
+    name against that sibling position and nowhere else.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not on PATH, so no commit can be resolved")
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    root = tmp_path / "engine"
+    root.mkdir()
+    git(root, "init", "-q", "-b", "main")
+    git(root, "config", "user.email", "t@example.invalid")
+    git(root, "config", "user.name", "T")
+    (root / "a.txt").write_text("one\n", encoding="utf-8")
+    git(root, "add", "a.txt")
+    git(root, "commit", "-q", "-m", "one")
+    return {"notes": notes, "repo": root, "head": git(root, "rev-parse", "HEAD")}
+
+
+def test_a_note_is_settled_by_a_sibling_note_that_exists(tmp_path):
+    """The known positive. Both halves hold: the lead declares, and the thing
+    it points at is really there."""
+    note(tmp_path, "# The one that settled it\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # An earlier finding
+
+        **SUPERSEDED THE SAME DAY** by 2026-08-27-later.md, which measured it
+        properly.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.SETTLED
+    assert result.settlement.word == "SUPERSEDED"
+    assert "2026-08-27-later.md exists beside it" in result.settlement.detail
+
+
+def test_a_bare_settlement_word_with_no_pointer_is_not_settled(tmp_path):
+    """The known negative, and the reason this verdict is safe to have.
+
+    If a word alone settled a note, every live note in the corpus could escape
+    by typing one, and the report would look cleaner while checking less. This
+    note differs from the settled one above by the pointer and nothing else.
+    """
+    path = note(
+        tmp_path,
+        "# A live finding\n\n**SUPERSEDED.** No pointer at all.\n",
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert result.settlement.word == "SUPERSEDED"
+    assert "A word is not a pointer" in result.settlement.detail
+
+
+def test_a_settlement_pointer_that_does_not_resolve_is_unresolvable(tmp_path):
+    """THE PLANTED FAILURE. A note declares itself settled and names a note
+    that is not there. It must not pass, and it must not be reported the same
+    way as a note that named nothing — those are different repairs."""
+    path = note(
+        tmp_path,
+        """\
+        # An earlier finding
+
+        **SUPERSEDED THE SAME DAY** by 2026-08-27-absent.md.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNRESOLVABLE
+    assert "no note 2026-08-27-absent.md beside it" in result.settlement.detail
+
+
+def test_the_two_ways_a_settlement_fails_get_different_verdicts(tmp_path):
+    """Constraint made mechanical: a broken pointer and an absent one are told
+    apart by the TALLY, not only by the prose, so the report cannot merge them."""
+    note(
+        tmp_path,
+        "# One\n\n**RESOLVED** by 2026-08-27-absent.md.\n",
+        name="2026-08-26-broken-pointer.md",
+    )
+    note(
+        tmp_path,
+        "# Two\n\n**RESOLVED.** Nothing named.\n",
+        name="2026-08-26-no-pointer.md",
+    )
+
+    result = checker.check_corpus([tmp_path])
+
+    assert [n.verdict for n in result.notes] == [
+        checker.UNRESOLVABLE,
+        checker.UNPINNED,
+    ]
+
+
+def test_a_note_is_settled_by_a_repository_and_commit_that_resolve(corpus):
+    path = note(
+        corpus["notes"],
+        f"""\
+        # An earlier finding
+
+        **SUPERSEDED THE SAME DAY.** The work landed at `engine` HEAD
+        `{corpus["head"][:8]}`.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.SETTLED
+    assert "resolves to a commit in" in result.settlement.detail
+
+
+def test_a_settlement_naming_a_commit_that_does_not_resolve_is_unresolvable(corpus):
+    """The second planted failure: the repository is real, the commit is not."""
+    path = note(
+        corpus["notes"],
+        """\
+        # An earlier finding
+
+        **SUPERSEDED THE SAME DAY.** The work landed at `engine` HEAD
+        `deadbeefdeadbeef`.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNRESOLVABLE
+    assert "deadbeefdeadbeef resolves to no commit in" in result.settlement.detail
+
+
+def test_a_repository_name_that_is_not_a_checkout_names_no_pointer(corpus):
+    """A backticked word is only a repository when a checkout of that name is
+    THERE. Nothing maps a name to a path, so this is a rule, not a roster."""
+    path = note(
+        corpus["notes"],
+        f"""\
+        # An earlier finding
+
+        **SUPERSEDED THE SAME DAY** at `nowhere` HEAD `{corpus["head"][:8]}`.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert "A word is not a pointer" in result.settlement.detail
+
+
+def test_a_negated_settlement_word_does_not_settle(tmp_path):
+    """The real corpus opens a live note with `SURFACED, NOT ADJUDICATED`. A
+    settlement test that reads the word and not the negation would exempt the
+    note that most needed reporting."""
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # A live finding
+
+        **SURFACED, NOT RESOLVED.** See 2026-08-27-later.md for the attempt.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert result.settlement.word == ""
+
+
+def test_a_correction_is_not_a_settlement(tmp_path):
+    """A corrected note NARROWS a claim it still makes. The claim is live and
+    belongs in the report, which is why `CORRECTED` is not a settlement word."""
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # A snapshot
+
+        **CORRECTED the same day**, see 2026-08-27-later.md. Every other figure
+        below held.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert result.settlement.word == ""
+
+
+def test_a_lowercase_settlement_word_in_prose_does_not_settle(tmp_path):
+    """`its consequence was already discharged` is prose about something else.
+    The corpus SHOUTS a status declaration, and the capitals are what separate
+    a note declaring its own status from a note using the word."""
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # A live finding
+
+        Its consequence was already discharged, and it was resolved elsewhere;
+        see 2026-08-27-later.md.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert result.settlement.word == ""
+
+
+def test_a_settlement_word_below_the_lead_does_not_settle(tmp_path):
+    """A note declares its own status in its preamble. A word three screens
+    down in the analysis is the note discussing something else, and scanning
+    the whole file for it would settle live notes wholesale."""
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # A live finding
+
+        This is still open. See 2026-08-27-later.md.
+
+        ## Background
+
+        **SUPERSEDED** describes the neighbouring hazard, not this one.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNPINNED
+    assert result.settlement.word == ""
+
+
+def test_a_note_pointing_at_itself_has_named_nothing(tmp_path):
+    """The cheapest exemption of all: type your own filename."""
+    path = note(
+        tmp_path,
+        """\
+        # A live finding
+
+        **SUPERSEDED**, see 2026-08-26-earlier.md.
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path)
+
+    assert result.verdict == checker.UNRESOLVABLE
+    assert "is the note itself" in result.settlement.detail
+
+
+def test_a_settlement_declaration_never_rescues_a_note_that_has_pins(tmp_path):
+    """The silent rescue this verdict must not introduce. A note that pinned a
+    fact asked for it to be checked; a word in its lead cannot outrank a MOVED
+    pin, and there is no code path by which it could."""
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    path = note(
+        tmp_path,
+        """\
+        # A finding that pinned a figure
+
+        **SUPERSEDED THE SAME DAY** by 2026-08-27-later.md.
+
+        ```pins
+        count 40 -- echo 2
+        ```
+        """,
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_note(path, run_commands=True)
+
+    assert result.verdict == checker.MOVED
+    assert result.settlement is None
+
+
+def test_a_settled_note_does_not_fail_a_run_that_checked_something(tmp_path):
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    note(
+        tmp_path,
+        "# Earlier\n\n**SUPERSEDED** by 2026-08-27-later.md.\n",
+        name="2026-08-26-earlier.md",
+    )
+    note(tmp_path, pin_block("exit 0 -- true"), name="2026-08-27-pinned.md")
+
+    result = checker.check_corpus([tmp_path], run_commands=True)
+
+    assert sorted(n.verdict for n in result.notes) == [
+        checker.OK,
+        checker.SETTLED,
+        checker.UNPINNED,
+    ]
+    assert result.exit_code == 1  # `2026-08-27-later.md` is itself unpinned
+
+
+def test_a_corpus_of_nothing_but_settled_notes_never_exits_zero(tmp_path):
+    """SETTLED does not fail a run and cannot on its own pass one.
+
+    A settlement pointer is NOT counted as a resolved pin, so a corpus of
+    nothing but tombstones — every note fine — still trips `resolved == 0`.
+    Without this the exemption would manufacture a clean run out of a corpus
+    where nothing live was checked at all.
+    """
+    note(
+        tmp_path,
+        "# A\n\n**SUPERSEDED** by 2026-08-27-b.md.\n",
+        name="2026-08-26-a.md",
+    )
+    note(
+        tmp_path,
+        "# B\n\n**SUPERSEDED** by 2026-08-26-a.md.\n",
+        name="2026-08-27-b.md",
+    )
+
+    result = checker.check_corpus([tmp_path])
+
+    assert [n.verdict for n in result.notes] == [checker.SETTLED, checker.SETTLED]
+    assert result.resolved == 0
+    assert result.exit_code == 1
+    assert "NO PINS RESOLVED" in result.report()
+
+
+def test_the_report_names_the_settlement_and_its_pointer(tmp_path):
+    note(tmp_path, "# Later\n\nProse.\n", name="2026-08-27-later.md")
+    note(
+        tmp_path,
+        "# Earlier\n\n**RESOLVED** by 2026-08-27-later.md.\n",
+        name="2026-08-26-earlier.md",
+    )
+    note(tmp_path, pin_block("exit 0 -- true"), name="2026-08-27-pinned.md")
+
+    report = checker.check_corpus([tmp_path], run_commands=True).report()
+
+    assert (
+        "2026-08-26-earlier.md: SETTLED\n"
+        "      the lead declares the note RESOLVED and names a pointer that "
+        "resolves: the note 2026-08-27-later.md exists beside it.\n"
+    ) in report
+    assert "1 UNPINNED, 1 SETTLED, 1 OK" in report
+
+
+def test_a_run_of_settled_and_fresh_notes_only_reports_both_and_exits_zero(tmp_path):
+    note(tmp_path, pin_block("exit 0 -- true"), name="2026-08-27-later.md")
+    note(
+        tmp_path,
+        "# Earlier\n\n**RESOLVED** by 2026-08-27-later.md.\n",
+        name="2026-08-26-earlier.md",
+    )
+
+    result = checker.check_corpus([tmp_path], run_commands=True)
+
+    assert result.exit_code == 0
+    assert (
+        "RESULT: 1 note(s) fresh, every pin re-derived, and 1 settled note(s) "
+        "whose pointers resolved."
+    ) in result.report()
+
+
+def test_the_real_live_note_does_not_become_settled():
+    """Informational. The corpus note this verdict most had to not exempt.
+
+    It opens `SURFACED, NOT ADJUDICATED`, carries a live count and a live
+    environment state, and states its own unit — exactly the note that must
+    stay in the report. Only the NEGATIVE is asserted against the corpus: a
+    test that pinned an outside document to a GOOD state would fail the moment
+    somebody legitimately changed it, which is the trap the rest of this file
+    already avoids.
+    """
+    live = CORPUS / "2026-08-26-pushes-to-protected-branches.md"
+    if not live.is_file():
+        pytest.skip(f"the findings corpus note is absent: {live}")
+
+    result = checker.check_note(live)
+
+    assert result.verdict != checker.SETTLED

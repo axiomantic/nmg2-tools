@@ -38,7 +38,7 @@ A `repo`, `remote` or `file` pin splits on the LAST run of whitespace, so a path
 may carry spaces. A command pin splits on the first ` -- `, so a command may carry
 anything.
 
-THE FOUR VERDICTS.
+THE VERDICTS. Four are decided per PIN, and are listed first.
 
   OK            the fact was re-derived and it holds.
   MOVED         the fact was re-derived and it is different. The note is stale.
@@ -53,6 +53,49 @@ THE FOUR VERDICTS.
 
 And a note carrying no pins at all is UNPINNED, which is a verdict and not an
 absence of one.
+
+SETTLED, THE FIFTH VERDICT, AND WHY IT IS THE HARDEST ONE TO GET RIGHT. Some
+notes carry no pins because they make NO LIVE CLAIM: they are tombstones for a
+state that was superseded, resolved or closed, and pinning a fact they no longer
+assert would be theatre. Reporting those as UNPINNED is the checker over-firing.
+
+But an exemption a note can claim by TYPING ONE WORD is worse than the
+over-firing it removes. It is the silent skip in a new costume: every live note
+could escape by opening with `SUPERSEDED`, and the report would look cleaner
+while checking less. So SETTLED is EARNED, never granted by name. A note is
+SETTLED only when BOTH halves hold:
+
+  (a) its LEAD — the status preamble between the `# ` title and the first
+      section heading, fence or horizontal rule — DECLARES the note settled,
+      using one of `SETTLEMENT_WORDS` written in the capitals the corpus writes
+      these declarations in, and not negated by a preceding `NOT`/`NEVER`; and
+
+  (b) that same lead NAMES A POINTER to what settled it, and this checker
+      RE-DERIVES the pointer. Two shapes occur in the corpus and both are
+      resolved here: a sibling note file that must EXIST, and a repository
+      checked out beside the corpus plus a commit that must RESOLVE in it.
+
+Half (b) is the whole mechanism. Without it the declaration is a word about
+itself; with it the note has staked a fact this tool can go and check, exactly
+as a pin does.
+
+A DECLARATION THAT EARNS NOTHING FALLS BACK, AND THE TWO WAYS IT CAN FAIL ARE
+KEPT APART, because they are different repairs:
+
+  * declared, named a pointer, and the pointer did not resolve → UNRESOLVABLE.
+    Something is wrong with the pointer or with the world. Go and look.
+  * declared and named no pointer at all → UNPINNED. Nothing is broken; the
+    note simply never staked anything. Add the pointer.
+
+SETTLEMENT IS NOT EVALUATED ON A NOTE THAT HAS PINS. A note that pinned facts
+asked for them to be checked, and letting a settlement declaration outrank a
+MOVED pin would be precisely the silent rescue this verdict must not introduce.
+Settlement is consulted only where the verdict would otherwise be UNPINNED.
+
+A CORRECTION IS NOT A SETTLEMENT, which is why `CORRECTED` is absent from
+`SETTLEMENT_WORDS`. A corrected note NARROWS a claim it still makes; the claim
+is live and belongs in the report. Only a note whose claim has been retired
+qualifies.
 
 RUNNING COMMANDS IS OPT-IN. A note is data, not an instruction. `run_commands`
 is False by default and a command pin then reports UNRESOLVABLE — never OK. The
@@ -79,6 +122,7 @@ appearing to answer a question about the remote. The remote is asked directly.
 import dataclasses
 import hashlib
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -87,6 +131,7 @@ MOVED = "MOVED"
 UNRESOLVABLE = "UNRESOLVABLE"
 MALFORMED = "MALFORMED"
 UNPINNED = "UNPINNED"
+SETTLED = "SETTLED"
 
 # A note's verdict is the WORST of its pins, and this states the order rather
 # than leaving it to be recalled. `MOVED` outranks `UNRESOLVABLE` because a fact
@@ -116,6 +161,46 @@ DEFAULT_REMOTE = "origin"
 # pinning, and a note that carries one is a defect in the pin, not in the tree.
 MINIMUM_SHA_DIGITS = 4
 
+# The words a note in this corpus uses to retire its own claim. `CORRECTED` is
+# deliberately absent: a correction narrows a claim the note still makes, and a
+# live claim belongs in the report. So is `ADJUDICATED`, which the corpus uses
+# almost only in the negative — one note opens `SURFACED, NOT ADJUDICATED` — and
+# a word that usually arrives negated is a poor thing to key an exemption on
+# even with the negation guard below.
+SETTLEMENT_WORDS = (
+    "SUPERSEDED",
+    "RESOLVED",
+    "DISCHARGED",
+    "CLOSED",
+    "WITHDRAWN",
+    "RETRACTED",
+    "OBSOLETE",
+)
+
+# The corpus SHOUTS a status declaration and lower-cases the same word in
+# ordinary prose ("its consequence was already discharged"). Requiring the
+# capitals is what separates a note DECLARING its status from a note merely
+# using the word, and it is read off the corpus rather than imposed on it.
+_SETTLEMENT = re.compile(
+    r"(?<![A-Za-z])(?P<before>(?:NOT|NEVER|NO)\s+)?(?P<word>%s)(?![A-Za-z])"
+    % "|".join(SETTLEMENT_WORDS)
+)
+
+# A sibling note in the same corpus, named the way this corpus names its files.
+_NOTE_POINTER = re.compile(r"(?<![A-Za-z0-9-])\d{4}-\d{2}-\d{2}-[A-Za-z0-9._-]+\.md")
+
+# Anything in backticks. A repository name and a commit id are both written that
+# way in these notes, and which one a token is gets decided by going and looking
+# rather than by the shape of the prose around it.
+_BACKTICKED = re.compile(r"`([^`\n]+)`")
+
+_HEX = re.compile(r"[0-9a-fA-F]{%d,40}" % MINIMUM_SHA_DIGITS)
+_BARE_NAME = re.compile(r"[A-Za-z0-9._-]+")
+
+# `-` and `*` rows are horizontal rules; `=` and `-` rows are also setext
+# underlines. All three end the preamble, and none of them is prose.
+_RULE_CHARS = ({"-"}, {"*"}, {"="}, {"_"})
+
 
 @dataclasses.dataclass(frozen=True)
 class Pin:
@@ -136,15 +221,33 @@ class PinResult:
 
 
 @dataclasses.dataclass(frozen=True)
+class Settlement:
+    """What the note's lead claimed about its own status, and what came of it.
+
+    `verdict` is one of SETTLED, UNRESOLVABLE or UNPINNED, and it stands in for
+    the note's verdict only when the note declared no pins.
+    """
+
+    verdict: str
+    detail: str
+    word: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
 class NoteResult:
     path: pathlib.Path
     results: list
+    settlement: Settlement = None
 
     @property
     def verdict(self):
-        """UNPINNED when the note declared nothing, else the worst pin."""
+        """The worst pin — or, on a note that pinned nothing, what its lead earned.
+
+        The order matters and is one-directional. A note WITH pins never reaches
+        the settlement branch, so no declaration can outrank a MOVED pin.
+        """
         if not self.results:
-            return UNPINNED
+            return self.settlement.verdict if self.settlement else UNPINNED
         return min((r.verdict for r in self.results), key=VERDICT_ORDER.__getitem__)
 
 
@@ -458,14 +561,159 @@ def _is_integer(text):
     return bool(text) and (text[1:] if text[0] in "+-" else text).isdigit()
 
 
+def lead(text):
+    """The note's status preamble: after the `# ` title, before the body.
+
+    A note announces its own status HERE. Scanning the whole note instead would
+    settle a live note on a word buried three screens down in its analysis, and
+    the declaration must be the note speaking about itself.
+    """
+    lines = text.splitlines()
+    start = 0
+    for index, line in enumerate(lines):
+        if line.startswith("# "):
+            start = index + 1
+            break
+    else:
+        return ""
+    out = []
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped.startswith("##") or stripped.startswith("```"):
+            break
+        if len(stripped) >= 3 and set(stripped) in _RULE_CHARS:
+            break
+        out.append(line)
+    return "\n".join(out)
+
+
+def _declaration(preamble):
+    """The settlement word the lead declares, or "" when it declares none."""
+    for match in _SETTLEMENT.finditer(preamble):
+        if match.group("before"):
+            continue
+        return match.group("word")
+    return ""
+
+
+def _note_pointers(preamble, path):
+    """Sibling notes the lead names, as (candidate, resolved, detail)."""
+    found = []
+    for name in dict.fromkeys(_NOTE_POINTER.findall(preamble)):
+        target = path.parent / name
+        if name == path.name:
+            # A note pointing at itself has named nothing. It would otherwise
+            # be the cheapest exemption of all: type your own filename.
+            found.append((name, False, f"{name} is the note itself"))
+        elif target.is_file():
+            found.append((name, True, f"the note {name} exists beside it"))
+        else:
+            found.append((name, False, f"no note {name} beside it"))
+    return found
+
+
+def _commit_pointers(preamble, path):
+    """Repository-and-commit pairs the lead names, as (candidate, resolved, detail).
+
+    A bare name in backticks is treated as a repository only when a checkout of
+    that name is actually THERE beside the corpus, which is how these notes
+    refer to the sibling checkouts. Nothing maps a name to a path, so this is a
+    rule and not a roster.
+    """
+    tokens = list(dict.fromkeys(_BACKTICKED.findall(preamble)))
+    shas = [t for t in tokens if _HEX.fullmatch(t)]
+    if not shas or shutil.which("git") is None:
+        return []
+    repos = []
+    for token in tokens:
+        if token in (".", "..") or not _BARE_NAME.fullmatch(token):
+            continue
+        root = path.parent.parent / token
+        if root.is_dir() and _git(root, "rev-parse", "--git-dir").returncode == 0:
+            repos.append((token, root))
+    found = []
+    for name, root in repos:
+        for sha in shas:
+            candidate = f"`{name}` `{sha}`"
+            resolved = _git(root, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
+            if resolved.returncode == 0:
+                found.append(
+                    (candidate, True, f"{sha} resolves to a commit in {root}")
+                )
+            else:
+                found.append(
+                    (candidate, False, f"{sha} resolves to no commit in {root}")
+                )
+    return found
+
+
+def settle(text, path):
+    """Did this note EARN the right not to be checked?
+
+    Returns a `Settlement` in every case, including the case where the note
+    declared nothing at all, so that a note which was never considered and a
+    note considered and refused do not produce the same silence.
+    """
+    path = pathlib.Path(path)
+    preamble = lead(text)
+    word = _declaration(preamble)
+    if not word:
+        return Settlement(
+            verdict=UNPINNED,
+            detail=(
+                "the note declares no pins, so no claim in it can be "
+                "re-derived. An unpinned note is not a checked note."
+            ),
+        )
+    candidates = _note_pointers(preamble, path) + _commit_pointers(preamble, path)
+    for candidate, resolved, detail in candidates:
+        if resolved:
+            return Settlement(
+                verdict=SETTLED,
+                word=word,
+                detail=(
+                    f"the lead declares the note {word} and names a pointer "
+                    f"that resolves: {detail}."
+                ),
+            )
+    if not candidates:
+        return Settlement(
+            verdict=UNPINNED,
+            word=word,
+            detail=(
+                f"the lead declares the note {word} but names no pointer to "
+                "what settled it, so the declaration rests on nothing this "
+                "checker can go and read. A word is not a pointer, and an "
+                "exemption a note can claim by typing one is no exemption. "
+                "Name the note, or the repository and commit, that settled it."
+            ),
+        )
+    misses = "; ".join(f"{candidate}: {detail}" for candidate, _, detail in candidates)
+    return Settlement(
+        verdict=UNRESOLVABLE,
+        word=word,
+        detail=(
+            f"the lead declares the note {word} and names "
+            f"{len(candidates)} pointer(s), and NONE of them resolves — {misses}. "
+            "A settlement whose pointer cannot be read is not a settlement."
+        ),
+    )
+
+
 def check_note(path, run_commands=False, check_remotes=False):
-    text = pathlib.Path(path).read_text(encoding="utf-8")
+    path = pathlib.Path(path)
+    text = path.read_text(encoding="utf-8")
+    results = [
+        resolve(pin, run_commands=run_commands, check_remotes=check_remotes)
+        for pin in parse_pins(text)
+    ]
+    # Settlement is computed only where it can matter. A note WITH pins is
+    # asking for them to be checked, and there is no path by which a lead can
+    # soften a MOVED pin.
     return NoteResult(
-        path=pathlib.Path(path),
-        results=[
-            resolve(pin, run_commands=run_commands, check_remotes=check_remotes)
-            for pin in parse_pins(text)
-        ],
+        path=path,
+        results=results,
+        settlement=None if results else settle(text, path),
     )
 
 
@@ -491,17 +739,29 @@ class CorpusResult:
     def exit_code(self):
         """Never 0 on 'nothing to check'.
 
-        The two guards are stated separately rather than derived from one
+        The three guards are stated separately rather than derived from one
         another. An empty corpus and a corpus of unpinned notes both currently
         fail through the verdict loop as well, and that overlap is deliberate:
         weakening any one of the three cannot make a run that checked nothing
         report success.
+
+        SETTLED DOES NOT FAIL THE RUN, and this is the deliberate half of that
+        decision: a note whose claim has been retired, with a pointer this run
+        RE-DERIVED, is a note there is nothing left to check on. Failing it
+        would be the over-firing that SETTLED exists to remove.
+
+        SETTLED ALSO CANNOT RESCUE THE RUN, and this is the other half. A
+        settlement pointer is deliberately NOT counted in `resolved`, which
+        stays a count of PINS. So a corpus of nothing but settled tombstones
+        trips the `resolved == 0` guard and exits 1 — every note fine, and still
+        not a pass, because nothing live was checked. The guard that catches
+        that is the one directly above, and it is why the two are separate.
         """
         if not self.notes:
             return 1
         if self.resolved == 0:
             return 1
-        if any(note.verdict != OK for note in self.notes):
+        if any(note.verdict not in (OK, SETTLED) for note in self.notes):
             return 1
         return 0
 
@@ -529,11 +789,8 @@ class CorpusResult:
     def _note_lines(self, note):
         name = self._display(note.path)
         if not note.results:
-            return (
-                f"{name}: {UNPINNED}\n"
-                "      the note declares no pins, so no claim in it can be "
-                "re-derived. An unpinned note is not a checked note."
-            )
+            settlement = note.settlement or settle("", note.path)
+            return f"{name}: {settlement.verdict}\n      {settlement.detail}"
         noun = "pin" if len(note.results) == 1 else "pins"
         out = [f"{name}: {note.verdict} ({len(note.results)} {noun})"]
         for result in note.results:
@@ -573,9 +830,14 @@ class CorpusResult:
             return (
                 f"RESULT: {counts[OK]} note(s) fresh, every pin re-derived."
             )
+        if set(counts) == {OK, SETTLED}:
+            return (
+                f"RESULT: {counts[OK]} note(s) fresh, every pin re-derived, and "
+                f"{counts[SETTLED]} settled note(s) whose pointers resolved."
+            )
         parts = [
             f"{counts[verdict]} {verdict}"
-            for verdict in (MOVED, UNRESOLVABLE, MALFORMED, UNPINNED, OK)
+            for verdict in (MOVED, UNRESOLVABLE, MALFORMED, UNPINNED, SETTLED, OK)
             if verdict in counts
         ]
         return (
