@@ -310,7 +310,7 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(section_names(text), cli.ALL_LINTS)
         self.assertEqual(
-            section_line(text, "payload"), "payload: clean (6 committed files examined)"
+            section_line(text, "payload"), "payload: clean (6 tracked files examined)"
         )
         self.assertNotIn("SKIPPED", text)
         self.assertEqual(result_line(text), "RESULT: ALL LINTS CLEAN")

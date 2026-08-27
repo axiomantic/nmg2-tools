@@ -21,6 +21,7 @@ That is how a real breach got through.
 import fnmatch
 import pathlib
 import re
+import subprocess
 
 from planlint.finding import ERROR, Finding, guard_no_input
 
@@ -45,20 +46,50 @@ USES = re.compile(r"^(?P<indent>\s*)-?\s*uses:\s*(?P<action>\S+)")
 PATH_KEY = re.compile(r"^\s*path:\s*(?P<value>.*)$")
 
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
-SKIP_DIRECTORIES = {".git", "__pycache__", "build", "node_modules"}
 
 
 def _walk(root):
+    """Every TRACKED file under `root`, which is the population the report names.
+
+    This reads `git ls-files` and never the disk. A disk walk answers a
+    different question and the report had no way to say so: it read a `.venv`,
+    a `.pytest_cache` and every untracked scratch file, then printed the count
+    under the words "committed files". Against this repository it examined an
+    order of magnitude more files than the repository holds, and most of what
+    it reported named files that are in no repository at all. A skip list
+    cannot fix that, because the list would have to name every directory a
+    developer might create; the index already knows.
+
+    A tree `git` cannot answer for returns nothing, and `guard_no_input` turns
+    nothing into a hard error. That is the failure direction this tool chose:
+    falling back to a disk walk would restore the defect through the fallback,
+    and it would do so silently.
+    """
     root = pathlib.Path(root)
     if not root.is_dir():
         return []
-    out = []
-    for path in sorted(root.rglob("*")):
-        if any(part in SKIP_DIRECTORIES for part in path.parts):
-            continue
-        if path.is_file():
-            out.append(path)
-    return out
+    try:
+        listed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, OSError):
+        return []
+    # `-z` because `git` quotes a path holding a space or a non-ASCII byte in
+    # its default output, and a quoted path names no file on disk.
+    #
+    # A tracked path with no file behind it is a deletion that is staged
+    # nowhere yet. It has no bytes to weigh and no text to read, so it is not
+    # examined and it is not counted; the count stays the number of files this
+    # lint actually opened. A gitlink to a submodule is a directory here and
+    # leaves by the same door.
+    return [
+        path
+        for path in (root / name for name in listed.split("\0") if name)
+        if path.is_file()
+    ]
 
 
 def _allow_listed(register, relative):
@@ -119,7 +150,7 @@ def run(root, public=True, register=None, ceiling=DEFAULT_CEILING,
         # A private repository is where the payload belongs. The boundary this
         # lint guards is the public one.
         return guard_no_input(
-            "payload", [], len(files), "committed files", "payload lint"
+            "payload", [], len(files), "tracked files", "payload lint"
         )
 
     for path in files:
@@ -207,5 +238,5 @@ def run(root, public=True, register=None, ceiling=DEFAULT_CEILING,
                 )
 
     return guard_no_input(
-        "payload", findings, len(files), "committed files", "payload lint"
+        "payload", findings, len(files), "tracked files", "payload lint"
     )
