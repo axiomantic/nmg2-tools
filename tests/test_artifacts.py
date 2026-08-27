@@ -587,3 +587,115 @@ def test_the_family_fixture_skips_when_a_declared_path_is_absent_from_the_family
         "SKIPPED: firmware artifact not available "
         f"({REQUIRED_REL} not found under NMG2_DESCRIPTORS: {family_root})"
     ) in result.stdout.str()
+
+
+# ---------------------------------------------------------------------------
+# The SUITE announces its skips, the way `planlint` announces skipped lints.
+#
+# Section 18.5 makes ONE gated test skip with a reason. It says nothing about
+# the RUN, and the run is what a reader looks at: a suite reporting
+# `929 passed, 12 skipped` shows a green summary over deliverables that were
+# never exercised, and a skip whose silence is indistinguishable from success
+# is the shape `planlint` already refuses for lints. `planlint/cli.py` states
+# the limit this borrows with it: **a skip changes the verdict's WORDING and
+# never its exit code.** Scoring it would change what `if pytest; then` means
+# for every existing caller, which is a separate decision from making the skip
+# visible, and this is only the second of the two.
+#
+# The sentence is `A skipped test is not a clean test.` and it is a DIFFERENT
+# text from `planlint`'s, because it is about a different subject. Neither is
+# derived from the other and neither is a copy of the other.
+# ---------------------------------------------------------------------------
+
+
+def test_the_skip_verdict_is_empty_when_nothing_skipped():
+    """The negative case, and it is the one that matters most: a function that
+    returned a verdict unconditionally would put a SKIPPED notice on a run that
+    skipped nothing, and every positive case below would still pass."""
+    from nmg2_tools.artifacts import skip_verdict
+
+    assert skip_verdict({}) == ""
+
+
+def test_the_skip_verdict_names_every_skipped_test_and_its_reason():
+    from nmg2_tools.artifacts import skip_verdict
+
+    assert skip_verdict(
+        {
+            "tests/test_modulemap.py::test_a": "SKIPPED: firmware artifact not available (NMG2_ARTIFACTS unset)",
+            "tests/test_sigscan.py::test_b": "no descriptor table",
+        }
+    ) == (
+        "SKIP VERDICT: 2 tests SKIPPED. A skipped test is not a clean test.\n"
+        "  tests/test_modulemap.py::test_a — SKIPPED: firmware artifact not available (NMG2_ARTIFACTS unset)\n"
+        "  tests/test_sigscan.py::test_b — no descriptor table"
+    )
+
+
+def test_the_skip_verdict_says_test_in_the_singular_for_one_skip():
+    """The noun agrees with the count. `planlint` does the same for `lint`, and
+    a verdict reading `1 tests SKIPPED` is a verdict nobody trusts."""
+    from nmg2_tools.artifacts import skip_verdict
+
+    assert skip_verdict({"tests/test_x.py::test_one": "a reason"}) == (
+        "SKIP VERDICT: 1 test SKIPPED. A skipped test is not a clean test.\n"
+        "  tests/test_x.py::test_one — a reason"
+    )
+
+
+_VERDICT_CONFTEST = (
+    "from tests.conftest import artifacts_dir  # noqa: F401\n"
+    "from tests.conftest import pytest_terminal_summary  # noqa: F401\n"
+)
+
+
+def test_the_run_announces_a_gated_skip_and_the_exit_code_is_unchanged(
+    pytester, monkeypatch
+):
+    """Drives the real hook in tests/conftest.py through a real pytest run.
+
+    The exit-code assertion is half of this test and not a decoration: the
+    borrowed limit is that the verdict's WORDING changes and its exit code does
+    not, and a hook that failed the run would silently change what every
+    existing caller of `pytest` means."""
+    monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
+
+    pytester.makeconftest(_VERDICT_CONFTEST)
+    pytester.makepyfile(
+        """
+        def test_a_gated_test(artifacts_dir):
+            raise AssertionError("the gated body must not run")
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(skipped=1, passed=0, failed=0)
+    assert result.ret == 0
+    assert (
+        "SKIP VERDICT: 1 test SKIPPED. A skipped test is not a clean test."
+        in result.stdout.str()
+    )
+    assert EXPECTED_SKIP_LINE in result.stdout.str()
+
+
+def test_a_run_with_no_skips_prints_no_verdict(pytester, tmp_path, monkeypatch):
+    """The negative case for the hook. Without it the hook could print the
+    notice on every run and the case above would still pass."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    pytester.makeconftest(_VERDICT_CONFTEST)
+    pytester.makepyfile(
+        """
+        import os
+
+        def test_a_gated_test(artifacts_dir):
+            assert os.path.isdir(artifacts_dir)
+        """
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(passed=1, skipped=0, failed=0)
+    assert result.ret == 0
+    assert "SKIP VERDICT" not in result.stdout.str()

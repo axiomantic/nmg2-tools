@@ -17,6 +17,7 @@ from nmg2_tools.artifacts import (
     DEFAULT_ARTIFACT_FAMILY,
     gated_skip_reason,
     resolve_artifacts,
+    skip_verdict,
 )
 
 # `pytester` lets tests/test_artifacts.py drive the fixture below in a real
@@ -91,3 +92,36 @@ ARTIFACT_FAMILIES = (DEFAULT_ARTIFACT_FAMILY, "descriptors", "installers")
 artifacts_dir = _family_fixture(DEFAULT_ARTIFACT_FAMILY)
 descriptors_dir = _family_fixture("descriptors")
 installers_dir = _family_fixture("installers")
+
+
+# The run's verdict on its own skips. The wording and the empty case both live
+# in `nmg2_tools.artifacts`, for the reason this file's header gives: this file
+# holds no rule of its own. What lives HERE is the one thing that cannot live
+# there -- reading pytest's own report objects.
+#
+# The hook writes and returns None, so the exit code is pytest's own. That is
+# deliberate and it is the borrowed limit: the verdict's wording changes, its
+# exit code does not.
+def pytest_terminal_summary(terminalreporter) -> None:
+    reports = terminalreporter.stats.get("skipped", [])
+
+    skipped = {report.nodeid: _skip_reason(report) for report in reports}
+
+    verdict = skip_verdict(skipped)
+    if verdict:
+        terminalreporter.write_line("")
+        terminalreporter.write_line(verdict)
+
+
+def _skip_reason(report) -> str:
+    """The reason out of a skipped report's `longrepr`.
+
+    pytest gives `(path, lineno, "Skipped: <reason>")` for a `pytest.skip` and
+    a bare string for some other skip routes. The prefix is stripped because
+    the reason is section 18.5's line, which already carries its own `SKIPPED:`
+    prefix, and two prefixes on one line read as two different messages.
+    """
+    longrepr = report.longrepr
+    text = longrepr[2] if isinstance(longrepr, tuple) else str(longrepr)
+
+    return text.removeprefix("Skipped: ")

@@ -119,13 +119,23 @@ def test_the_patch_count_matches_the_manifest(demo_corpus_dir):
 
 
 def test_every_manifest_row_names_an_existing_patch(demo_corpus_dir):
-    """REPO-15's manifest rows are `<relative path><tab><size><tab><digest>`.
-    Each relative path must name a file that is actually present, so a manifest
-    that lists a patch the tree does not hold is a failure."""
+    """REPO-15's manifest rows are `<path inside the installer><tab><size><tab>
+    <digest>`, and the extractor writes every file FLAT into `corpus/pch2/`.
+
+    So the row's path and the tree's path differ by design, in the one component
+    the extraction drops: the installer directory. The row is read for its
+    BASENAME, which is what the corpus carries, and the two sets are compared
+    WHOLE. Equality rather than membership, so the comparison fails in both
+    directions -- a row naming a patch the tree does not hold, and a patch in
+    the tree that no row names.
+
+    The installer directory is NOT asserted here. It is a measurement REPO-15
+    made, and a test that spelled it would be the hardcoded-figure defect this
+    module's header refuses for the count, wearing a path's clothes."""
     corpus = demo_corpus_dir
     _count, rows = _manifest(corpus)
 
+    listed = {pathlib.PurePosixPath(row.split("\t", 1)[0]).name for row in rows}
     present = {path.name for path in _patches(corpus)}
-    for row in rows:
-        name = row.split("\t", 1)[0]
-        assert name in present
+
+    assert listed == present

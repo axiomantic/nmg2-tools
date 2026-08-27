@@ -185,3 +185,41 @@ def gated_skip_reason(
             return GATED_SKIP_PREFIX + why
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# The RUN's verdict on its own skips.
+#
+# `gated_skip_reason` above makes ONE test skip with a reason. That is section
+# 18.5, and it stops there. What a reader actually looks at is the RUN, and a
+# run reporting `929 passed, 12 skipped` shows a green summary over
+# deliverables nothing exercised. A gate whose silence is indistinguishable
+# from success is not a gate, and `planlint` already refuses the same shape for
+# a lint that did not run.
+#
+# THE LIMIT COMES ACROSS WITH THE PATTERN: a skip changes the verdict's WORDING
+# and NEVER its exit code. Scoring a skip would change what `if pytest; then`
+# means for every existing caller, and that is a separate decision from making
+# the skip visible.
+#
+# The sentence is a different text from `planlint`'s because it is about a
+# different subject. Neither is derived from the other.
+SKIP_VERDICT_SENTENCE = "A skipped test is not a clean test."
+
+
+def skip_verdict(skipped: dict[str, str]) -> str:
+    """The block a run prints about its own skips, or ``""`` when it skipped none.
+
+    ``skipped`` maps a test's node id to the reason it did not run. The empty
+    result is the whole point of the mapping being passed in rather than a
+    count: a run that skipped nothing must print nothing, or the notice becomes
+    noise every reader learns to skip past.
+    """
+    if not skipped:
+        return ""
+
+    noun = "test" if len(skipped) == 1 else "tests"
+    header = f"SKIP VERDICT: {len(skipped)} {noun} SKIPPED. {SKIP_VERDICT_SENTENCE}"
+    rows = [f"  {nodeid} — {reason}" for nodeid, reason in skipped.items()]
+
+    return "\n".join([header, *rows])
