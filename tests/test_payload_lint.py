@@ -184,14 +184,22 @@ def test_pch2_exception_applies_in_the_repository_it_names(tmp_path):
 
 
 def test_pch2_exception_does_not_apply_in_a_different_repository(tmp_path):
-    """A directory merely NAMED `PatchTestFiles` in another repository fails."""
+    """A directory merely NAMED `PatchTestFiles` in another repository fails.
+
+    BOTH clauses answer, and the second is the point: in `mc68k` the scoped
+    row is not a weaker row, it is no row, so the path is one the register has
+    never heard of. An unregistered `.pch2` with no row at all reports exactly
+    this pair, which is what makes the two readings the same reading.
+    """
     rel = "PatchTestFiles/Smuggled.pch2"
     _write(tmp_path / rel, 10)
     failures = lint_committed_files(
         tmp_path, [rel], SCOPED_REGISTER, repo="axiomantic/mc68k"
     )
     assert failures == [
-        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row "
+        "and no by-rule classification",
     ]
 
 
@@ -201,7 +209,9 @@ def test_pch2_exception_does_not_apply_when_no_repository_is_supplied(tmp_path):
     _write(tmp_path / rel, 10)
     failures = lint_committed_files(tmp_path, [rel], SCOPED_REGISTER, repo=None)
     assert failures == [
-        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row "
+        "and no by-rule classification",
     ]
 
 
@@ -262,7 +272,11 @@ def test_unqualified_pch2_exception_row_grants_no_exception_in_any_repository(
     """
     rel = "PatchTestFiles/InheritedOne.pch2"
     _write(tmp_path / rel, 10)
-    expected = [f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"]
+    expected = [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row "
+        "and no by-rule classification",
+    ]
     for repo in (*SEVEN_REPOS, None):
         failures = lint_committed_files(
             tmp_path, [rel], UNQUALIFIED_REGISTER, repo=repo
@@ -377,7 +391,9 @@ def test_shipped_register_exception_does_not_travel_to_another_repository(tmp_pa
     entries = load_register(SHIPPED_REGISTER)
     failures = lint_committed_files(tmp_path, [rel], entries, repo="axiomantic/mc68k")
     assert failures == [
-        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row "
+        "and no by-rule classification",
     ]
 
 
@@ -629,7 +645,9 @@ def test_fixture_repo_row_does_not_apply_in_another_repository(tmp_path):
         repo="axiomantic/mc68k",
     )
     assert failures == [
-        f"PAYLOAD-PCH2-LOCATION: {pch2}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+        f"PAYLOAD-PCH2-LOCATION: {pch2}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {pch2}: committed file with no register row "
+        "and no by-rule classification",
     ]
 
 
@@ -640,8 +658,58 @@ def test_fixture_repo_row_grants_nothing_when_no_repository_is_supplied(tmp_path
         tmp_path, [blob], FIXTURE_REPO_REGISTER, visibility="public", repo=None
     )
     assert failures == [
-        f"PAYLOAD-CEILING: {blob}: 65537 bytes exceeds the 65536 byte ceiling "
-        "and is not allow-listed"
+        f"PAYLOAD-UNREGISTERED: {blob}: committed file with no register row "
+        "and no by-rule classification"
+    ]
+
+
+# The two tests above assert that a scoped row "does not apply" elsewhere, but
+# each feeds the guard a file another clause catches anyway -- a `.pch2` and an
+# over-ceiling blob. They therefore held while the row still answered clause 2
+# for every repository in the register's reach. The input that separates the
+# two readings is the SMALL, unclassified, non-`.pch2` file: nothing else
+# reports it, so it is silent exactly when the row is being read as a
+# registration it is not.
+
+
+def test_fixture_repo_row_in_another_repository_does_not_register_a_small_file(
+    tmp_path,
+):
+    small = "tests/planlint/fixtures/repo_public_bad/fixtures/blob.bin"
+    _write(tmp_path / small, 10)
+    failures = lint_committed_files(
+        tmp_path,
+        [small],
+        FIXTURE_REPO_REGISTER,
+        visibility="public",
+        repo="axiomantic/mc68k",
+    )
+    assert failures == [
+        f"PAYLOAD-UNREGISTERED: {small}: committed file with no register row "
+        "and no by-rule classification"
+    ]
+
+
+def test_a_scoped_row_that_does_not_apply_falls_back_to_a_broader_row(tmp_path):
+    """The row is absent HERE, not absent everywhere: a wider row still covers.
+
+    Reading the scoped row as no row must not also discard a plain row that
+    the path sits beneath. Otherwise the repair would trade one wrong answer
+    for another.
+    """
+    small = "tests/planlint/fixtures/repo_public_bad/fixtures/blob.bin"
+    _write(tmp_path / small, 10)
+    register = FIXTURE_REPO_REGISTER + [RegisterEntry("tests/", "private")]
+    failures = lint_committed_files(
+        tmp_path,
+        [small],
+        register,
+        visibility="public",
+        repo="axiomantic/mc68k",
+    )
+    assert failures == [
+        f"PAYLOAD-PRIVATE-IN-PUBLIC: {small}: register marks this path "
+        "private, but it is committed in a public repository"
     ]
 
 

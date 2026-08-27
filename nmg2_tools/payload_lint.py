@@ -20,7 +20,9 @@ independent conditions, each with its own failure name:
    visibility. This is the guard's default answer, and it is the reason the
    guard can be trusted at all: a file the register has never heard of is
    exactly what a payload check exists to notice, so silence is never the
-   response to one. ``.gitkeep`` files are exempt everywhere: they are
+   response to one. A REPO-SCOPED row counts as a row only in the repository
+   it names; anywhere else the register has not heard of the path, and this
+   clause answers. ``.gitkeep`` files are exempt everywhere: they are
    directory markers, not payload, and a private repository uses one to make
    a registered but empty directory exist.
 
@@ -244,6 +246,31 @@ class RegisterEntry:
         return self.visibility.startswith("private")
 
     @property
+    def is_repo_scoped(self) -> bool:
+        return self.visibility in REPO_SCOPED_VISIBILITIES
+
+    def applies_in(self, repo: str | None) -> bool:
+        """Is this row a row AT ALL in the repository being linted?
+
+        A repo-scoped row names the one repository it was granted for. In any
+        OTHER repository it is not a weaker row -- it is NO row, and the
+        register's answer for that path is the answer it gives a path it has
+        never heard of. Reading it instead as a plain registration made the
+        row's mere PRESENCE answer clause 2 everywhere, which is the same hole
+        the scoping exists to close: this register is one file shared by seven
+        repositories, so any of them could quiet the unregistered check for a
+        whole tree by choosing a directory name another repository's row
+        happens to cover. Clause 5 refuses a row that names no repository, so
+        the ``self.repo is None`` arm is the second lock, for an entry built in
+        code; ``repo is None`` is an unidentified caller, which gets nothing.
+        """
+        if not self.is_repo_scoped:
+            return True
+        if self.repo is None or repo is None:
+            return False
+        return repo == self.repo
+
+    @property
     def fixture_repo(self) -> bool:
         return self.visibility == FIXTURE_REPO_VISIBILITY
 
@@ -330,10 +357,19 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
 
 
 def _find_register_entry(
-    rel_path: str, entries: list[RegisterEntry]
+    rel_path: str, entries: list[RegisterEntry], repo: str | None = None
 ) -> RegisterEntry | None:
+    """Find the row that covers ``rel_path`` IN ``repo``, or ``None``.
+
+    A row scoped to another repository is skipped here rather than returned
+    and re-tested at each clause, so that a path it does not cover falls
+    through to whatever broader row does -- and to no row at all when there is
+    none.
+    """
     best: RegisterEntry | None = None
     for entry in entries:
+        if not entry.applies_in(repo):
+            continue
         if entry.is_dir_rule:
             if rel_path.startswith(entry.path):
                 if best is None or len(entry.path) > len(best.path):
@@ -369,7 +405,7 @@ def lint_committed_files(
         if posix_path.endswith(".gitkeep"):
             continue
 
-        entry = _find_register_entry(posix_path, entries)
+        entry = _find_register_entry(posix_path, entries, repo)
         fixture_repo_exempt = entry is not None and entry.fixture_repo_in(repo)
 
         if visibility == "public" and posix_path.endswith(".pch2"):
