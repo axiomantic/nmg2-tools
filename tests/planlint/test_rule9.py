@@ -225,7 +225,6 @@ class HalfBTest(unittest.TestCase):
         root = pathlib.Path(self.root)
         docs = root / "docs"
         docs.mkdir()
-        docs.write_text  # noqa: B018 - directory, not a file
         (docs / "check-targets.txt").write_text("# a comment\nt0_alpha\n")
 
         result = rule9.run(plan(COMPLIANT), source_repos={"alpha": root})

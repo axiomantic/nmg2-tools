@@ -227,6 +227,16 @@ states no `add_test(NAME ...)` for the name, which is a fact about the plan and
 not about a build. Lint 8 asserts the reachability half, which the document does
 answer.
 
+`--build-dir` supplies the build tree that section 7.7 clause 2 asks for, and
+the listing then decides the rule: a name missing from `ctest -N` is an ERROR.
+Reading nothing is not reading an empty listing. A machine with no `ctest`, a
+tree that does not answer inside the timeout, and a `CTestTestfile.cmake` that
+`ctest` exits non-zero on are all reported as `invalid-build-dir` naming the
+cause, and the repository is left to the document half instead. A tree that
+holds no test is a different answer: `ctest -N` exits 0 and prints
+`Total Tests: 0`, which IS a listing, and the ERROR that follows is the finding
+the clause exists to make.
+
 ### How the closure lint reads "requires" and "produces"
 
 Lint 9 is the only lint here whose INPUT is prose rather than a stated field, so

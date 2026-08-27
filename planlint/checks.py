@@ -80,26 +80,62 @@ def _parse_build_dirs(build_dirs):
     return repo_map, findings
 
 
+# A `ctest` invocation that cannot outlive a lint run. A build tree on a
+# stalled network mount would otherwise hang the whole report with nothing
+# printed.
+CTEST_TIMEOUT = 60
+
+NO_CTEST = "no `ctest` could be run on this machine, so no build tree was read"
+
+
 def _get_ctest_registered_tests(build_path):
-    """Run `ctest --test-dir <build_path> --no-tests=error -N` and parse registered test names."""
+    """`(the test names `ctest -N` lists, why the listing could not be read)`.
+
+    Exactly one of the two is `None`. A build tree that holds no test answers
+    with an EMPTY SET and no reason: `ctest -N` exits 0 and prints
+    `Total Tests: 0`, and that is a reading. A machine with no `ctest`, a tree
+    that will not answer inside the timeout, and a `CTestTestfile.cmake` that
+    `ctest` refuses to parse answer with NO set and a reason, because a listing
+    that was never read is not a listing of nothing. `_check_registration`
+    would otherwise report a correct plan as unregistered on the strength of a
+    tool that never ran.
+    """
     try:
         res = subprocess.run(
             ["ctest", "--test-dir", str(build_path), "--no-tests=error", "-N"],
             capture_output=True,
             text=True,
             check=False,
+            timeout=CTEST_TIMEOUT,
         )
-        stdout = res.stdout or ""
-        tests = set()
-        for line in stdout.splitlines():
-            match = re.search(r"Test\s+#\d+:\s*(.+)$", line)
-            if match:
-                test_name = match.group(1).strip()
-                if test_name:
-                    tests.add(test_name)
-        return tests
-    except Exception:
-        return set()
+    except FileNotFoundError:
+        return None, NO_CTEST
+    except subprocess.TimeoutExpired:
+        # The number is read at call time, not folded into a module constant,
+        # so the message always names the limit the run actually applied.
+        return None, (
+            f"`ctest -N` did not answer inside {CTEST_TIMEOUT} seconds, so no "
+            f"build tree was read"
+        )
+    except OSError as exc:
+        return None, f"`ctest` could not be started: {exc}"
+
+    if res.returncode != 0:
+        detail = " ".join(((res.stderr or "") + " " + (res.stdout or "")).split())
+        return None, (
+            f"`ctest -N` exited {res.returncode} and listed nothing: "
+            f"{detail[:200] or 'no output'}"
+        )
+
+    stdout = res.stdout or ""
+    tests = set()
+    for line in stdout.splitlines():
+        match = re.search(r"Test\s+#\d+:\s*(.+)$", line)
+        if match:
+            test_name = match.group(1).strip()
+            if test_name:
+                tests.add(test_name)
+    return tests, None
 
 
 def _check_registration(
@@ -290,7 +326,22 @@ def run(doc, check_targets_path=None, build_dirs=None):
 
     ctest_tests_by_repo = {}
     for repo, b_path in repo_map.items():
-        ctest_tests_by_repo[repo] = _get_ctest_registered_tests(b_path)
+        tests, unread = _get_ctest_registered_tests(b_path)
+        if unread is not None:
+            findings.append(
+                Finding(
+                    rule="invalid-build-dir",
+                    message=(
+                        f"the build directory supplied for '{repo}' yielded no "
+                        f"CTest listing, so section 7.7 clause 2 was not read "
+                        f"against it: {unread}"
+                    ),
+                    severity=ERROR,
+                    evidence=str(b_path),
+                )
+            )
+            continue
+        ctest_tests_by_repo[repo] = tests
 
     examined = 0
     explicit_r = set()

@@ -1,6 +1,11 @@
 """Tests for the check-command lint (sections 1.3 rules 9 and 10, 7.7, 7.4.2)."""
 
+import contextlib
+import os
+import pathlib
+import tempfile
 import unittest
+import unittest.mock
 
 from tests.planlint.support import load_fixture
 
@@ -535,6 +540,102 @@ class BuildDirTest(unittest.TestCase):
             self.assertEqual(len(reg_findings), 1)
             self.assertEqual(reg_findings[0].severity, "ERROR")
             self.assertIn("missing from CTest listing in build directory", reg_findings[0].evidence)
+
+
+class CtestListingTest(unittest.TestCase):
+    """A tool that could not run and a tool that found nothing must not print
+    the same answer.
+
+    `_check_registration` upgrades `r-name-not-registered` to ERROR on the
+    strength of the CTest listing. An unreadable listing read as an empty one
+    turns a missing `ctest` into an ERROR against a correct plan, and nothing
+    in the report says the tool never ran.
+    """
+
+    DOC = (
+        "**AAA-1 · A task** — T0\n"
+        "Files: `tests/t0_alpha.cpp`\n"
+        "Depends: none\n"
+        "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`\n"
+    )
+
+    def build_tree(self, stack, body='add_test(t0_alpha "echo" "1")\n'):
+        """A directory that `_parse_build_dirs` accepts."""
+        tmp = stack.enter_context(tempfile.TemporaryDirectory())
+        (pathlib.Path(tmp) / "CTestTestfile.cmake").write_text(body)
+        return tmp
+
+    def fake_ctest(self, stack, script):
+        """A directory holding an executable named `ctest`, put alone on PATH.
+
+        Nothing else is on the PATH, so a machine that has a real `ctest`
+        cannot reach it and the test reads the same on every machine.
+        """
+        tmp = stack.enter_context(tempfile.TemporaryDirectory())
+        binary = pathlib.Path(tmp) / "ctest"
+        binary.write_text(script)
+        binary.chmod(0o755)
+        stack.enter_context(unittest.mock.patch.dict(os.environ, {"PATH": tmp}))
+        return tmp
+
+    def findings_for(self, build_dir):
+        doc = PlanDocument.from_text(self.DOC, name="inline")
+        result = checks.run(doc, build_dirs=[f"axiomantic/nord-g2={build_dir}"])
+        return result.findings
+
+    def test_a_machine_with_no_ctest_is_not_a_build_tree_with_no_tests(self):
+        with contextlib.ExitStack() as stack:
+            tree = self.build_tree(stack)
+            empty = stack.enter_context(tempfile.TemporaryDirectory())
+            stack.enter_context(unittest.mock.patch.dict(os.environ, {"PATH": empty}))
+            findings = self.findings_for(tree)
+        unread = [f for f in findings if f.rule == "invalid-build-dir"]
+        self.assertEqual(len(unread), 1)
+        self.assertEqual(unread[0].severity, ERROR)
+        self.assertIn("no `ctest` could be run", unread[0].message)
+        self.assertEqual(
+            [f for f in findings if f.rule == "r-name-not-registered" and f.severity == ERROR],
+            [],
+        )
+
+    def test_a_ctest_that_refuses_the_tree_is_not_a_build_tree_with_no_tests(self):
+        with contextlib.ExitStack() as stack:
+            tree = self.build_tree(stack)
+            self.fake_ctest(stack, "#!/bin/sh\necho 'Parse error.' >&2\nexit 8\n")
+            findings = self.findings_for(tree)
+        unread = [f for f in findings if f.rule == "invalid-build-dir"]
+        self.assertEqual(len(unread), 1)
+        self.assertEqual(unread[0].severity, ERROR)
+        self.assertIn("exited 8", unread[0].message)
+        self.assertIn("Parse error.", unread[0].message)
+        self.assertEqual(
+            [f for f in findings if f.rule == "r-name-not-registered" and f.severity == ERROR],
+            [],
+        )
+
+    def test_a_ctest_that_never_answers_is_not_a_build_tree_with_no_tests(self):
+        with contextlib.ExitStack() as stack:
+            tree = self.build_tree(stack)
+            self.fake_ctest(stack, "#!/bin/sh\nexec /bin/sleep 30\n")
+            stack.enter_context(unittest.mock.patch.object(checks, "CTEST_TIMEOUT", 1))
+            findings = self.findings_for(tree)
+        unread = [f for f in findings if f.rule == "invalid-build-dir"]
+        self.assertEqual(len(unread), 1)
+        self.assertEqual(unread[0].severity, ERROR)
+        self.assertIn("did not answer inside 1 seconds", unread[0].message)
+
+    def test_a_build_tree_that_holds_no_test_is_still_a_reading(self):
+        """The other side of the same coin, and the control for the three
+        above. `ctest -N` exiting 0 with `Total Tests: 0` IS the listing, and
+        the ERROR it earns is the one the lint exists to report."""
+        with contextlib.ExitStack() as stack:
+            tree = self.build_tree(stack)
+            self.fake_ctest(stack, "#!/bin/sh\necho 'Total Tests: 0'\nexit 0\n")
+            findings = self.findings_for(tree)
+        self.assertEqual([f for f in findings if f.rule == "invalid-build-dir"], [])
+        missing = [f for f in findings if f.rule == "r-name-not-registered"]
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(missing[0].severity, ERROR)
 
 
 class MarkedSecondWriteTest(unittest.TestCase):
