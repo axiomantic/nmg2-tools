@@ -54,9 +54,18 @@ reaches — `container`, `lzo1x`, and what they call — is only checked by
 - **Use the interpreter in `.venv`.** The system `python3` on this host has no
   pytest installed, so a bare `pytest` works only from an activated environment.
   Requirements: Python 3.11 or later, pytest 7.0 or later.
-- `NMG2_ARTIFACTS` names the private artifact tree. Unset is the normal case:
-  the tests that need it skip with a stated reason and never fail for that
-  reason. Set it only to exercise the gated half.
+- `NMG2_ARTIFACTS`, `NMG2_DESCRIPTORS` and `NMG2_INSTALLERS` name the private
+  artifact trees, one variable per FAMILY of fixtures: the firmware images and
+  patch corpus, the descriptor and panel tables, and the vendor installer
+  images. They are separate because no one directory holds all three. Unset is
+  the normal case: the tests that need a family skip with a stated reason and
+  never fail for that reason. Set one only to exercise that family's gated half.
+- A gated test declares its family by requesting that family's fixture
+  (`artifacts_dir`, `descriptors_dir`, `installers_dir`) and declares the files
+  its body opens with `@pytest.mark.artifacts(...)`, relative to that family's
+  root. A family NEVER falls back to another family's root: a resolver that
+  searched a second root on a miss would make a fixture's provenance
+  unknowable.
 
 ## Layout
 
@@ -77,8 +86,9 @@ This repository holds no data that Clavia wrote, and it never will.
 
 The required tests read synthetic test data only. A contributor can run them
 from a fork with no configuration. Some other tests read a private artifact
-tree; `NMG2_ARTIFACTS` gives its path. When the variable is unset those tests
-**skip with a stated reason**. They never fail for that reason.
+tree; `NMG2_ARTIFACTS`, `NMG2_DESCRIPTORS` and `NMG2_INSTALLERS` give the paths,
+one per family. When a family's variable is unset those tests **skip with a
+stated reason**. They never fail for that reason.
 
 A test that needs an external binary must skip or fail with a NAMED diagnostic
 when the binary is absent. A bare `except Exception` around a subprocess makes

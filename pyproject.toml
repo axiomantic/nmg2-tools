@@ -35,10 +35,13 @@ packages = ["nmg2_tools", "planlint"]
 testpaths = ["tests"]
 pythonpath = ["."]
 # `artifacts` is the declaration a gated test makes of the files its body
-# opens; `tests/conftest.py`'s `artifacts_dir` fixture builds section 18.5's
-# gate from them. Registering it turns an unknown mark into an error rather
-# than a warning, so a typo in a declaration cannot silently gate on nothing.
+# opens; the `<family>_dir` fixtures in `tests/conftest.py` build section 18.5's
+# gate from them. The paths are relative to the root of the FAMILY whose fixture
+# the test requests, so the fixture parameter and the marker are the two halves
+# of one declaration: which root, and which files under it. Registering the mark
+# turns an unknown mark into an error rather than a warning, so a typo in a
+# declaration cannot silently gate on nothing.
 markers = [
-    "artifacts(*paths): paths, relative to NMG2_ARTIFACTS, that this test's body opens",
+    "artifacts(*paths): paths, relative to the requested family's root, that this test's body opens",
 ]
 filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]

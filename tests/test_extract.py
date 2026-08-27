@@ -9,9 +9,10 @@ SYNTHETIC forks and PE files built in this file, so they run everywhere and
 need no Clavia byte. The end-to-end claims -- that the macOS updater and the
 Windows updater carry byte-identical firmware, and that the extracted images
 and their decompressed sections hash to the four values ``artifacts.sha256``
-lists -- DO touch real Clavia bytes, and are gated on ``NMG2_ARTIFACTS`` via
-the ``artifacts_dir`` fixture. With no artifact they skip with section 18.5's
-reason instead of failing or passing silently.
+lists -- DO touch real Clavia bytes, and are gated on their family roots via
+two family fixtures -- ``installers_dir`` for the vendor updater images and
+``artifacts_dir`` for the already-extracted ``.bin`` files. With no artifact
+they skip with section 18.5's reason instead of failing or passing silently.
 
 WHY THE NON-GATED HALF MATTERS, in this task's own words (plan section 18.7):
 a test that passes when the code is broken is worse than no test. The gated
@@ -303,46 +304,46 @@ def test_recovered_image_reloads_its_sections():
 
 
 # ---------------------------------------------------------------------------
-# Gated: the real Clavia-derived artifacts. Skip where NMG2_ARTIFACTS is
-# unset, with section 18.5's reason, via the `artifacts_dir` fixture.
+# Gated: the real Clavia-derived artifacts, in TWO families.
+#
+# The vendor updater images and the already-extracted `.bin` files are
+# different trees with different provenance, and no one directory holds both.
+# Each body therefore requests the fixture of the family its inputs live under,
+# and declares the paths it opens with `@pytest.mark.artifacts`. A body that
+# WALKED the tree for a file matching a suffix could not be gated on that file
+# at all: the gate would answer RUN and the walk would then raise where section
+# 18.5 requires a skip WITH A REASON naming the path.
 # ---------------------------------------------------------------------------
 
-def _find(artifacts_dir, exact_name, suffix):
+# The installer images, as paths relative to the installers root. One constant
+# serves as the declaration AND as the path the body opens, so the gate and the
+# read cannot name different files.
+MAC_UPDATER_REL = "Nord Modular G2 Updater.rsrc"
+WINDOWS_SETUP_REL = "Nord Modular G2 v1.62 Setup.exe"
+
+# The extracted images, relative to the artifacts root.
+OS_IMAGE_REL = "NMG2_128_OS.bin"
+LOADER_IMAGE_REL = "BOOT_128_Loader.bin"
+
+
+def _read(directory, relative_path):
     import os
 
-    target = os.path.join(artifacts_dir, exact_name)
-    if os.path.isfile(target):
-        return target
-    for _root, _dirs, files in os.walk(artifacts_dir):
-        for f in files:
-            if f.endswith(suffix):
-                return os.path.join(_root, f)
-    return None
+    with open(os.path.join(directory, relative_path), "rb") as fh:
+        return fh.read()
 
 
-def _resolve_source(artifacts_dir, kind):
-    if kind == "mac":
-        path = _find(artifacts_dir, "Nord Modular G2 Updater.rsrc", ".rsrc")
-        if path is None:
-            raise AssertionError("no macOS 'Nord Modular G2 Updater.rsrc' under NMG2_ARTIFACTS")
-        with open(path, "rb") as fh:
-            return rsrc.firmware(fh.read())
-    path = _find(artifacts_dir, "Nord Modular G2 v1.62 Setup.exe", ".exe")
-    if path is None:
-        raise AssertionError("no 'Setup.exe' under NMG2_ARTIFACTS")
-    with open(path, "rb") as fh:
-        return pe.firmware(fh.read())
-
-
-def test_mac_and_windows_sources_are_identical(artifacts_dir):
-    mac = _resolve_source(artifacts_dir, "mac")
-    win = _resolve_source(artifacts_dir, "windows")
+@pytest.mark.artifacts(MAC_UPDATER_REL, WINDOWS_SETUP_REL)
+def test_mac_and_windows_sources_are_identical(installers_dir):
+    mac = rsrc.firmware(_read(installers_dir, MAC_UPDATER_REL))
+    win = pe.firmware(_read(installers_dir, WINDOWS_SETUP_REL))
     assert mac.os_image == win.os_image
     assert mac.loader == win.loader
 
 
-def test_extracted_images_have_the_design_sha256(artifacts_dir):
-    mac = _resolve_source(artifacts_dir, "mac")
+@pytest.mark.artifacts(MAC_UPDATER_REL)
+def test_extracted_images_have_the_design_sha256(installers_dir):
+    mac = rsrc.firmware(_read(installers_dir, MAC_UPDATER_REL))
     assert hashlib.sha256(mac.os_image).hexdigest() == HASH_NMG2_OS
     assert hashlib.sha256(mac.loader).hexdigest() == HASH_BOOT_LOADER
     sections = dict((s.tag, data) for s, data in load_sections(mac.os_image))
@@ -350,18 +351,14 @@ def test_extracted_images_have_the_design_sha256(artifacts_dir):
     assert hashlib.sha256(sections["SRAM"]).hexdigest() == HASH_SRAM
 
 
+@pytest.mark.artifacts(OS_IMAGE_REL, LOADER_IMAGE_REL)
 def test_advanced_path_accepts_the_bin_files(artifacts_dir):
-    import os
-
-    os_bin = os.path.join(artifacts_dir, "NMG2_128_OS.bin")
-    loader_bin = os.path.join(artifacts_dir, "BOOT_128_Loader.bin")
-    assert os.path.isfile(os_bin) and os.path.isfile(loader_bin), (
-        "advanced path needs NMG2_128_OS.bin and BOOT_128_Loader.bin"
-    )
-    with open(os_bin, "rb") as fh:
-        os_image = fh.read()
-    with open(loader_bin, "rb") as fh:
-        loader = fh.read()
+    """The advanced path: the operator supplies the two images directly. The
+    two files are DECLARED rather than asserted to exist inside the body -- an
+    existence assertion in a body is a gate in the wrong place, and it reports
+    an absent artifact as a FAILURE where section 18.5 requires a skip."""
+    os_image = _read(artifacts_dir, OS_IMAGE_REL)
+    loader = _read(artifacts_dir, LOADER_IMAGE_REL)
     assert hashlib.sha256(os_image).hexdigest() == HASH_NMG2_OS
     assert hashlib.sha256(loader).hexdigest() == HASH_BOOT_LOADER
     sections = dict((s.tag, data) for s, data in load_sections(os_image))

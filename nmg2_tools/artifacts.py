@@ -21,19 +21,52 @@ from typing import Optional
 # purpose: one message covering two conditions tells an operator with a wrong
 # path that their variable is unset, which sends them to the wrong file.
 # Echoing the variable value unchanged is the whole point of message 2.
-ARTIFACT_UNSET_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
-ARTIFACT_ENVIRONMENT_VARIABLE = "NMG2_ARTIFACTS"
+# A FAMILY is a root, not a file. `NMG2_ARTIFACTS` named two unrelated families
+# at once -- the descriptor and panel tables on one side, the vendor installer
+# images on the other -- and no single directory on any machine holds both, so
+# one of the two was always resolved against the wrong tree. Each family
+# therefore reads its OWN variable, `NMG2_<FAMILY>`, and the default family
+# `artifacts` yields `NMG2_ARTIFACTS` unchanged by that same rule rather than by
+# a special case.
+#
+# The variable name is DERIVED from the family and is not looked up in a table.
+# A table mapping family to variable, or path to family, would be amended once
+# per fixture and would be a missing predicate wearing a list's clothes.
+#
+# A family NEVER falls back to another family's root. A resolver that searched a
+# second root on a miss would answer with a file whose provenance no reader
+# could reconstruct, which is worse than the skip it replaces.
+DEFAULT_ARTIFACT_FAMILY = "artifacts"
 
 
-def _message_no_directory(value: str) -> str:
-    return f"firmware artifact not available (NMG2_ARTIFACTS names no directory: {value})"
+def artifact_variable(family: str = DEFAULT_ARTIFACT_FAMILY) -> str:
+    """The environment variable a family reads."""
+    return "NMG2_" + family.upper()
 
 
-def _message_not_found(name: str, value: str) -> str:
-    return f"firmware artifact not available ({name} not found under NMG2_ARTIFACTS: {value})"
+def _message_unset(variable: str) -> str:
+    return f"firmware artifact not available ({variable} unset)"
 
 
-def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
+def _message_no_directory(variable: str, value: str) -> str:
+    return f"firmware artifact not available ({variable} names no directory: {value})"
+
+
+def _message_not_found(name: str, variable: str, value: str) -> str:
+    return f"firmware artifact not available ({name} not found under {variable}: {value})"
+
+
+# The default family's variable and message 1, kept as names because callers and
+# the C++ half both refer to them. They are DERIVED from the two functions above
+# rather than spelled out a second time: a message with two texts is a message
+# with two meanings, and the copy is the one that drifts.
+ARTIFACT_ENVIRONMENT_VARIABLE = artifact_variable()
+ARTIFACT_UNSET_MESSAGE = _message_unset(ARTIFACT_ENVIRONMENT_VARIABLE)
+
+
+def resolve_artifacts(
+    name: Optional[str] = None, family: str = DEFAULT_ARTIFACT_FAMILY
+) -> tuple[str, str]:
     """Resolve the directory that holds the Clavia-derived artifacts.
 
     Returns ``(directory, why)``.
@@ -53,14 +86,15 @@ def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
     Never raises. This mirrors the C++ half, where design section 4.2 states the
     no-exception rule on ``ArtifactResolver::resolve`` directly.
     """
-    value = os.environ.get(ARTIFACT_ENVIRONMENT_VARIABLE)
+    variable = artifact_variable(family)
+    value = os.environ.get(variable)
 
     # An empty value counts as unset. Windows removes a variable by assigning it
     # the empty string, so a half that treated "" as a path would mean something
     # different on Windows than it means on Linux and macOS -- and the two halves
     # of this task would then disagree on the same input.
     if not value:
-        return "", ARTIFACT_UNSET_MESSAGE
+        return "", _message_unset(variable)
 
     # A path that does not exist, a path the process cannot stat, and a path that
     # exists but is not a directory all land here, and all of them give the SAME
@@ -68,14 +102,14 @@ def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
     # of them, so this function needs no exception handler to satisfy the
     # never-raises contract.
     if not os.path.isdir(value):
-        return "", _message_no_directory(value)
+        return "", _message_no_directory(variable, value)
 
     # The directory exists. If a name was asked for and the file is not in the
     # directory, message 3 fires. The caller chose ``name`` and we echo it.
     if name is not None:
         candidate = os.path.join(value, name)
         if not os.path.isfile(candidate):
-            return "", _message_not_found(name, value)
+            return "", _message_not_found(name, variable, value)
 
     return value, ""
 
@@ -96,12 +130,19 @@ def resolve_artifacts(name: Optional[str] = None) -> tuple[str, str]:
 GATED_SKIP_PREFIX = "SKIPPED: "
 
 
-def gated_skip_line() -> str:
-    """The line design section 18.5 step 2 requires a gated test to emit."""
-    return GATED_SKIP_PREFIX + ARTIFACT_UNSET_MESSAGE
+def gated_skip_line(family: str = DEFAULT_ARTIFACT_FAMILY) -> str:
+    """The line design section 18.5 step 2 requires a gated test to emit.
+
+    The line names the family's own variable, which is the one an operator has
+    to set to make the test run. A line that named the base variable for every
+    family would send that operator to the wrong variable.
+    """
+    return GATED_SKIP_PREFIX + _message_unset(artifact_variable(family))
 
 
-def gated_skip_reason(*required: str) -> Optional[str]:
+def gated_skip_reason(
+    *required: str, family: str = DEFAULT_ARTIFACT_FAMILY
+) -> Optional[str]:
     """Return the skip line when a gated test cannot run, or ``None`` when it can.
 
     ``required`` is the paths, relative to the artifacts root, that the gated
@@ -129,14 +170,17 @@ def gated_skip_reason(*required: str) -> Optional[str]:
       ``required`` says, because there is no directory to look in;
     * the root resolves and a required path is not a file under it -- the
       prefix on message 3, which names that path.
+
+    ``family`` selects WHICH root. The paths in ``required`` are relative to
+    that family's root and are looked for there only.
     """
-    directory, _why = resolve_artifacts()
+    directory, _why = resolve_artifacts(family=family)
 
     if not directory:
-        return gated_skip_line()
+        return gated_skip_line(family)
 
     for name in required:
-        _resolved, why = resolve_artifacts(name)
+        _resolved, why = resolve_artifacts(name, family=family)
         if why:
             return GATED_SKIP_PREFIX + why
 

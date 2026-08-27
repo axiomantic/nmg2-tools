@@ -6,7 +6,7 @@ The generator is a pure function of its input tables and every decision it
 makes (the chain join, the corroboration rule, the word-count check, the
 port-shape check, the CSV layout) is proven HERE with SYNTHETIC data, so these
 tests run everywhere and need no Clavia byte. The gated half at the end drives
-the whole generator against the real artifacts through the ``artifacts_dir``
+the whole generator against the real artifacts through the ``descriptors_dir``
 fixture and asserts the structural facts that are knowable without a
 reverse-engineered ``descriptor_index -> patch_type_id`` correspondence: the
 row count, the schema, the confidence vocabulary, determinism, and the
@@ -375,13 +375,16 @@ def test_write_csv_round_trips_through_to_csv_text(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Gated: the real artifacts, through the artifacts_dir fixture.
+# Gated: the real artifacts, through the `descriptors_dir` fixture -- the
+# descriptor and panel tables are their own family with their own root,
+# `NMG2_DESCRIPTORS`, because no directory holds them and the installer
+# images both.
 #
 # The structural facts a generator can assert without a reverse-engineered
 # descriptor_index -> patch_type_id correspondence: the row count (design
 # 18.9.3 says the descriptor and editor sides agree), the schema, the
 # confidence vocabulary, determinism, and that the coverage counts are
-# internally consistent. Skip where NMG2_ARTIFACTS is unset.
+# internally consistent. Skip where NMG2_DESCRIPTORS is unset.
 # ---------------------------------------------------------------------------
 
 
@@ -395,11 +398,11 @@ DESCRIPTOR_CSV_REL = "dsp/g2_module_descriptors.csv"
 PANL_JSON_REL = "g2demo/g2_modules.json"
 
 
-def _descriptors_from_csv(artifacts_dir):
+def _descriptors_from_csv(descriptors_dir):
     import csv as _csv
     import os
 
-    path = os.path.join(artifacts_dir, DESCRIPTOR_CSV_REL)
+    path = os.path.join(descriptors_dir, DESCRIPTOR_CSV_REL)
     descriptors = []
     with open(path, newline="") as fh:
         for record in _csv.DictReader(fh):
@@ -414,11 +417,11 @@ def _descriptors_from_csv(artifacts_dir):
     return descriptors
 
 
-def _panl_from_json(artifacts_dir):
+def _panl_from_json(descriptors_dir):
     import json
     import os
 
-    path = os.path.join(artifacts_dir, PANL_JSON_REL)
+    path = os.path.join(descriptors_dir, PANL_JSON_REL)
     with open(path) as fh:
         payload = json.load(fh)
     panl = []
@@ -433,13 +436,13 @@ def _panl_from_json(artifacts_dir):
 
 
 @pytest.mark.artifacts(DESCRIPTOR_CSV_REL, PANL_JSON_REL)
-def test_gated_real_artifacts_produce_a_well_formed_map(artifacts_dir):
+def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
     """The whole generator runs against the real descriptor and editor tables.
     What is asserted is what is knowable without the un-derived
     correspondence: one row per descriptor, a valid confidence vocabulary in
     every row, and a coverage break-down that sums to the row count."""
-    descriptors = _descriptors_from_csv(artifacts_dir)
-    panl = _panl_from_json(artifacts_dir)
+    descriptors = _descriptors_from_csv(descriptors_dir)
+    panl = _panl_from_json(descriptors_dir)
     # The descriptor side and the editor side -- the counts agree.
     assert len(descriptors) == 194
     assert len(panl) == 194

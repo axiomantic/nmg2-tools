@@ -31,6 +31,8 @@ big-endian longwords over base ``B``:
 
 import struct
 
+import pytest
+
 from nmg2_tools.sigscan import TERMINATOR, ModuleDescriptor, scan
 
 # The CODE section of the G2 OS image loads here (design section 7.3 step 1).
@@ -166,25 +168,24 @@ N_WITH_X = 173
 
 
 def _load_code_image(artifacts_dir):
+    """The image is read from the path the test DECLARES and the tree is not
+    searched for a file of that name. A body that hunts for its input cannot be
+    gated on it: the gate would answer RUN and the open would then raise where
+    section 18.5 requires a skip WITH A REASON naming the expected path."""
     import os
 
-    path = os.path.join(artifacts_dir, CODE_IMAGE_NAME)
-    if not os.path.isfile(path):
-        # Permit a nested layout; the advanced-path files sit flat.
-        for _root, _dirs, files in os.walk(artifacts_dir):
-            if CODE_IMAGE_NAME in files:
-                path = os.path.join(_root, CODE_IMAGE_NAME)
-                break
-    with open(path, "rb") as fh:
+    with open(os.path.join(artifacts_dir, CODE_IMAGE_NAME), "rb") as fh:
         return fh.read()
 
 
+@pytest.mark.artifacts(CODE_IMAGE_NAME)
 def test_scan_recovers_all_194_descriptors(artifacts_dir):
     image = _load_code_image(artifacts_dir)
     recs = scan(image, BASE)
     assert len(recs) == N_DESCRIPTORS
 
 
+@pytest.mark.artifacts(CODE_IMAGE_NAME)
 def test_validation_identity_holds_for_every_record_with_an_x_pointer(artifacts_dir):
     """X_ptr + 4*(X_words + Y_words) == P_ptr for every record that carries an
     X pointer, with zero exceptions. Logbook 3.1 fixes the zero-exception

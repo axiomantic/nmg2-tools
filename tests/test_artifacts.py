@@ -379,3 +379,211 @@ def test_the_conftest_fixture_lets_a_malformed_artifact_reach_the_body_and_fail(
 
     result.assert_outcomes(failed=1, skipped=0, passed=0)
     assert "SKIPPED: firmware artifact not available" not in result.stdout.str()
+
+
+# ---------------------------------------------------------------------------
+# One root per fixture FAMILY.
+#
+# `NMG2_ARTIFACTS` named two unrelated fixture families at once -- the
+# descriptor and panel tables on one side, the vendor installer images on the
+# other -- and no single directory holds both, so one of the two families was
+# always looking in the wrong tree. A family is a ROOT, so each family gets its
+# own variable: `NMG2_<FAMILY>`, uppercased. The default family is `artifacts`,
+# which yields `NMG2_ARTIFACTS` unchanged.
+#
+# The rule that makes this safe is that a family NEVER falls back to another
+# family's root. A resolver that searched a second root on a miss would answer
+# with a file whose provenance no reader could reconstruct.
+# ---------------------------------------------------------------------------
+
+DESCRIPTORS_FAMILY = "descriptors"
+
+
+def test_a_family_resolves_through_its_own_variable(tmp_path, monkeypatch):
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(tmp_path))
+
+    directory, why = resolve_artifacts(family=DESCRIPTORS_FAMILY)
+
+    assert directory == str(tmp_path)
+    assert why == ""
+
+
+def test_a_family_does_not_fall_back_to_the_base_variable(tmp_path, monkeypatch):
+    """Provenance. `NMG2_ARTIFACTS` names a real directory and the family's own
+    variable is unset. The family must report UNSET rather than answer with a
+    directory belonging to a different family -- a resolver that searched a
+    second root on a miss would make the source of a fixture unknowable."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+    monkeypatch.delenv("NMG2_DESCRIPTORS", raising=False)
+
+    directory, why = resolve_artifacts(family=DESCRIPTORS_FAMILY)
+
+    assert directory == ""
+    assert why == "firmware artifact not available (NMG2_DESCRIPTORS unset)"
+
+
+def test_the_default_family_is_the_base_variable(tmp_path, monkeypatch):
+    """The negative case for the rule above: naming the default family
+    explicitly must be identical to naming no family at all, or every existing
+    caller would change meaning."""
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+    monkeypatch.delenv("NMG2_DESCRIPTORS", raising=False)
+
+    assert resolve_artifacts(family="artifacts") == (str(tmp_path), "")
+
+
+def test_a_family_message_two_names_the_family_variable(monkeypatch):
+    monkeypatch.setenv("NMG2_DESCRIPTORS", "/nmg2/no/such/directory/FAMILY")
+
+    directory, why = resolve_artifacts(family=DESCRIPTORS_FAMILY)
+
+    assert directory == ""
+    assert why == (
+        "firmware artifact not available "
+        "(NMG2_DESCRIPTORS names no directory: /nmg2/no/such/directory/FAMILY)"
+    )
+
+
+def test_a_family_message_three_names_the_family_variable(tmp_path, monkeypatch):
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(tmp_path))
+
+    directory, why = resolve_artifacts(REQUIRED_REL, family=DESCRIPTORS_FAMILY)
+
+    assert directory == ""
+    assert why == (
+        "firmware artifact not available "
+        f"({REQUIRED_REL} not found under NMG2_DESCRIPTORS: {tmp_path})"
+    )
+
+
+def test_gated_skip_reason_gates_on_the_family_root(tmp_path, monkeypatch):
+    """`gated_skip_reason` keeps its meaning per family: the root that must
+    resolve and the paths that must exist are the family's, not the base's."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+    monkeypatch.delenv("NMG2_DESCRIPTORS", raising=False)
+
+    assert gated_skip_reason(REQUIRED_REL, family=DESCRIPTORS_FAMILY) == (
+        "SKIPPED: firmware artifact not available (NMG2_DESCRIPTORS unset)"
+    )
+
+
+def test_gated_skip_reason_names_the_absent_path_under_the_family_root(tmp_path, monkeypatch):
+    """The negative case for the one above: the family root DOES resolve, so
+    the reason must be message 3 naming the declared path, not the unset line."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(tmp_path))
+
+    assert gated_skip_reason(REQUIRED_REL, family=DESCRIPTORS_FAMILY) == (
+        "SKIPPED: firmware artifact not available "
+        f"({REQUIRED_REL} not found under NMG2_DESCRIPTORS: {tmp_path})"
+    )
+
+
+def test_gated_skip_reason_is_none_when_the_family_root_holds_the_path(tmp_path, monkeypatch):
+    """Without this, every assertion above would hold for a per-family gate
+    that skipped unconditionally."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    present = tmp_path / "dsp" / "g2_module_descriptors.csv"
+    present.parent.mkdir()
+    present.write_text("p_ptr,x_words_0x1C,y_words_0x20,p_words_0x24\n")
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(tmp_path))
+
+    assert gated_skip_reason(REQUIRED_REL, family=DESCRIPTORS_FAMILY) is None
+
+
+# The fixture half. A test declares its family by requesting that family's
+# fixture -- the same parameter it already had to write to get a directory at
+# all -- and declares the files its body opens with the `artifacts` marker.
+# There are exactly two declarations and neither is a per-file table: nothing
+# anywhere maps a path to a family.
+
+_FAMILY_CONFTEST = "from tests.conftest import descriptors_dir  # noqa: F401\n"
+
+
+def test_the_family_fixture_skips_with_the_family_variable_in_the_reason(
+    pytester, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+    monkeypatch.delenv("NMG2_DESCRIPTORS", raising=False)
+
+    pytester.makeconftest(_FAMILY_CONFTEST)
+    pytester.makepyfile(
+        """
+        def test_a_gated_test(descriptors_dir):
+            raise AssertionError("the gated body must not run")
+        """
+    )
+
+    result = pytester.runpytest("-rs")
+
+    result.assert_outcomes(skipped=1, passed=0, failed=0)
+    assert "SKIPPED: firmware artifact not available (NMG2_DESCRIPTORS unset)" in result.stdout.str()
+
+
+def test_the_family_fixture_runs_the_body_from_the_family_root(pytester, tmp_path, monkeypatch):
+    """The negative case for the fixture, and the provenance case in one: the
+    body runs, and the directory it is handed is the FAMILY's root even though
+    `NMG2_ARTIFACTS` names a different existing directory."""
+    family_root = tmp_path / "family"
+    (family_root / "dsp").mkdir(parents=True)
+    (family_root / "dsp" / "g2_module_descriptors.csv").write_text("p_ptr\n")
+    base_root = tmp_path / "base"
+    base_root.mkdir()
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(base_root))
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(family_root))
+
+    pytester.makeconftest(_FAMILY_CONFTEST)
+    pytester.makeini("[pytest]\nmarkers =\n    artifacts(*paths): declared\n")
+    pytester.makepyfile(
+        f"""
+        import pytest
+
+        @pytest.mark.artifacts({REQUIRED_REL!r})
+        def test_a_gated_test(descriptors_dir):
+            assert descriptors_dir == {str(family_root)!r}
+        """
+    )
+
+    result = pytester.runpytest("-rs")
+
+    result.assert_outcomes(passed=1, skipped=0, failed=0)
+    assert "SKIPPED: firmware artifact not available" not in result.stdout.str()
+
+
+def test_the_family_fixture_skips_when_a_declared_path_is_absent_from_the_family_root(
+    pytester, tmp_path, monkeypatch
+):
+    """The marker's paths are relative to the FAMILY's root. The declared file
+    exists under `NMG2_ARTIFACTS` and not under the family root, so the verdict
+    must be a skip naming the path under the family root."""
+    family_root = tmp_path / "family"
+    family_root.mkdir()
+    base_root = tmp_path / "base"
+    (base_root / "dsp").mkdir(parents=True)
+    (base_root / "dsp" / "g2_module_descriptors.csv").write_text("p_ptr\n")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(base_root))
+    monkeypatch.setenv("NMG2_DESCRIPTORS", str(family_root))
+
+    pytester.makeconftest(_FAMILY_CONFTEST)
+    pytester.makeini("[pytest]\nmarkers =\n    artifacts(*paths): declared\n")
+    pytester.makepyfile(
+        f"""
+        import pytest
+
+        @pytest.mark.artifacts({REQUIRED_REL!r})
+        def test_a_gated_test(descriptors_dir):
+            raise AssertionError("the gated body must not run")
+        """
+    )
+
+    result = pytester.runpytest("-rs")
+
+    result.assert_outcomes(skipped=1, passed=0, failed=0)
+    assert (
+        "SKIPPED: firmware artifact not available "
+        f"({REQUIRED_REL} not found under NMG2_DESCRIPTORS: {family_root})"
+    ) in result.stdout.str()
