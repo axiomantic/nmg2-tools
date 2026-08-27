@@ -243,3 +243,37 @@ def test_planlint_is_imported_from_this_repository_and_not_elsewhere():
 
     assert pathlib.Path(planlint.__file__).resolve().parent == ROOT / "planlint"
     assert sys.modules["planlint"].__name__ == "planlint"
+
+
+def test_the_lint_gate_is_wired_end_to_end():
+    """The four pieces of the ruff gate reference each other, or it is not a gate.
+
+    `pyproject.toml` holds the rules, `.ruff-version` holds the tool version,
+    `scripts/ruff-baseline.sh` produces the reading and `.ruff-baseline.txt`
+    holds the reading it is compared against. Delete any one and the CI job
+    either stops running or starts passing for the wrong reason. This asserts
+    the wiring only: whether the tree still MATCHES the baseline is the CI job's
+    question, and asking it here would need ruff installed, which would make the
+    check skip on a machine without it and read exactly like a pass.
+    """
+    lint = PYPROJECT["tool"]["ruff"]["lint"]
+    assert lint["select"], "no rules selected: the gate would report nothing"
+
+    version = (ROOT / ".ruff-version").read_text(encoding="utf-8").strip()
+    assert version, ".ruff-version is empty"
+
+    script = ROOT / "scripts" / "ruff-baseline.sh"
+    assert script.is_file()
+    assert script.stat().st_mode & 0o111, "the script is not executable"
+    assert ".ruff-version" in script.read_text(encoding="utf-8"), (
+        "the script does not read the pin, so it can use a different ruff than CI"
+    )
+
+    baseline = (ROOT / ".ruff-baseline.txt").read_text(encoding="utf-8")
+    rows = [line for line in baseline.splitlines() if not line.startswith("#")]
+    assert rows, "an empty baseline makes any diff against it meaningless"
+
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "scripts/ruff-baseline.sh" in workflow
+    assert ".ruff-baseline.txt" in workflow
+    assert ".ruff-version" in workflow

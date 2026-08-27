@@ -1,0 +1,104 @@
+# Every ruff finding this tree currently reports, as `count<TAB>code<TAB>path`.
+# Regenerate with `scripts/ruff-baseline.sh > .ruff-baseline.txt`.
+#
+# THIS FILE IS A RATCHET, NOT A RECORD. CI regenerates it and diffs. A new
+# finding makes the diff non-empty and the job fails; so does FIXING one without
+# updating this file. Both directions are loud, which is the point: a lint whose
+# silence is indistinguishable from a lint that never ran is the defect this
+# whole mechanism exists to answer.
+#
+# Line numbers are deliberately absent. They would churn on every unrelated edit
+# and turn the ratchet into noise.
+1	B007	freshness/checker.py
+2	PERF401	freshness/checker.py
+1	PIE810	freshness/checker.py
+1	PLW1510	freshness/checker.py
+1	SIM108	freshness/checker.py
+2	UP031	freshness/checker.py
+2	UP045	nmg2_tools/artifacts.py
+1	B905	nmg2_tools/modulemap.py
+1	RUF023	nmg2_tools/payload_lint.py
+2	SIM102	nmg2_tools/payload_lint.py
+1	SIM110	nmg2_tools/payload_lint.py
+4	N818	nmg2_tools/pch2.py
+1	I001	nmg2_tools/pe.py
+1	PERF401	planlint/anchors.py
+1	BLE001	planlint/checks.py
+1	F401	planlint/checks.py
+3	PERF401	planlint/checks.py
+1	PLW2901	planlint/checks.py
+1	TRY300	planlint/checks.py
+1	PLW1510	planlint/citations.py
+1	B007	planlint/counts.py
+1	B007	planlint/document.py
+1	FURB188	planlint/document.py
+1	PERF401	planlint/document.py
+4	PLW2901	planlint/document.py
+1	RUF005	planlint/finding.py
+1	PERF401	planlint/gate.py
+3	PERF401	planlint/graph.py
+2	PLW2901	planlint/graph.py
+1	I001	planlint/implicit.py
+1	PERF401	planlint/payload.py
+1	PERF401	planlint/provenance.py
+1	PERF401	planlint/registrar.py
+1	B905	planlint/removed.py
+1	RUF005	planlint/removed.py
+1	PIE810	planlint/rule9.py
+1	PLW2901	planlint/rule9.py
+1	PERF401	planlint/selfcite.py
+1	PLW2901	planlint/selfcite.py
+2	PERF401	planlint/tiers.py
+1	RUF005	planlint/tiers.py
+1	PERF401	planlint/waves.py
+1	PLC0415	tests/freshness/test_freshness.py
+1	I001	tests/planlint/test_anchors.py
+1	I001	tests/planlint/test_checks.py
+8	PLC0415	tests/planlint/test_checks.py
+1	I001	tests/planlint/test_cli.py
+2	PLC0415	tests/planlint/test_cli.py
+3	RUF059	tests/planlint/test_cli.py
+1	I001	tests/planlint/test_closure.py
+1	I001	tests/planlint/test_counts.py
+1	I001	tests/planlint/test_document.py
+1	RUF012	tests/planlint/test_fences.py
+1	I001	tests/planlint/test_gate.py
+1	I001	tests/planlint/test_graph.py
+1	I001	tests/planlint/test_implicit.py
+2	B007	tests/planlint/test_marker_census.py
+1	C420	tests/planlint/test_marker_census.py
+1	PERF102	tests/planlint/test_marker_census.py
+4	RUF005	tests/planlint/test_marker_census.py
+1	SIM102	tests/planlint/test_marker_census.py
+1	I001	tests/planlint/test_markers.py
+1	I001	tests/planlint/test_mutation.py
+1	I001	tests/planlint/test_payload.py
+1	I001	tests/planlint/test_provenance.py
+2	PLC0415	tests/planlint/test_provenance.py
+1	I001	tests/planlint/test_registrar.py
+1	I001	tests/planlint/test_removed.py
+1	RUF012	tests/planlint/test_rule9.py
+3	N802	tests/planlint/test_secondwrite.py
+1	RUF012	tests/planlint/test_secondwrite.py
+1	I001	tests/planlint/test_selfcite.py
+1	I001	tests/planlint/test_structure.py
+1	PERF401	tests/planlint/test_suite_integrity.py
+1	PIE810	tests/planlint/test_suite_integrity.py
+1	I001	tests/planlint/test_tiers.py
+1	I001	tests/planlint/test_waves.py
+14	PLC0415	tests/test_artifacts.py
+3	C402	tests/test_extract.py
+2	N806	tests/test_extract.py
+1	PLC0415	tests/test_extract.py
+1	I001	tests/test_flashimage.py
+1	RUF059	tests/test_lzo1x.py
+3	PERF401	tests/test_modulemap.py
+7	PLC0415	tests/test_modulemap.py
+4	PLC0415	tests/test_packaging.py
+1	I001	tests/test_payload_lint.py
+1	PLW1510	tests/test_payload_lint.py
+1	RUF005	tests/test_payload_lint.py
+3	N806	tests/test_sigscan.py
+8	PLC0415	tests/test_sigscan.py
+1	SIM108	tests/test_synth_pch2.py
+1	SIM300	tests/test_synth_pch2.py

@@ -29,9 +29,12 @@ nothing behind it.
 .venv/bin/python -m pytest -k <expression>       # by name
 ```
 
-**Narrowing here is by PATH or by `-k`, never by marker.** `pyproject.toml`
-registers no markers and the suite defines none, so `pytest -m ...` selects
-nothing. Do not write a `-m` invocation into a check line.
+**Narrow by PATH or by `-k`.** `pyproject.toml` registers exactly one marker,
+`artifacts(*paths)`, and `pytest -m artifacts` selects the tests that declare a
+firmware file. That marker is a DECLARATION consumed by the `<family>_dir`
+fixtures in `tests/conftest.py`, not a selector meant for a check line: the set
+it names is "tests that open an artifact", which is not the set any narrow run
+wants. Use a path or `-k`.
 
 ### Full
 
@@ -187,6 +190,20 @@ describes.
 - Measure against a fresh clone at a named commit when a claim is about what the
   committed tool does. An earlier pass on this project measured the wrong
   repository and reported a plausible result.
+- **"ruff clean" in a commit message means nothing without a version.** Two
+  commits (`fbbff97`, `8adb54d`) assert it, and when they were written nothing
+  read the claim. The same unmodified tree reports 1 finding under ruff 0.6.9
+  and 0.12.0 and 275 under 0.16.5, because 0.16 turned on a far wider default
+  rule set: the claim was close to true against the tool of its day and is
+  false against today's. Do not repeat it in a commit message. The rules now
+  live in `[tool.ruff.lint]` in `pyproject.toml`, the tool version in
+  `.ruff-version`, and the gate in the `lint` job of `.github/workflows/ci.yml`,
+  which diffs `scripts/ruff-baseline.sh` output against `.ruff-baseline.txt`.
+  Cite a run of that gate instead.
+- **The lint gate is a ratchet, and it fails in both directions.** A NEW finding
+  makes the diff non-empty; so does FIXING one without running
+  `scripts/ruff-baseline.sh > .ruff-baseline.txt`. Fixing findings is welcome and
+  is not a precondition for anything — the baseline is not an approval of them.
 - A capability that is not committed is a capability no other clone or runner
   can use. The presence of a rule NAME in the tool is not evidence of the
   capability behind it.
