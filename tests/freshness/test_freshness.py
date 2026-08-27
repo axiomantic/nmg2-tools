@@ -13,9 +13,17 @@ rather than a convention:
   * the ABSENCE of a pin is itself a finding, and "nothing to check" is never
     exit 0.
 
-The real-corpus tests at the bottom carry a KNOWN POSITIVE and a KNOWN NEGATIVE
-resolved by the SAME code path: two `count` pins written into the same real
-note, one whose figure has moved and one whose figure has not.
+The KNOWN POSITIVE and the KNOWN NEGATIVE are carried by
+`test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only_it`:
+two `count` pins in one note, running the SAME command over the SAME population
+through the SAME resolver, one whose figure has moved and one whose figure has
+not. Its subject is a plan fixture COMMITTED TO THIS REPOSITORY, so the pair
+states a fact this repository controls.
+
+The real-corpus tests at the bottom are informational and skip when the corpus
+is absent. None of them asserts that a document outside this repository is in a
+BROKEN state: such a test fails the moment somebody corrects the document, which
+is the outcome this whole tool exists to produce.
 """
 
 import hashlib
@@ -497,13 +505,90 @@ def test_the_cli_exits_one_on_a_moved_pin_and_prints_the_report(tmp_path, capsys
     ).report()
 
 
+# ------------------------------------------------- the discrimination pair
+#
+# The control this tool exists to earn. Both pins below are `count` pins, both
+# live in one note, both carry the SAME command over the SAME population, and
+# both are resolved by `checker._resolve_command` — one code path. They differ
+# in the figure they pin: one has drifted and one has not. A control that
+# succeeded through a different path would prove nothing about the path that
+# reported the failure.
+#
+# The subject is a plan fixture COMMITTED TO THIS REPOSITORY. An earlier version
+# of this pair pinned a live note in `nmg2-findings` and asserted that the note
+# was STALE, which made correcting the note a build failure — the suite paid
+# whoever left a wrong document alone. A test may only assert a state its own
+# repository controls.
+#
+# The command is a real `planlint` invocation with a `cd`, a module run, a pipe
+# and a `sed`, not an `echo`: the resolver has to survive the shape a pin
+# actually takes in a note.
+
+FIXTURE_PLAN = (
+    ROOT / "tests" / "planlint" / "fixtures"
+    / "neg_structure_table_row_column_count.md"
+)
+
+# The figure the fixture plan yields, as a literal. Deriving it here by running
+# the same command the pin runs would compare the tool against itself and assert
+# nothing. The fixture is committed, so this figure moves only when somebody
+# edits the fixture — and then this test is the thing that says so.
+FIXTURE_STRUCTURE_FINDINGS = 2
+
+
+def structure_count_command():
+    return (
+        f"cd {ROOT} && {sys.executable} -m planlint.cli --plan {FIXTURE_PLAN} "
+        r"--only structure | sed -n 's/^structure: \([0-9][0-9]*\) "
+        r"finding(s).*/\1/p'"
+    )
+
+
+def test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only_it(
+    tmp_path,
+):
+    """The known positive and the known negative, one run, one resolver."""
+    command = structure_count_command()
+    path = note(
+        tmp_path,
+        pin_block(
+            f"count {FIXTURE_STRUCTURE_FINDINGS} -- {command}",
+            f"count 40 -- {command}",
+        ),
+    )
+
+    result = checker.check_note(path, run_commands=True)
+
+    assert result == checker.NoteResult(
+        path=path,
+        results=[
+            checker.PinResult(
+                pin=checker.Pin(
+                    kind="count",
+                    subject=command,
+                    expected=str(FIXTURE_STRUCTURE_FINDINGS),
+                    line=6,
+                ),
+                verdict=checker.OK,
+                detail=f"the count is still {FIXTURE_STRUCTURE_FINDINGS}",
+            ),
+            checker.PinResult(
+                pin=checker.Pin(
+                    kind="count", subject=command, expected="40", line=7
+                ),
+                verdict=checker.MOVED,
+                detail=f"the count was 40, is now {FIXTURE_STRUCTURE_FINDINGS}",
+            ),
+        ],
+    )
+    assert result.verdict == checker.MOVED
+
+
 # ------------------------------------------------------------- real corpus
 #
-# The pair below is the control this tool exists to earn. Both pins are `count`
-# pins, both live in the same real note, and both are resolved by
-# `checker._resolve_count` — the same code path, over the same population. One
-# figure has moved and one has not. A control that succeeded through a
-# different path would prove nothing about the path that reported the failure.
+# Informational. These read the live findings corpus and skip when it is
+# absent. Each asserts only that the corpus is CONSISTENT with itself, never
+# that a document out there is broken.
 
 REAL_NOTE = CORPUS / "2026-08-26-first-complete-lint-run.md"
 
@@ -525,23 +610,10 @@ def find_pin(pins, needle):
     return matches[0]
 
 
-def test_the_real_note_pins_a_count_that_has_moved():
-    """`removed: 40` was true on 2026-08-26 and is 2 today. The note still
-    reads as current; this is the mechanism that says otherwise."""
-    pin = find_pin(real_note_pins(), "--only removed")
-
-    result = checker.resolve(pin, run_commands=True)
-
-    assert (result.verdict, result.detail) == (
-        checker.MOVED,
-        "the count was 40, is now 2",
-    )
-
-
 def test_the_real_note_pins_a_count_that_has_not_moved():
-    """The known negative. Same note, same pin kind, same resolver, same
-    corpus — and it reports OK, so the MOVED above is a discrimination and not
-    a resolver that fails on everything."""
+    """Informational: the note's `structure` pin still re-derives. The
+    discrimination this proves nothing about is proved above, on a fixture this
+    repository owns."""
     pin = find_pin(real_note_pins(), "--only structure")
 
     result = checker.resolve(pin, run_commands=True)
