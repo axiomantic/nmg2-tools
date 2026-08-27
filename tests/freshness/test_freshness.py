@@ -150,7 +150,7 @@ def test_an_unreadable_line_is_kept_as_a_malformed_pin_and_never_dropped():
         pin=parsed[0],
         verdict=checker.MALFORMED,
         detail="'nonsense here' is not a pin: the kind must be one of "
-        "count, exit, file, output, repo",
+        "count, exit, file, output, remote, repo",
     )
 
 
@@ -220,6 +220,327 @@ def test_a_repo_pin_naming_a_directory_that_is_not_a_checkout_is_unresolvable(
         pin=pin,
         verdict=checker.UNRESOLVABLE,
         detail=f"{tmp_path} is not a git checkout",
+    )
+
+
+# -------------------------------------------------------------- remote pins
+#
+# A `repo` pin asks whether a commit is an ancestor of HEAD, which is a fact
+# about THIS MACHINE. Two commits were found in this project that existed on no
+# remote at all: one was the tip of a local branch in a submodule AND the commit
+# the superproject pinned, so a fresh `git clone --recursive` could not check
+# out its own submodule; the other was a detached-HEAD commit in a reference
+# clone, and it passed every dirtiness check legitimately because the tree was
+# clean. A planned restack that resets each fork's `main` to its upstream head
+# would take anything reachable only locally with it.
+#
+# `refs/remotes/origin/*` cannot answer this. It is a CACHE written by the last
+# fetch or push; it can predate the last push, and in a clone whose remote was
+# re-pointed it describes a DIFFERENT repository. Every test below is decided by
+# `git ls-remote`, and
+# `test_the_refs_cache_is_not_evidence_a_re_pointed_remote_has_the_commit`
+# arms exactly that trap.
+
+
+@pytest.fixture
+def pushed(tmp_path):
+    """A clone with a real remote — a bare repository on disk is a remote.
+
+    Three commits on `main`: `base` and `tip` reached the remote, `local` did
+    not. The KNOWN POSITIVE and the KNOWN NEGATIVE therefore live in one
+    checkout, are written the same way, and are decided by one resolver. The
+    only difference between them is whether the commit was pushed.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not on PATH, so no commit can be resolved")
+    origin = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(origin)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    work = tmp_path / "work"
+    subprocess.run(
+        ["git", "clone", "-q", str(origin), str(work)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    git(work, "config", "user.email", "t@example.invalid")
+    git(work, "config", "user.name", "T")
+    shas = {}
+    for message in ("base", "tip"):
+        (work / "a.txt").write_text(message + "\n", encoding="utf-8")
+        git(work, "add", "a.txt")
+        git(work, "commit", "-q", "-m", message)
+        shas[message] = git(work, "rev-parse", "HEAD")
+    git(work, "push", "-q", "origin", "main")
+    (work / "a.txt").write_text("local\n", encoding="utf-8")
+    git(work, "add", "a.txt")
+    git(work, "commit", "-q", "-m", "local")
+    shas["local"] = git(work, "rev-parse", "HEAD")
+    shas["origin"] = origin
+    shas["work"] = work
+    return shas
+
+
+def remote_pin(line):
+    return checker.parse_pins(pin_block(line))[0]
+
+
+def test_a_remote_pin_is_ok_when_the_commit_is_the_tip_of_a_remote_ref(pushed):
+    """The KNOWN POSITIVE: this commit was pushed and is the branch tip."""
+    pin = remote_pin(f"remote {pushed['work']} {pushed['tip']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.OK,
+        detail=f"{pushed['tip']} is on origin: it is the tip of refs/heads/main",
+    )
+
+
+def test_a_remote_pin_is_ok_when_the_commit_is_an_ancestor_of_a_remote_ref(pushed):
+    pin = remote_pin(f"remote {pushed['work']} {pushed['base']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.OK,
+        detail=f"{pushed['base']} is on origin: it is an ancestor of "
+        f"refs/heads/main at {pushed['tip']}",
+    )
+
+
+def test_a_remote_pin_has_moved_when_the_commit_reached_no_remote_ref(pushed):
+    """The KNOWN NEGATIVE: the commit exists here and nowhere else.
+
+    This is MOVED and not UNRESOLVABLE. The remote answered; the answer was no.
+    Conflating the two would reintroduce the blindness this pin kind exists to
+    remove — an unpushed commit would read like a check that could not run.
+    """
+    pin = remote_pin(f"remote {pushed['work']} {pushed['local']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.MOVED,
+        detail=f"{pushed['local']} is on no ref of origin: it exists only in "
+        "this clone (1 remote ref(s) examined)",
+    )
+
+
+def test_one_note_reports_the_pushed_commit_ok_and_the_unpushed_one_moved(pushed):
+    """The discrimination pair for this pin kind: one note, one resolver, two
+    commits from one checkout, differing only in whether they were pushed."""
+    path = note(
+        tmp_path=pushed["work"],
+        body=pin_block(
+            f"remote {pushed['work']} {pushed['tip']}",
+            f"remote {pushed['work']} {pushed['local']}",
+        ),
+    )
+
+    result = checker.check_note(path, check_remotes=True)
+
+    assert result == checker.NoteResult(
+        path=path,
+        results=[
+            checker.PinResult(
+                pin=checker.Pin(
+                    kind="remote",
+                    subject=str(pushed["work"]),
+                    expected=pushed["tip"],
+                    line=6,
+                ),
+                verdict=checker.OK,
+                detail=f"{pushed['tip']} is on origin: it is the tip of "
+                "refs/heads/main",
+            ),
+            checker.PinResult(
+                pin=checker.Pin(
+                    kind="remote",
+                    subject=str(pushed["work"]),
+                    expected=pushed["local"],
+                    line=7,
+                ),
+                verdict=checker.MOVED,
+                detail=f"{pushed['local']} is on no ref of origin: it exists "
+                "only in this clone (1 remote ref(s) examined)",
+            ),
+        ],
+    )
+    assert result.verdict == checker.MOVED
+
+
+def test_a_remote_pin_names_the_remote_and_one_commit_can_differ_between_them(
+    pushed,
+):
+    """The same commit, the same clone, two remotes, opposite verdicts.
+
+    `origin` never received it; `backup` did. A resolver that ignored the named
+    remote could not produce both of these.
+    """
+    backup = pushed["work"].parent / "backup.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(backup)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    git(pushed["work"], "remote", "add", "backup", str(backup))
+    git(pushed["work"], "push", "-q", "backup", "main")
+
+    on_backup = remote_pin(f"remote {pushed['work']} backup={pushed['local']}")
+    on_origin = remote_pin(f"remote {pushed['work']} {pushed['local']}")
+
+    assert checker.resolve(on_backup, check_remotes=True) == checker.PinResult(
+        pin=on_backup,
+        verdict=checker.OK,
+        detail=f"{pushed['local']} is on backup: it is the tip of refs/heads/main",
+    )
+    assert checker.resolve(on_origin, check_remotes=True) == checker.PinResult(
+        pin=on_origin,
+        verdict=checker.MOVED,
+        detail=f"{pushed['local']} is on no ref of origin: it exists only in "
+        "this clone (1 remote ref(s) examined)",
+    )
+
+
+def test_the_refs_cache_is_not_evidence_a_re_pointed_remote_has_the_commit(pushed):
+    """The design constraint, armed.
+
+    `refs/remotes/origin/main` still names the pushed commit, because a fetch
+    or push wrote it and nothing invalidates it. The URL now points at a
+    different repository that has never seen that commit. An implementation
+    that read the cache reports OK here; `git ls-remote` reports the truth.
+    """
+    elsewhere = pushed["work"].parent / "elsewhere.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "main", str(elsewhere)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    git(pushed["work"], "remote", "set-url", "origin", str(elsewhere))
+    assert git(pushed["work"], "rev-parse", "refs/remotes/origin/main") == pushed["tip"]
+
+    pin = remote_pin(f"remote {pushed['work']} {pushed['tip']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.MOVED,
+        detail=f"{pushed['tip']} is on no ref of origin: it exists only in "
+        "this clone (0 remote ref(s) examined)",
+    )
+
+
+def test_a_remote_pin_is_unresolvable_until_the_caller_opts_in(pushed):
+    """`git ls-remote` is a network call, and the remote URL comes from a note.
+    Querying it is a decision the invocation makes, and declining reports
+    UNRESOLVABLE rather than passing the pin."""
+    pin = remote_pin(f"remote {pushed['work']} {pushed['tip']}")
+
+    assert checker.resolve(pin, check_remotes=False) == checker.PinResult(
+        pin=pin,
+        verdict=checker.UNRESOLVABLE,
+        detail="the remote was not queried: --check-remotes was not given",
+    )
+
+
+def test_a_remote_pin_is_unresolvable_when_the_remote_cannot_be_reached(pushed):
+    """Offline is not absent. A remote that cannot be queried says nothing
+    about where the commit is, and reporting OK here would be the exact silent
+    pass this pin kind exists to prevent."""
+    git(
+        pushed["work"],
+        "remote",
+        "set-url",
+        "origin",
+        str(pushed["work"].parent / "no-such-repository.git"),
+    )
+    pin = remote_pin(f"remote {pushed['work']} {pushed['tip']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.UNRESOLVABLE,
+        detail=f"git ls-remote origin exited 128 in {pushed['work']}; the "
+        "remote could not be queried",
+    )
+
+
+def test_a_remote_ref_this_clone_lacks_the_objects_for_is_unresolvable_not_moved(
+    pushed,
+):
+    """A ref the clone never fetched could contain the commit. Answering MOVED
+    would be a claim the run cannot support."""
+    other = pushed["work"].parent / "other"
+    subprocess.run(
+        ["git", "clone", "-q", str(pushed["origin"]), str(other)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    git(other, "config", "user.email", "t@example.invalid")
+    git(other, "config", "user.name", "T")
+    git(other, "checkout", "-q", "-b", "feature")
+    (other / "c.txt").write_text("elsewhere\n", encoding="utf-8")
+    git(other, "add", "c.txt")
+    git(other, "commit", "-q", "-m", "feature")
+    git(other, "push", "-q", "origin", "feature")
+
+    pin = remote_pin(f"remote {pushed['work']} {pushed['local']}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.UNRESOLVABLE,
+        detail=f"{pushed['local']} is on none of the 1 remote ref(s) this "
+        "clone can examine, and 1 more could not be examined because this "
+        "clone does not have their objects; fetch origin and re-run",
+    )
+
+
+def test_a_remote_pin_naming_a_commit_that_does_not_resolve_is_unresolvable(pushed):
+    pin = remote_pin(f"remote {pushed['work']} {'d' * 40}")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.UNRESOLVABLE,
+        detail=f"{'d' * 40} does not resolve to a commit in {pushed['work']}",
+    )
+
+
+def test_a_remote_pin_naming_a_directory_that_is_not_a_checkout_is_unresolvable(
+    tmp_path,
+):
+    pin = remote_pin(f"remote {tmp_path} 0123abc")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.UNRESOLVABLE,
+        detail=f"{tmp_path} is not a git checkout",
+    )
+
+
+def test_a_remote_pin_whose_figure_is_not_a_sha_is_malformed():
+    """The tool's first five catches were all defects in the PINS, not in the
+    notes. A template that emits the kind and loses the sha must be reported."""
+    pin = remote_pin("remote /tmp/r not-a-sha")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.MALFORMED,
+        detail="a remote pin must read `<sha>` or `<remote>=<sha>` with at "
+        "least 4 hex digits, and 'not-a-sha' reads neither",
+    )
+
+
+def test_a_remote_pin_with_an_empty_remote_name_is_malformed():
+    pin = remote_pin("remote /tmp/r =0123abcd")
+
+    assert checker.resolve(pin, check_remotes=True) == checker.PinResult(
+        pin=pin,
+        verdict=checker.MALFORMED,
+        detail="a remote pin must read `<sha>` or `<remote>=<sha>` with at "
+        "least 4 hex digits, and '=0123abcd' reads neither",
     )
 
 
@@ -505,6 +826,47 @@ def test_the_cli_exits_one_on_a_moved_pin_and_prints_the_report(tmp_path, capsys
     ).report()
 
 
+def test_the_cli_queries_no_remote_until_check_remotes_is_given(pushed, capsys):
+    """Without the flag the pin is loudly unchecked, never quietly passed."""
+    path = note(pushed["work"], pin_block(f"remote {pushed['work']} {pushed['tip']}"))
+
+    code = cli.main([str(path)])
+
+    assert code == 1
+    assert capsys.readouterr().out == (
+        f"freshness: {path}\n"
+        "           1 note(s) examined, 0 pin(s) resolved\n"
+        "\n"
+        f"{path}: UNRESOLVABLE (1 pin)\n"
+        "  [UNRESOLVABLE] remote line 6 — the remote was not queried: "
+        "--check-remotes was not given\n"
+        "\n"
+        "RESULT: NO PINS RESOLVED. Every note examined declared nothing this "
+        "run could re-derive (1 note(s)). Nothing to check is never a pass.\n"
+    )
+
+
+def test_the_cli_exits_one_when_check_remotes_finds_a_commit_on_no_remote(
+    pushed, capsys
+):
+    path = note(pushed["work"], pin_block(f"remote {pushed['work']} {pushed['local']}"))
+
+    code = cli.main([str(path), "--check-remotes"])
+
+    assert code == 1
+    assert capsys.readouterr().out == (
+        f"freshness: {path}\n"
+        "           1 note(s) examined, 1 pin(s) resolved\n"
+        "\n"
+        f"{path}: MOVED (1 pin)\n"
+        f"  [MOVED] remote line 6 — {pushed['local']} is on no ref of origin: "
+        "it exists only in this clone (1 remote ref(s) examined)\n"
+        "\n"
+        "RESULT: 1 MOVED. A stale note does not announce itself; this is the "
+        "announcement.\n"
+    )
+
+
 # ------------------------------------------------- the discrimination pair
 #
 # The control this tool exists to earn. Both pins below are `count` pins, both
@@ -601,7 +963,13 @@ def real_note_pins():
     pins = checker.parse_pins(REAL_NOTE.read_text(encoding="utf-8"))
     if not pins:
         pytest.skip(f"{REAL_NOTE.name} carries no pins yet")
-    return {pin.expected + "|" + pin.subject: pin for pin in pins}
+    # The KIND is part of the key. Without it a `repo` pin and a `remote` pin
+    # naming the same commit in the same checkout collapse to one entry, the
+    # second silently displaces the first, and a test goes on reporting a
+    # verdict for a pin it is no longer looking at.
+    return {
+        pin.kind + "|" + pin.expected + "|" + pin.subject: pin for pin in pins
+    }
 
 
 def find_pin(pins, needle):
@@ -623,12 +991,28 @@ def test_the_real_note_pins_a_count_that_has_not_moved():
 
 def test_the_real_note_pins_the_artifacts_commit_it_was_measured_against():
     pins = real_note_pins()
-    pin = find_pin(pins, "8395bbf|")
+    pin = find_pin(pins, "repo|8395bbf|")
 
     result = checker.resolve(pin, run_commands=True)
 
     assert result.verdict == checker.OK
     assert result.detail.startswith("8395bbf is an ancestor of HEAD ")
+
+
+def test_the_real_note_pins_the_artifacts_commit_as_present_on_its_remote():
+    """Informational, and it needs the network. The `repo` pin above is a fact
+    about THIS MACHINE; this one is the fact that survives a restack."""
+    pin = find_pin(real_note_pins(), "remote|8395bbf|")
+
+    result = checker.resolve(pin, check_remotes=True)
+
+    # An unreachable remote is an absent environment, like the absent corpus
+    # above, and it skips. A remote that ANSWERED and does not have the commit
+    # is MOVED and fails here — the two states are never conflated.
+    if result.verdict == checker.UNRESOLVABLE and "could not be queried" in result.detail:
+        pytest.skip(f"the artifacts remote is not reachable: {result.detail}")
+    assert result.verdict == checker.OK
+    assert result.detail.startswith("8395bbf is on origin: it is an ancestor of ")
 
 
 def test_every_note_in_the_real_corpus_is_reported_and_none_is_silently_skipped():

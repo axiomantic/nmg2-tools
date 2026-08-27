@@ -16,6 +16,12 @@ both exit 1, and each prints which of the two it was.
 Running a note's commands is OPT-IN via `--run-commands`. A note is data. Without
 the flag a command pin reports UNRESOLVABLE, which fails the run — declining to
 run a command is never mistaken for the command having held.
+
+Querying a remote is OPT-IN via `--check-remotes`, and it is a SEPARATE flag.
+`git ls-remote` leaves the machine, and the remote it queries is named by a note;
+a git remote URL is not inert. The two opt-ins buy different things, so one is
+never granted by asking for the other. Without the flag a `remote` pin reports
+UNRESOLVABLE and the run fails.
 """
 
 import argparse
@@ -44,6 +50,13 @@ def build_parser():
         help="run the shell command a `count`, `exit` or `output` pin names. "
         "Without this those pins report UNRESOLVABLE and the run fails.",
     )
+    parser.add_argument(
+        "--check-remotes",
+        action="store_true",
+        help="ask the remote a `remote` pin names, with `git ls-remote`, "
+        "whether it has the commit. Without this those pins report "
+        "UNRESOLVABLE and the run fails.",
+    )
     return parser
 
 
@@ -57,7 +70,11 @@ def main(argv=None, stream=None):
             stream.write(f"no such note or directory: {root}\n")
             return 2
 
-    result = checker.check_corpus(roots, run_commands=args.run_commands)
+    result = checker.check_corpus(
+        roots,
+        run_commands=args.run_commands,
+        check_remotes=args.check_remotes,
+    )
     stream.write(result.report())
     return result.exit_code
 

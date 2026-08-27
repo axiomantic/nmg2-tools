@@ -25,6 +25,8 @@ THE PIN FORMAT. A note declares what it rests on in a fenced block:
     # a comment
     repo   <path>  <sha>                  the commit still resolves AND is
                                           still an ancestor of that repo's HEAD
+    remote <path>  <sha>                  the commit is reachable from a ref on
+    remote <path>  <name>=<sha>           that repo's remote (default `origin`)
     file   <path>  sha256=<64 hex>        the artifact's bytes are unchanged
     file   <path>  bytes=<n>              the artifact's length is unchanged
     count  <n>     -- <shell command>     the command still prints that integer
@@ -32,8 +34,8 @@ THE PIN FORMAT. A note declares what it rests on in a fenced block:
     output <text>  -- <shell command>     the command's stripped stdout is that
     ```
 
-A `repo` or `file` pin splits on the LAST run of whitespace, so a path may carry
-spaces. A command pin splits on the first ` -- `, so a command may carry
+A `repo`, `remote` or `file` pin splits on the LAST run of whitespace, so a path
+may carry spaces. A command pin splits on the first ` -- `, so a command may carry
 anything.
 
 THE FOUR VERDICTS.
@@ -56,6 +58,22 @@ RUNNING COMMANDS IS OPT-IN. A note is data, not an instruction. `run_commands`
 is False by default and a command pin then reports UNRESOLVABLE — never OK. The
 opt-in cannot turn into a silent pass in either direction: without it the pin is
 loudly unchecked, and with it the pin is actually checked.
+
+QUERYING A REMOTE IS ITS OWN OPT-IN. `check_remotes` is a SECOND flag and not a
+re-use of the first, because it buys something different: `git ls-remote` leaves
+the machine, and the remote it queries is named by a note. A git remote URL is
+not inert — an `ext::` URL is a command — so a note-supplied remote is the same
+category of trust decision as a note-supplied shell line, and it deserves its own
+deliberate answer rather than riding in on a flag granted for another purpose.
+Without it a `remote` pin reports UNRESOLVABLE, never OK: silently skipping the
+one check that looks past this machine would be the blindness the pin exists to
+remove.
+
+WHY `refs/remotes/origin/*` IS NOT CONSULTED. That namespace is a CACHE written
+by the last fetch or push. It can predate the last push, and in a clone whose
+remote was re-pointed it describes a DIFFERENT repository — which happened in
+this project. Reading it would answer a question about this machine while
+appearing to answer a question about the remote. The remote is asked directly.
 """
 
 import dataclasses
@@ -79,13 +97,24 @@ VERDICT_ORDER = {MOVED: 0, UNRESOLVABLE: 1, MALFORMED: 2, OK: 3}
 FENCE_OPEN = "```pins"
 FENCE_CLOSE = "```"
 
-PATH_KINDS = ("repo", "file")
+PATH_KINDS = ("repo", "remote", "file")
 COMMAND_KINDS = ("count", "exit", "output")
 KINDS = tuple(sorted(PATH_KINDS + COMMAND_KINDS))
 
 # The timeout is per pin. A pin whose command hangs would otherwise stall the
 # whole corpus, and a checker that never finishes reports nothing at all.
 COMMAND_TIMEOUT = 600
+
+# `git ls-remote` waits on a network peer. A shorter bound than a command pin's
+# is right: a remote that has not answered in this long is unreachable for the
+# purpose of the question, and that state has its own verdict.
+REMOTE_TIMEOUT = 60
+
+DEFAULT_REMOTE = "origin"
+
+# An abbreviation shorter than this is ambiguous in any repository worth
+# pinning, and a note that carries one is a defect in the pin, not in the tree.
+MINIMUM_SHA_DIGITS = 4
 
 
 @dataclasses.dataclass(frozen=True)
@@ -162,10 +191,12 @@ def _parse_line(line, number):
     return Pin(kind="?", subject="", expected="", line=number, raw=line)
 
 
-def resolve(pin, run_commands=False):
+def resolve(pin, run_commands=False, check_remotes=False):
     """Re-derive one pin. Never raises: an unreadable fact is a verdict."""
     if pin.kind == "repo":
         return _resolve_repo(pin)
+    if pin.kind == "remote":
+        return _resolve_remote(pin, check_remotes)
     if pin.kind == "file":
         return _resolve_file(pin)
     if pin.kind in COMMAND_KINDS:
@@ -212,6 +243,131 @@ def _resolve_repo(pin):
         MOVED,
         f"{pin.expected} resolves but is not an ancestor of HEAD {head}",
     )
+
+
+def _split_remote_expectation(expected):
+    """`<sha>` or `<name>=<sha>` as (remote, sha), or None when it is neither."""
+    name, separator, sha = expected.rpartition("=")
+    if separator and not name:
+        return None
+    remote = name if separator else DEFAULT_REMOTE
+    digits = set("0123456789abcdefABCDEF")
+    if len(sha) < MINIMUM_SHA_DIGITS or not set(sha) <= digits:
+        return None
+    return remote, sha
+
+
+def _resolve_remote(pin, check_remotes):
+    """Is this commit reachable from a ref on the REMOTE, not on this machine?
+
+    The order of the answers matters. A tip match is decisive on its own. An
+    ancestry answer needs the tip's objects HERE, so a ref this clone never
+    fetched leaves the question open — and an open question is UNRESOLVABLE,
+    never MOVED. Only when every ref the remote named was examined and none
+    contains the commit is MOVED a claim the run can support.
+    """
+    split = _split_remote_expectation(pin.expected)
+    if split is None:
+        return PinResult(
+            pin,
+            MALFORMED,
+            "a remote pin must read `<sha>` or `<remote>=<sha>` with at least "
+            f"{MINIMUM_SHA_DIGITS} hex digits, and '{pin.expected}' reads neither",
+        )
+    remote, sha = split
+    if not check_remotes:
+        return PinResult(
+            pin,
+            UNRESOLVABLE,
+            "the remote was not queried: --check-remotes was not given",
+        )
+    root = pathlib.Path(pin.subject)
+    if shutil.which("git") is None:
+        return PinResult(pin, UNRESOLVABLE, "git is not on PATH")
+    if not root.is_dir() or _git(root, "rev-parse", "--git-dir").returncode != 0:
+        return PinResult(pin, UNRESOLVABLE, f"{root} is not a git checkout")
+    resolved = _git(root, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}")
+    if resolved.returncode != 0:
+        return PinResult(
+            pin, UNRESOLVABLE, f"{sha} does not resolve to a commit in {root}"
+        )
+    full = resolved.stdout.strip()
+
+    listed = _ls_remote(root, remote)
+    if listed.returncode != 0:
+        return PinResult(
+            pin,
+            UNRESOLVABLE,
+            f"git ls-remote {remote} exited {listed.returncode} in {root}; "
+            "the remote could not be queried",
+        )
+    refs = _remote_refs(listed.stdout)
+
+    for tip, name in refs:
+        if tip == full:
+            return PinResult(pin, OK, f"{sha} is on {remote}: it is the tip of {name}")
+    unexaminable = []
+    for tip, name in refs:
+        if _git(root, "cat-file", "-e", f"{tip}^{{commit}}").returncode != 0:
+            unexaminable.append(name)
+            continue
+        if _git(root, "merge-base", "--is-ancestor", full, tip).returncode == 0:
+            return PinResult(
+                pin,
+                OK,
+                f"{sha} is on {remote}: it is an ancestor of {name} at {tip}",
+            )
+    if unexaminable:
+        return PinResult(
+            pin,
+            UNRESOLVABLE,
+            f"{sha} is on none of the {len(refs) - len(unexaminable)} remote "
+            f"ref(s) this clone can examine, and {len(unexaminable)} more could "
+            "not be examined because this clone does not have their objects; "
+            f"fetch {remote} and re-run",
+        )
+    return PinResult(
+        pin,
+        MOVED,
+        f"{sha} is on no ref of {remote}: it exists only in this clone "
+        f"({len(refs)} remote ref(s) examined)",
+    )
+
+
+def _ls_remote(root, remote):
+    """Ask the REMOTE what it has. The refs cache on disk is not asked."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), "ls-remote", "--", remote],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=REMOTE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        # A peer that never answers is not a peer that said no. The caller
+        # turns a non-zero return into UNRESOLVABLE, which is what a timeout is.
+        return subprocess.CompletedProcess(args=[], returncode=124, stdout="", stderr="")
+
+
+def _remote_refs(text):
+    """The remote's `refs/*` tips as (sha, ref).
+
+    `HEAD` is dropped: it is an alias for a branch already listed, and counting
+    it would report one remote ref as two. A peeled `^{}` line is dropped for
+    the same reason — it names the same tag twice — and the tag object it peels
+    is still listed, so nothing the remote holds goes unexamined.
+    """
+    refs = []
+    for line in text.splitlines():
+        tip, tab, name = line.partition("\t")
+        if not tab:
+            continue
+        name = name.strip()
+        if not name.startswith("refs/") or name.endswith("^{}"):
+            continue
+        refs.append((tip.strip(), name))
+    return refs
 
 
 def _resolve_file(pin):
@@ -302,11 +458,14 @@ def _is_integer(text):
     return bool(text) and (text[1:] if text[0] in "+-" else text).isdigit()
 
 
-def check_note(path, run_commands=False):
+def check_note(path, run_commands=False, check_remotes=False):
     text = pathlib.Path(path).read_text(encoding="utf-8")
     return NoteResult(
         path=pathlib.Path(path),
-        results=[resolve(pin, run_commands) for pin in parse_pins(text)],
+        results=[
+            resolve(pin, run_commands=run_commands, check_remotes=check_remotes)
+            for pin in parse_pins(text)
+        ],
     )
 
 
@@ -315,6 +474,7 @@ class CorpusResult:
     roots: list
     notes: list
     run_commands: bool
+    check_remotes: bool = False
 
     @property
     def resolved(self):
@@ -424,7 +584,7 @@ class CorpusResult:
         )
 
 
-def check_corpus(paths, run_commands=False):
+def check_corpus(paths, run_commands=False, check_remotes=False):
     """Every `.md` file under every named path, each with its own verdict.
 
     The population is the FILES ON DISK and not a list of notes that declared
@@ -439,5 +599,10 @@ def check_corpus(paths, run_commands=False):
         else:
             found = [root]
         for path in found:
-            notes.append(check_note(path, run_commands))
-    return CorpusResult(roots=roots, notes=notes, run_commands=run_commands)
+            notes.append(check_note(path, run_commands, check_remotes))
+    return CorpusResult(
+        roots=roots,
+        notes=notes,
+        run_commands=run_commands,
+        check_remotes=check_remotes,
+    )
