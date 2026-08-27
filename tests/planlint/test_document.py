@@ -238,6 +238,34 @@ class TableTest(unittest.TestCase):
 
         self.assertEqual(doc.conditional_tasks, {"CCC-1", "CCC-2"})
 
+    def test_track_table_maps_the_track_name_to_its_identifier_prefixes(self):
+        """Section 7.1's worktree-name column is the plan's TRACK NAME, and the
+        prefix column beside it is the identifier prefix. `nmg2-board` and
+        `BRD` are one row, so `board` is the track whose prefix is `BRD` —
+        the mapping a raw-string prefix comparison cannot reconstruct.
+        """
+        doc = PlanDocument.from_text(
+            "### 7.1 The tracks\n"
+            "\n"
+            "| Track | Worktree name | Repository | Task prefix |\n"
+            "|---|---|---|---|\n"
+            "| 1 | `nmg2-spike` | none — a scratch directory | `SPK`, `OP` |\n"
+            "| 5 | `nmg2-board` | `gearmulator` fork | `BRD` |\n"
+            "| 7 | `nmg2-dsp` | `gearmulator` fork, `dsp56300` fork | `DSP`, `UP` |\n"
+            "| **14** | **`nmg2-usbhost`** | **`mcf5307`** | **`USB`** |\n",
+            name="inline",
+        )
+
+        self.assertEqual(
+            doc.track_prefixes,
+            {
+                "spike": ("SPK", "OP"),
+                "board": ("BRD",),
+                "dsp": ("DSP", "UP"),
+                "usbhost": ("USB",),
+            },
+        )
+
     def test_repository_table_is_read(self):
         doc = load_fixture("clean_plan.md")
 

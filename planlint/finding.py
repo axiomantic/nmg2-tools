@@ -32,6 +32,18 @@ class LintResult:
     findings: list
     examined: int
     examined_label: str = "inputs"
+    notice: str = ""
+    """A line printed under the report, on a clean run as well as a dirty one.
+
+    It carries what the run's own findings cannot say: which of the checks a
+    lint OWES its reader it actually decided. A report silent about a check
+    reads exactly like one in which that check passed, and `cli` already
+    applies that reasoning one level up to a lint the default run leaves out.
+
+    A notice changes the report's WORDING and never `failed`. Scoring it would
+    change what `if planlint; then` means for every existing caller, which is a
+    separate decision from making a gap visible.
+    """
 
     @property
     def failed(self):
@@ -41,8 +53,12 @@ class LintResult:
 
     def report(self):
         """A human-readable report: task, section, evidence, and the rule."""
+        tail = f"  {self.notice}\n" if self.notice else ""
         if not self.findings:
-            return f"{self.name}: clean ({self.examined} {self.examined_label} examined)\n"
+            return (
+                f"{self.name}: clean ({self.examined} {self.examined_label} "
+                f"examined)\n{tail}"
+            )
         head = (
             f"{self.name}: {len(self.findings)} finding(s) "
             f"({self.examined} {self.examined_label} examined)\n"
@@ -62,10 +78,10 @@ class LintResult:
             body.append(f"      {f.message}")
             if f.evidence:
                 body.append(f"      evidence: {f.evidence}")
-        return head + "\n".join(body) + "\n"
+        return head + "\n".join(body) + "\n" + tail
 
 
-def guard_no_input(name, findings, examined, label, noun):
+def guard_no_input(name, findings, examined, label, noun, notice=""):
     """Turn 'nothing to check' into a hard error, never a pass."""
     if examined == 0:
         findings = list(findings) + [
@@ -75,4 +91,10 @@ def guard_no_input(name, findings, examined, label, noun):
                 severity=ERROR,
             )
         ]
-    return LintResult(name=name, findings=findings, examined=examined, examined_label=label)
+    return LintResult(
+        name=name,
+        findings=findings,
+        examined=examined,
+        examined_label=label,
+        notice=notice,
+    )

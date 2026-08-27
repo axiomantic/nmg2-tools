@@ -12,6 +12,51 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(result.report(), "graph: clean (207 task blocks examined)\n")
         self.assertFalse(result.failed)
 
+    def test_a_notice_is_printed_under_a_clean_result(self):
+        """A clean run is where a coverage notice matters most: a report
+        silent about what a lint decides reads exactly like one in which the
+        lint decided everything."""
+        result = guard_no_input(
+            "secondwrite", [], 242, "task bodies", "second-write lint",
+            notice="COVERAGE: 4 of 5 tests decided.",
+        )
+
+        self.assertEqual(
+            result.report(),
+            "secondwrite: clean (242 task bodies examined)\n"
+            "  COVERAGE: 4 of 5 tests decided.\n",
+        )
+        self.assertFalse(result.failed)
+
+    def test_a_notice_is_printed_under_a_report_that_carries_findings(self):
+        result = guard_no_input(
+            "secondwrite",
+            [Finding(rule="r", message="m")],
+            242, "task bodies", "second-write lint",
+            notice="COVERAGE: 4 of 5 tests decided.",
+        )
+
+        self.assertEqual(
+            result.report(),
+            "secondwrite: 1 finding(s) (242 task bodies examined)\n"
+            "  [ERROR] r\n"
+            "      m\n"
+            "  COVERAGE: 4 of 5 tests decided.\n",
+        )
+        self.assertTrue(result.failed)
+
+    def test_a_notice_does_not_reach_the_verdict(self):
+        """A notice changes the report's WORDING and never its exit code.
+        Scoring it would change what `if planlint; then` means for every
+        existing caller, which is a separate decision from making a gap
+        visible."""
+        result = guard_no_input(
+            "secondwrite", [], 242, "task bodies", "second-write lint",
+            notice="COVERAGE: 4 of 5 tests decided.",
+        )
+
+        self.assertFalse(result.failed)
+
     def test_a_finding_with_a_line_prints_the_line(self):
         result = guard_no_input(
             "graph",

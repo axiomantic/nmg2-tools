@@ -78,6 +78,71 @@ def track_of(ident):
     return ident.partition("-")[0]
 
 
+# A Repository cell names its repositories in prose: `mcf5307`, the
+# `gearmulator` fork, `axiomantic/mcf5307`, and lists of those joined by commas
+# and by `and`. An em dash opens an annotation about the list and never a name.
+REPOSITORY_SPLIT = re.compile(r",| and ")
+
+
+def repository_names(text):
+    """Every repository a cell names, in the one spelling both tables share.
+
+    Section 7.1's Repository column and section 7.4.2's name the same
+    repository two ways — `` `gearmulator` fork `` and `gearmulator` — so a
+    comparison of the cells as written matches nothing, and the pair key
+    section 7.4.2 states would never resolve. The `fork` is which COPY of a
+    repository the row means, and both tables carry it or neither does; it is
+    dropped from both sides rather than from one.
+
+    A cell that names no repository at all — `all seven repositories`, `the
+    workspace, outside every repository` — yields its prose, which matches no
+    track's cell and leaves the query to fall back on the path alone.
+    """
+    names = set()
+    for piece in REPOSITORY_SPLIT.split(strip_markup(text).lower()):
+        piece = piece.split(EM_DASH)[0].strip()
+        piece = piece.removeprefix("the ").strip().removesuffix(" fork").strip()
+        if piece:
+            names.add(piece)
+    return names
+
+
+# A section 7.4.2 row whose PATH cell names several paths may bind an owner
+# PER PATH: `CPU-10 for machine.nim and cpu.nim; CPU-6 for decode_types.nim`.
+# The clauses are separated by semicolons and each opens with the identifier it
+# binds. The two grammars this cell can carry are told apart by `for <path>`
+# and by nothing else.
+OWNER_BINDING = re.compile(r"\b([A-Z]{2,6}-\d+) +for +(.+)")
+
+# A path token inside a binding: a name carrying a dot, with whatever directory
+# part the cell chose to spell.
+BOUND_PATH = re.compile(r"[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.[A-Za-z0-9_]+")
+
+
+def bound_owner(cell, path):
+    """The identifier an owner cell binds to `path`, or `None`.
+
+    A binding names the path as the CELL spells it — a basename, or a tail
+    with directories — so the comparison is exact-or-tail. The tail must start
+    at a `/`, because `logic.nim` is a substring of `tests/t_logic.nim` and
+    names a different file; section 7.4.2 records that trap for a basename
+    grep of its own table.
+
+    `None` means the cell states no binding for this path, and the caller
+    keeps first-identifier-wins, which is the OTHER grammar the cell can
+    carry: `DSP-0, with DSP-1 as the one declared second writer`.
+    """
+    for clause in cell.split(";"):
+        found = OWNER_BINDING.search(clause)
+        if found is None:
+            continue
+        for token in BOUND_PATH.findall(found.group(2)):
+            for spelling in (token, canonical_path(token)):
+                if path == spelling or path.endswith("/" + spelling):
+                    return found.group(1)
+    return None
+
+
 def expand_files_items(items):
     """A `Files:` list with rules B and C applied, in order.
 
@@ -401,6 +466,27 @@ class FixtureRow:
 
 
 @dataclasses.dataclass(frozen=True)
+class OwnerRow:
+    """One row of section 7.4.2, keyed on the (repository, path) PAIR.
+
+    The section says why in its own preamble: the same repository-relative
+    path names DIFFERENT files in different repositories, and `CMakeLists.txt`
+    carries two rows that "never merge". A table read into a dict keyed on the
+    path alone lets the second row overwrite the first, and every query then
+    answers with one repository's owner for both files.
+
+    `mechanism` is `None` when the TABLE carries no mechanism column at all
+    and an empty string when the column is present and the cell is empty. The
+    outside-class rule reads the difference: silence is not a refusal.
+    """
+
+    path: str
+    repositories: frozenset
+    cell: str
+    mechanism: object
+
+
+@dataclasses.dataclass(frozen=True)
 class SubstituteRow:
     """One row of the section 1.5 tier-substitute table.
 
@@ -543,10 +629,10 @@ class PlanDocument:
         self.conditional_tasks = set()
         self.repositories = {}
         self.track_repositories = {}
+        self.track_prefixes = {}
         self.fixture_register = []
         self.substitute_register = []
-        self.owned_paths = {}
-        self.owner_mechanisms = {}
+        self.owner_rows = []
         self.cross_track_edges = []
         self.cross_track_table = []
         self.done_markers = []
@@ -802,10 +888,22 @@ class PlanDocument:
             repositories = tuple(
                 strip_markup(name).strip() for name in cells[2].split(",")
             )
-            for prefix in cells[3].split(","):
-                prefix = strip_markup(prefix).strip()
-                if prefix:
-                    self.track_repositories[prefix] = repositories
+            prefixes = tuple(
+                prefix
+                for prefix in (
+                    strip_markup(text).strip() for text in cells[3].split(",")
+                )
+                if prefix
+            )
+            for prefix in prefixes:
+                self.track_repositories[prefix] = repositories
+            # The worktree-name column carries the TRACK NAME the plan's prose
+            # writes — `nmg2-board` for the track a `BRD-` task is of. The
+            # `nmg2-` stem is the worktree convention and not part of the name.
+            name = strip_markup(cells[1]).strip().lower()
+            name = name[len("nmg2-"):] if name.startswith("nmg2-") else name
+            if name and prefixes:
+                self.track_prefixes[name] = prefixes
 
     def _read_conditional_table(self, body):
         for _, cells in body:
@@ -868,13 +966,23 @@ class PlanDocument:
         The mechanism column is found by its HEADER TEXT and never by
         position: the plan writes the table with a repository column between
         owner and mechanism, and a fixture writes it without. A fixed ordinal
-        reads the wrong cell in one of the two shapes.
+        reads the wrong cell in one of the two shapes. The REPOSITORY column
+        is found the same way and for the same reason, and it is the first
+        half of the key section 7.4.2 says this table is keyed on.
         """
         mechanism_index = next(
             (
                 index
                 for index, name in enumerate(header)
                 if name.startswith("the mechanism")
+            ),
+            None,
+        )
+        repository_index = next(
+            (
+                index
+                for index, name in enumerate(header)
+                if name == "repository"
             ),
             None,
         )
@@ -889,49 +997,83 @@ class PlanDocument:
                 if mechanism_index is not None and len(cells) > mechanism_index
                 else None
             )
+            repositories = (
+                frozenset(repository_names(cells[repository_index]))
+                if repository_index is not None and len(cells) > repository_index
+                else frozenset()
+            )
             for path in backticked(cells[0]):
-                path = canonical_path(path)
-                self.owned_paths[path] = strip_markup(cells[1])
-                self.owner_mechanisms[path] = mechanism
+                self.owner_rows.append(
+                    OwnerRow(
+                        path=canonical_path(path),
+                        repositories=repositories,
+                        cell=strip_markup(cells[1]),
+                        mechanism=mechanism,
+                    )
+                )
 
-    def owner_cell(self, path):
-        """The section 7.4.2 owner cell for a path, as written, or `None`.
+    def owner_row(self, path, repositories=None):
+        """The section 7.4.2 row that owns a path, or `None`.
 
-        A row whose path ends in `/` is a DIRECTORY row and owns every path
-        beneath it — section 7.4.2 says so, and `g2JucePlugin/` and
-        `g2TestConsole/` are the two that rely on it. A file row owns exactly
-        the path it names, and it WINS over a directory row that also covers
-        the path, because it is the more specific statement.
+        The table is keyed on the (repository, path) PAIR, so a caller that
+        knows which repository it is asking about — the repositories the
+        writing task's track names, out of section 7.1 — gets that
+        repository's row. `CMakeLists.txt` carries two rows the section calls
+        "a different file ... in a different repository, and the two never
+        merge", and a lookup on the path alone answers both with whichever was
+        parsed last.
+
+        A repository that matches no row leaves the pair unresolved and the
+        PATH alone answers, which is what a Repository cell stating prose —
+        `all seven repositories`, `the workspace, outside every repository` —
+        needs. Refusing to answer there would report section 7.4.2 as holding
+        no row for a path it holds a row for.
+
+        Within either pass: a row whose path ends in `/` is a DIRECTORY row
+        and owns every path beneath it, the LONGEST such prefix winning, and a
+        file row WINS over any directory row because it is the more specific
+        statement. Later rows win over earlier ones, as the dict this replaced
+        did.
         """
-        if path in self.owned_paths:
-            return self.owned_paths[path]
-        for owned, cell in self.owned_paths.items():
-            if owned.endswith("/") and path.startswith(owned):
-                return cell
+        wanted = set()
+        for name in repositories or ():
+            wanted |= repository_names(name)
+        for rows in (
+            [row for row in self.owner_rows if row.repositories & wanted],
+            self.owner_rows,
+        ):
+            exact = [row for row in rows if row.path == path]
+            if exact:
+                return exact[-1]
+            covering = [
+                row
+                for row in rows
+                if row.path.endswith("/") and path.startswith(row.path)
+            ]
+            if covering:
+                return max(covering, key=lambda row: len(row.path))
         return None
 
-    def has_owner(self, path):
-        """Whether section 7.4.2 names an owner for a path."""
-        return self.owner_cell(path) is not None
+    def owner_cell(self, path, repositories=None):
+        """The section 7.4.2 owner cell for a path, as written, or `None`."""
+        row = self.owner_row(path, repositories)
+        return None if row is None else row.cell
 
-    def mechanism_cell(self, path):
+    def has_owner(self, path, repositories=None):
+        """Whether section 7.4.2 names an owner for a path."""
+        return self.owner_row(path, repositories) is not None
+
+    def mechanism_cell(self, path, repositories=None):
         """The section 7.4.2 mechanism cell for a path, or `None`.
 
-        The lookup mirrors `owner_cell` exactly — file row over directory row,
-        a `/`-suffixed row owning every path beneath it, and the caller
-        supplies a CANONICAL path just as `owner_cell` expects — so the two
-        answers always come from the SAME row. A class read from one row and
-        an owner read from another would adjudicate a marker against prose
-        written for a different path.
+        Read off the SAME row `owner_cell` answers from. A class read from one
+        row and an owner read from another would adjudicate a marker against
+        prose written for a different file.
         """
-        if path in self.owner_mechanisms:
-            return self.owner_mechanisms[path]
-        for owned, mechanism in self.owner_mechanisms.items():
-            if owned.endswith("/") and path.startswith(owned):
-                return mechanism
-        return None
+        row = self.owner_row(path, repositories)
+        return None if row is None else row.mechanism
 
-    def owner_of(self, path):
+    def owner_of(self, path, repositories=None):
         """The task section 7.4.2 names as the OWNER of a path, or `None`.
 
         The owner is the FIRST identifier in the cell, and every later one is a
@@ -945,14 +1087,23 @@ class PlanDocument:
         Section 7.4.2 carries several — `the plugin track`, `the operator`,
         `append only` — so the answer is `None` and the caller keeps whatever
         reading it holds for a path the document leaves unowned.
+
+        A MULTI-PATH row may bind an owner per path, and `bound_owner` reads
+        those bindings. First-identifier-wins then applies only where the cell
+        states no binding for the path asked about: taking the first name out
+        of a cell that names three told CPU-10 its own marker was wrong
+        through a row whose second clause names CPU-10.
         """
-        cell = self.owner_cell(path)
+        cell = self.owner_cell(path, repositories)
         if cell is None:
             return None
-        found = IDENT.search(cell)
-        if not found or not self.has_task(found.group(1)):
+        ident = bound_owner(cell, path)
+        if ident is None:
+            found = IDENT.search(cell)
+            ident = found.group(1) if found else None
+        if ident is None or not self.has_task(ident):
             return None
-        return self.task(found.group(1))
+        return self.task(ident)
 
     def _read_cross_track_table(self, body, section):
         """Section 7.3: `A -> B, C; D -> E` is three edges, not two tokens.

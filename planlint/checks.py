@@ -617,8 +617,8 @@ def _shared_paths(doc):
 
     A path every writer marks therefore has no claimant here and this rule says
     nothing about it. Section 7.4.2 gives that case to
-    `second-write-no-owner-row` and `manifest-without-creator`, which this tool
-    does not implement.
+    `second-write-no-owner-row` and `manifest-without-creator`, which
+    `secondwrite` decides.
     """
     claims = {}
     for task in doc.tasks:

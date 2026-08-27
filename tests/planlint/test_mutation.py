@@ -132,9 +132,13 @@ DOCUMENT_RULES = frozenset(
         "done-marker-citation-not-in-form",
         "done-marker-path-uncited",
         # secondwrite
+        "manifest-without-creator",
         "second-write-class-undecided",
         "second-write-no-owner-row",
         "second-write-outside-class",
+        "second-write-outside-closure",
+        "second-write-owner-undecided",
+        "second-write-wrong-owner",
         # removed
         "check-predicate-removed-by-default-build",
         "check-verdict-rests-on-an-assertion-not-firing",
@@ -568,7 +572,10 @@ MUTATIONS = [
         "a marked entry whose path carries no owner row",
         "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
         "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `g2Lib/eta_hook.h@CCC-1`, `tests/tests_core.cmake`",
-        {"second-write-no-owner-row"},
+        # Test 5 speaks too, and truthfully: the ONLY entry for the marked
+        # path in the mutant document is the marked one, so nothing creates
+        # the file. Two true statements about one edit.
+        {"second-write-no-owner-row", "manifest-without-creator"},
     ),
     (
         # One contiguous replacement adds BOTH the marked entry and the
@@ -584,7 +591,9 @@ MUTATIONS = [
         "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `g2Lib/classless.h@CCC-1`, `tests/tests_core.cmake`\n"
         "| Path | Owner | The mechanism for everybody else |\n|---|---|---|\n"
         "| `g2Lib/classless.h` | **CCC-1** | Ask CCC-1 before editing. |",
-        {"second-write-outside-class"},
+        # And test 5, for the same reason as the mutation above: the marked
+        # entry is the only entry naming the path, so it has no creator.
+        {"second-write-outside-class", "manifest-without-creator"},
     ),
     (
         # EEE-1's Files line gains the marked entry. The tests_core owner
@@ -599,6 +608,56 @@ MUTATIONS = [
         "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
         "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake@AAA-1`",
         {"second-write-class-undecided"},
+    ),
+    (
+        # Condition-10 TEST 2. The row names AAA-1 the owner of
+        # `tests/tests_core.cmake` and the marker names AAA-2, which the row
+        # carries as a declared SECOND WRITER. AAA-2 is inside EEE-1's closure
+        # and claims the path bare, so tests 3 and 5 stay silent and the wrong
+        # owner is what this edit injects.
+        "a marked entry naming a declared second writer instead of the owner",
+        "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake@AAA-2`",
+        {"second-write-wrong-owner", "second-write-class-undecided"},
+    ),
+    (
+        # Condition-10 TEST 3. AAA-1 declares no dependency at all, so its
+        # closure is itself alone and the owner of `testdata/shared.json` is
+        # outside it. The marker names that row's real owner, so test 2 stays
+        # silent, and AAA-2 and DDD-1 both claim the path bare, so test 5 does.
+        "a marked entry whose owner the writer does not wait on",
+        "Files: `tests/CMakeLists.txt`, `tests/t0_alpha.cpp`",
+        "Files: `tests/CMakeLists.txt`, `testdata/shared.json@AAA-2`, `tests/t0_alpha.cpp`",
+        {"second-write-outside-closure", "second-write-class-undecided"},
+    ),
+    (
+        # Condition-10 TEST 5. The directory row `g2Lib/test/` owns the marked
+        # path, so test 1 is satisfied; AAA-1 is that row's owner and is inside
+        # EEE-1's closure, so tests 2 and 3 are too. What no task's `Files:`
+        # line does is claim the path BARE, so nothing creates the manifest the
+        # marker declares a write into.
+        "a marked entry whose path no task claims bare",
+        "Files: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "Files: `tests/t0_eta.cpp`, `g2Lib/test/orphan.cmake@AAA-1`, `tests/tests_core.cmake`",
+        {"manifest-without-creator", "second-write-class-undecided"},
+    ),
+    (
+        # Condition-10 TEST 2's UNDECIDED branch. One contiguous replacement
+        # adds both the marked entry and a row whose owner cell names no task
+        # block — section 7.4.2 really carries cells like `the operator` — so
+        # the comparison test 2 makes cannot be made. It is ANNOUNCED and never
+        # passed. Test 5 speaks as well, because the marked entry is the only
+        # entry naming the path.
+        "a marked entry whose owner row names no task block",
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `tests/tests_core.cmake`",
+        "**EEE-1 · The late gate** — T0\nFiles: `tests/t0_eta.cpp`, `g2Lib/opaque.h@AAA-1`, `tests/tests_core.cmake`\n"
+        "| Path | Owner |\n|---|---|\n"
+        "| `g2Lib/opaque.h` | the operator |",
+        {
+            "second-write-owner-undecided",
+            "second-write-class-undecided",
+            "manifest-without-creator",
+        },
     ),
     # ---------------------------------------------------------------- removed
     (
@@ -871,10 +930,10 @@ class RuleCoverageTest(unittest.TestCase):
         self.assertEqual(sorted(self.covered() - rules_the_lints_emit()), [])
 
     def test_the_mutation_count_is_the_one_this_file_carries(self):
-        self.assertEqual(len(MUTATIONS), 64)
+        self.assertEqual(len(MUTATIONS), 68)
 
     def test_the_rule_count_is_the_one_the_review_measured(self):
-        self.assertEqual(len(rules_the_lints_emit()), 64)
+        self.assertEqual(len(rules_the_lints_emit()), 68)
 
     def test_every_document_lint_owns_at_least_one_covered_rule(self):
         modules = {
