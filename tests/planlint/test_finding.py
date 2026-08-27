@@ -2,7 +2,14 @@
 
 import unittest
 
-from planlint.finding import ERROR, WARNING, Finding, guard_no_input
+from planlint.finding import (
+    ERROR,
+    INFO,
+    WARNING,
+    Finding,
+    LintResult,
+    guard_no_input,
+)
 
 
 class ReportTest(unittest.TestCase):
@@ -107,6 +114,104 @@ class ReportTest(unittest.TestCase):
         )
 
         self.assertTrue(result.failed)
+
+
+class CollapsedReportTest(unittest.TestCase):
+    """`report(full=False)`: every ERROR in full, one line per lower-severity
+    rule with its count, and the flag that prints the rest."""
+
+    def result(self, findings):
+        return LintResult(
+            name="checks",
+            findings=findings,
+            examined=300,
+            examined_label="Check: blocks",
+        )
+
+    def test_full_is_the_default_so_no_existing_caller_changes(self):
+        """`freshness` renders the same class and never asked for a collapse.
+        The default is the report every existing caller already gets."""
+        result = self.result([Finding(rule="r", message="m", severity=WARNING)])
+
+        self.assertEqual(result.report(), result.report(full=True))
+        self.assertIn("      m\n", result.report())
+
+    def test_the_collapse_prints_the_error_in_full_and_the_warning_as_a_count(self):
+        result = self.result(
+            [
+                Finding(rule="e", message="em", task="DSP-7", line=12),
+                Finding(rule="w", message="wm", task="T-1", severity=WARNING),
+                Finding(rule="w", message="wm", task="T-2", severity=WARNING),
+            ]
+        )
+
+        self.assertEqual(
+            result.report(full=False),
+            "checks: 3 finding(s) (300 Check: blocks examined)\n"
+            "  [ERROR] e  DSP-7  line 12\n"
+            "      em\n"
+            "  collapsed to one line per rule; --full-warnings prints every one:\n"
+            "    [WARNING] w  2\n",
+        )
+
+    def test_two_findings_alike_in_every_field_are_counted_twice(self):
+        """`Finding` is a frozen dataclass, so two findings that differ in no
+        field are EQUAL. A collapse that partitioned by identity against a
+        list would drop one of a duplicated pair and under-count in silence."""
+        twin = Finding(rule="w", message="m", severity=WARNING)
+        result = self.result([twin, twin])
+
+        self.assertEqual(result.collapsed_counts(), [(WARNING, "w", 2)])
+
+    def test_a_severity_below_warning_collapses_under_its_own_severity(self):
+        """The collapse is `severity != ERROR` and not `severity == WARNING`,
+        so a rule that starts emitting INFO does not silently print in full."""
+        result = self.result(
+            [
+                Finding(rule="w", message="m", severity=WARNING),
+                Finding(rule="i", message="m", severity=INFO),
+                Finding(rule="i", message="m", severity=INFO),
+            ]
+        )
+
+        self.assertEqual(
+            result.collapsed_counts(), [(WARNING, "w", 1), (INFO, "i", 2)]
+        )
+        self.assertIn("    [INFO] i  2\n", result.report(full=False))
+
+    def test_the_collapse_never_reaches_the_verdict(self):
+        """Collapsing changes the report's WORDING and never `failed`."""
+        result = self.result([Finding(rule="w", message="m", severity=WARNING)])
+        result.report(full=False)
+
+        self.assertTrue(result.failed)
+
+    def test_a_notice_is_still_printed_under_a_collapsed_report(self):
+        """A coverage notice says which checks a lint DECIDED. Losing it under
+        the collapse would trade one silence for another."""
+        result = LintResult(
+            name="secondwrite",
+            findings=[Finding(rule="w", message="m", severity=WARNING)],
+            examined=242,
+            examined_label="task bodies",
+            notice="COVERAGE: 4 of 5 tests decided.",
+        )
+
+        self.assertTrue(result.report(full=False).endswith(
+            "  COVERAGE: 4 of 5 tests decided.\n"
+        ))
+
+    def test_a_clean_result_reads_the_same_in_both_modes(self):
+        result = guard_no_input("graph", [], 207, "task blocks", "graph lint")
+
+        self.assertEqual(result.report(full=False), result.report(full=True))
+
+    def test_a_result_with_only_errors_reads_the_same_in_both_modes(self):
+        """Nothing to collapse means no collapse line. A report that announced
+        a collapse of nothing would be furniture."""
+        result = self.result([Finding(rule="e", message="m")])
+
+        self.assertEqual(result.report(full=False), result.report(full=True))
 
 
 if __name__ == "__main__":

@@ -11,10 +11,12 @@ import pathlib
 import re
 import tempfile
 import unittest
+from unittest import mock
 
 from tests.planlint.support import fixture_path
 
-from planlint import cli
+from planlint import cli, finding
+from planlint.finding import WARNING, Finding, LintResult
 
 PACKAGE = pathlib.Path(cli.__file__).resolve().parent
 
@@ -559,6 +561,227 @@ class LintOrdinalTest(unittest.TestCase):
             sorted(claimed.values()),
             list(range(1, len(cli.discover_lint_modules()) + 1)),
         )
+
+
+class WarningCollapseTest(unittest.TestCase):
+    """The default report collapses every severity below ERROR to one line per
+    rule, and `--full-warnings` prints the lines it collapsed.
+
+    The measured reason for the collapse, and the reason it goes this
+    direction only: one run over the plan reported 121 ERROR and 667 WARNING,
+    three warning rules produced 573 of the 667, and two ERRORs naming a check
+    that could not fail sat unread in the tail for months. Collapsing is a
+    change to the REPORT. No rule is re-scoped, nothing is dropped from
+    `findings`, and the exit code is what it always was.
+    """
+
+    # A finding line printed in full sits at two spaces. A collapsed summary
+    # line sits at four and carries a count. The two indents make the patterns
+    # non-overlapping, so a line counted by one is never seen by the other.
+    FULL_LINE = re.compile(r"^  \[WARNING\] (?P<rule>\S+)")
+    SUMMARY_LINE = re.compile(r"^    \[WARNING\] (?P<rule>\S+)  (?P<count>\d+)$")
+
+    # A fixture whose warnings are more than one rule and more than one finding
+    # per rule: 6 of one and 3 of the other. A fixture with one warning would
+    # let a summary that printed the finding itself pass as a collapse.
+    FIXTURE = "neg_gate_dispositions.md"
+
+    def full_report_counts(self, text):
+        """{rule: printed finding lines}, read off a FULL report.
+
+        Derived by COUNTING lines. Nothing here reads a stated number, so this
+        side cannot inherit an error from the summary it is compared against.
+        """
+        counts = {}
+        for line in text.splitlines():
+            match = self.FULL_LINE.match(line)
+            if match:
+                counts[match.group("rule")] = counts.get(match.group("rule"), 0) + 1
+        return counts
+
+    def summary_counts(self, text):
+        """{rule: the number the summary STATES}, read off a COLLAPSED report.
+
+        Derived by PARSING a stated number. Nothing here counts findings, so
+        this side cannot inherit a count from the full report.
+        """
+        counts = {}
+        for line in text.splitlines():
+            match = self.SUMMARY_LINE.match(line)
+            if match:
+                counts[match.group("rule")] = int(match.group("count"))
+        return counts
+
+    def assert_collapse_is_lossless(self, fixture):
+        """The two sides agree, each derived from its OWN rendering.
+
+        This is the assertion the planted-undercount test below turns red, and
+        it is reached through this one method so that the planted case and the
+        live case cannot drift apart.
+        """
+        plan = str(fixture_path(fixture))
+        _, collapsed = run(["--plan", plan])
+        _, full = run(["--plan", plan, "--full-warnings"])
+
+        stated = self.summary_counts(collapsed)
+        printed = self.full_report_counts(full)
+
+        self.assertTrue(printed, "the fixture reported no warning at all")
+        self.assertEqual(stated, printed)
+
+    def test_the_collapse_states_the_number_of_lines_the_full_report_prints(self):
+        self.assert_collapse_is_lossless(self.FIXTURE)
+
+    def test_the_collapse_is_lossless_on_a_single_rule_with_many_findings(self):
+        self.assert_collapse_is_lossless("neg_removed_exclusions.md")
+
+    def test_a_summary_that_under_counts_one_rule_turns_the_losslessness_red(self):
+        """The planted failure.
+
+        Without this, a green losslessness test proves only that the run was
+        quiet. One finding is removed from what the summary counts — the
+        smallest possible under-count, and the shape a collapse actually fails
+        in — and the assertion above must reach a caller as a failure.
+        """
+        honest = LintResult.collapsed_counts
+
+        def under_counting(result):
+            rows = honest(result)
+            return [
+                (severity, rule, count - 1 if index == 0 else count)
+                for index, (severity, rule, count) in enumerate(rows)
+            ]
+
+        with mock.patch.object(
+            LintResult, "collapsed_counts", under_counting
+        ), self.assertRaises(AssertionError):
+            self.assert_collapse_is_lossless(self.FIXTURE)
+
+    def test_the_planted_under_count_is_the_only_thing_that_changed(self):
+        """The control for the test above: with the patch lifted, the same
+        call passes. A planted failure that left the fixture broken would turn
+        the assertion red for a reason that is not the plant."""
+        self.assert_collapse_is_lossless(self.FIXTURE)
+
+    def test_the_collapsed_report_names_the_flag_that_prints_the_rest(self):
+        """A reader who cannot see how to expand is looking at suppression
+        whatever the code calls it. The flag is named in the lint's own block
+        AND once for the run."""
+        _, text = run(["--plan", str(fixture_path(self.FIXTURE))])
+
+        self.assertIn(
+            "collapsed to one line per rule; --full-warnings prints every one:",
+            text,
+        )
+        self.assertIn(
+            "NOTE: 9 findings below ERROR collapsed to 2 rules. Nothing was "
+            "suppressed: --full-warnings prints every one.",
+            text,
+        )
+
+    def test_the_flag_the_report_names_is_a_flag_the_parser_accepts(self):
+        """The sentence a reader acts on and the argument the parser registers
+        are the SAME constant. A report naming a flag the parser rejects would
+        be suppression that reads as recovery."""
+        actions = {
+            option
+            for action in cli.build_parser()._actions
+            for option in action.option_strings
+        }
+
+        self.assertIn(finding.RECOVERY_FLAG, actions)
+        self.assertIn(finding.RECOVERY_FLAG, "--full-warnings")
+
+    def test_every_error_is_printed_in_full_in_both_modes(self):
+        """The collapse goes one direction only. The ERRORs are the findings
+        the noise was hiding, so a mode that collapsed them would undo the
+        whole change."""
+        plan = str(fixture_path(self.FIXTURE))
+        _, collapsed = run(["--plan", plan])
+        _, full = run(["--plan", plan, "--full-warnings"])
+
+        def errors(text):
+            return [
+                line
+                for line in text.splitlines()
+                if line.startswith("  [ERROR] ")
+            ]
+
+        self.assertTrue(errors(collapsed))
+        self.assertEqual(errors(collapsed), errors(full))
+
+    def test_the_head_line_states_the_whole_count_in_both_modes(self):
+        """The per-lint head says how many findings the lint reported, not how
+        many lines the report chose to print. A head that counted printed
+        lines would make the collapse read as a smaller result."""
+        plan = str(fixture_path(self.FIXTURE))
+        _, collapsed = run(["--plan", plan])
+        _, full = run(["--plan", plan, "--full-warnings"])
+
+        self.assertEqual(section_line(collapsed, "gate"), section_line(full, "gate"))
+        self.assertIn("finding(s)", section_line(collapsed, "gate"))
+
+
+class CollapseExitCodeTest(unittest.TestCase):
+    """The collapse changes the report's WORDING and never its exit code.
+
+    `cli`'s own docstring reasons this way about a SKIPPED lint: scoring it
+    would change what `if planlint; then` means for every existing caller,
+    which is a separate decision from making the skip visible. The same
+    reasoning binds here.
+    """
+
+    def assert_same_code(self, argv, expected):
+        collapsed, _ = run(argv)
+        full, _ = run([*argv, "--full-warnings"])
+
+        self.assertEqual(collapsed, expected)
+        self.assertEqual(full, expected)
+
+    def test_a_clean_plan_exits_zero_in_both_modes(self):
+        self.assert_same_code(["--plan", str(fixture_path("clean_plan.md"))], 0)
+
+    def test_a_plan_with_errors_and_warnings_exits_one_in_both_modes(self):
+        self.assert_same_code(
+            ["--plan", str(fixture_path("neg_gate_dispositions.md"))], 1
+        )
+
+    def test_a_warning_alone_still_exits_one_in_both_modes(self):
+        """A collapsed rule line is still a finding. A run whose only findings
+        were collapsed must not read as clean."""
+        result = LintResult(
+            name="checks",
+            findings=[Finding(rule="r", message="m", severity=WARNING)],
+            examined=1,
+        )
+
+        self.assertTrue(result.failed)
+        self.assertIn("[WARNING] r  1", result.report(full=False))
+
+    def test_an_invocation_error_exits_two_in_both_modes(self):
+        self.assert_same_code(["--plan", "/no/such/plan.md"], 2)
+
+    def test_the_skipped_notice_survives_the_collapse(self):
+        """Three lints skip without `--repo`/`--clone`, and the verdict names
+        them because a skipped lint is not a clean lint. The collapse notice
+        is a SEPARATE line and never edits the verdict."""
+        plan = str(fixture_path("clean_plan.md"))
+        expected = (
+            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
+            "payload, provenance). A skipped lint is not a clean lint."
+        )
+        for argv in ([], ["--full-warnings"]):
+            _, text = run(["--plan", plan, *argv])
+
+            self.assertEqual(result_line(text), expected)
+            self.assertIn("citations: SKIPPED — no --clone given", text)
+
+    def test_a_run_with_nothing_to_collapse_prints_no_collapse_notice(self):
+        """The notice reports a collapse that happened. Printing it over a
+        clean run would make it furniture a reader learns to skip."""
+        _, text = run(["--plan", str(fixture_path("clean_plan.md"))])
+
+        self.assertNotIn("NOTE:", text)
 
 
 if __name__ == "__main__":

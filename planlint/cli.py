@@ -29,6 +29,7 @@ from planlint import (
     citations,
     closure,
     counts,
+    finding,
     gate,
     graph,
     implicit,
@@ -252,6 +253,14 @@ def build_parser():
         "multiple times)",
     )
     parser.add_argument(
+        finding.RECOVERY_FLAG,
+        dest="full_warnings",
+        action="store_true",
+        help="print every finding below ERROR in full. The default report "
+        "prints every ERROR in full and collapses each lower severity to one "
+        "line per rule with its count; this prints the lines it collapsed.",
+    )
+    parser.add_argument(
         "--only",
         action="append",
         default=None,
@@ -331,6 +340,8 @@ def main(argv=None, stream=None):
     stream.write(f"          {len(doc.tasks)} task blocks parsed\n\n")
 
     failed = False
+    collapsed_findings = 0
+    collapsed_rules = 0
     for name in ALL_LINTS:
         if name in skipped:
             stream.write(
@@ -359,9 +370,25 @@ def main(argv=None, stream=None):
             result = payload.run(
                 args.repo, public=not args.private, register=doc.fixture_register
             )
-        stream.write(result.report())
+        stream.write(result.report(full=args.full_warnings))
         stream.write("\n")
         failed = failed or result.failed
+        if not args.full_warnings:
+            collapsed_findings += len(result.collapsible())
+            collapsed_rules += len(result.collapsed_counts())
+
+    # The collapse gets its own line and stays OFF the verdict line, so that
+    # `RESULT:` reads the same for a caller that greps it, and so that a
+    # reader who never opened a lint's section still learns the report is not
+    # everything the run found and how to get the rest.
+    if collapsed_findings:
+        noun = "finding" if collapsed_findings == 1 else "findings"
+        rule_noun = "rule" if collapsed_rules == 1 else "rules"
+        stream.write(
+            f"NOTE: {collapsed_findings} {noun} below ERROR collapsed to "
+            f"{collapsed_rules} {rule_noun}. Nothing was suppressed: "
+            f"{finding.RECOVERY_FLAG} prints every one.\n\n"
+        )
 
     # A skip changes the verdict's WORDING and never its exit code. Scoring it
     # would change what `if planlint; then` means for every existing caller,

@@ -16,6 +16,9 @@ python3 -m planlint.cli --plan <plan.md>
 # one lint
 python3 -m planlint.cli --plan <plan.md> --only implicit
 
+# every finding below ERROR printed in full, not collapsed to a count per rule
+python3 -m planlint.cli --plan <plan.md> --full-warnings
+
 # the artifact boundary, against a repository tree
 python3 -m planlint.cli --plan <plan.md> --repo <repository-path>
 python3 -m planlint.cli --plan <plan.md> --repo <path> --private
@@ -43,6 +46,29 @@ verdict then reads `SELECTED LINTS CLEAN` and never `ALL LINTS CLEAN`.
 `--private` is the right flag for a private repository: the boundary `payload`
 guards is the PUBLIC one, so its findings do not apply and it reports clean over
 the same file count.
+
+**Every ERROR prints in full; each lower severity collapses to one line per
+rule with its count. `--full-warnings` prints the lines the collapse counted.**
+The reason is measured. One run over the plan reported 121 ERROR and 667
+WARNING, and three warning rules produced 573 of the 667, each firing on 82% or
+more of its own population. Two ERRORs reading
+`check-predicate-removed-by-default-build` — a `Check:` predicate written as
+`assert()`, which `NDEBUG` removes from the default build, so the check reports
+PASS against a tree in which the property was never written — and three reading
+`test-file-never-invoked` sat unread in that tail for months, while an agent
+pass hand-swept another repository for the same defect class the tool had
+already reported five times. **The noise does not merely annoy; it hides the
+tool's own findings.**
+
+The collapse is a change to the REPORT and to nothing else. No rule is
+re-scoped, no finding leaves `findings`, and **the exit code is what it always
+was in both modes** — the same reasoning `cli` applies to a lint the default run
+leaves out: scoring it would change what `if planlint; then` means for every
+existing caller, which is a separate decision from making the report readable.
+Each collapsed block names `--full-warnings` on its own line, and the run prints
+one `NOTE:` line stating how many findings it collapsed into how many rules,
+because a reader who cannot see how to expand is looking at suppression whatever
+the code calls it.
 
 **The notice covers the DEFAULT run only.** `--only` reports just the lints it
 names and says nothing about the rest, because the caller's own command line is
