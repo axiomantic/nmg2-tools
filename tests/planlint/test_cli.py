@@ -402,6 +402,7 @@ class LintRegistryTest(unittest.TestCase):
                 "removed",
                 "rule9",
                 "secondwrite",
+                "selfcite",
                 "structure",
                 "tiers",
                 "waves",
@@ -538,6 +539,7 @@ class LintOrdinalTest(unittest.TestCase):
                 "removed": 15,
                 "rule9": 16,
                 "gate": 17,
+                "selfcite": 19,
             },
         )
 

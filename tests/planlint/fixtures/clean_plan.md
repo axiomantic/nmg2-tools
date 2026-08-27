@@ -184,3 +184,20 @@ assertion that has nothing to do with the edit.
 | **OPERATOR** | 1 | The task needs an outward action only the operator may take. | Nowhere automatic. The operator performs it and records the result. |
 | **deferred** | 1 | Listed, not scheduled. | Nowhere. A deferred task has no check to run. |
 | **upstream** | 1 | The check is a pull request against a repository this project does not own. | The upstream maintainer's own continuous integration. |
+
+## 24.7 The line-number citations
+
+The population the line-number citation lint reads. It sits at the BOTTOM for
+the reason section 1.5 above states: several tests assert a line number in this
+fixture, and a section added above them moves an assertion that has nothing to
+do with the edit. Every figure here is sound, so the clean document reports no
+finding; a mutation that moves a `Files:` line leaves a figure pointing at
+something else.
+
+A citation and its subject stay on ONE line here, which is the binding the lint
+requires; the figures themselves may wrap.
+
+Against the `Files:` lines of section 9:
+
+- `tests/t0_alpha.cpp` appears on **1** (line 98, AAA-1's own).
+- `tests/tests_core.cmake` appears on **5** (lines 104, 116, 122, 135, 141).
