@@ -466,3 +466,75 @@ def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
     for row in rows:
         counts[row.confidence] += 1
     assert sum(counts.values()) == 194
+
+
+# ---------------------------------------------------------------------------
+# Gated: the DELIVERABLE at its declared path.
+#
+# The test above drives the generator and asserts on the value it RETURNS. That
+# is not the same claim as "the module map exists and is the real map": a green
+# run of it says nothing about `module_map.csv`, and the file sat as a 78-byte
+# placeholder line through every green run this suite ever reported. The test
+# below closes that hole. It opens the declared path and holds the bytes it
+# finds against the descriptor table recovered from the firmware image, so a
+# placeholder, a truncated map and a stale map each fail it.
+#
+# The expectation is DERIVED, never written down here: the row count and every
+# descriptor-side column come from `sigscan.scan()` over the real image at run
+# time. A hardcoded table would pass against a stale map, which is the failure
+# this test exists to find.
+#
+# It reads two roots' worth of nothing extra -- both files live under
+# NMG2_ARTIFACTS -- and it hardcodes no Clavia-derived value, so §22.4 holds.
+# ---------------------------------------------------------------------------
+
+MODULE_MAP_NAME = "module_map.csv"
+CODE_IMAGE_NAME = "CODE_30000400.bin"
+CODE_IMAGE_BASE = 0x30000400
+
+
+@pytest.mark.artifacts(MODULE_MAP_NAME, CODE_IMAGE_NAME)
+def test_gated_written_module_map_matches_the_descriptor_table(artifacts_dir):
+    """`module_map.csv` at its declared path carries the real map: the exact
+    header, one row per recovered descriptor in descriptor-index order, and the
+    four descriptor-side columns equal to what the signature scan recovers."""
+    import csv as _csv
+    import os
+
+    from nmg2_tools.sigscan import scan
+
+    with open(os.path.join(artifacts_dir, CODE_IMAGE_NAME), "rb") as fh:
+        descriptors = scan(fh.read(), CODE_IMAGE_BASE)
+
+    with open(os.path.join(artifacts_dir, MODULE_MAP_NAME), newline="") as fh:
+        text = fh.read()
+
+    lines = text.splitlines()
+    assert lines[0] == ",".join(COLUMNS)
+
+    rows = list(_csv.DictReader(text.splitlines(True)))
+
+    # The descriptor side of the map, as the firmware gives it. Compared whole:
+    # a per-field spot check would let a shifted or stale column through.
+    expected = [
+        {
+            "descriptor_index": str(index),
+            "p_ptr": str(d.p_ptr),
+            "x_words": str(d.x_words),
+            "y_words": str(d.y_words),
+            "p_words": str(d.p_words),
+        }
+        for index, d in enumerate(descriptors)
+    ]
+    actual = [
+        {key: row[key] for key in
+         ("descriptor_index", "p_ptr", "x_words", "y_words", "p_words")}
+        for row in rows
+    ]
+    assert actual == expected
+
+    for row in rows:
+        assert set(row) == set(COLUMNS)
+        assert row["confidence"] in (
+            CONFIDENCE_EXACT, CONFIDENCE_DERIVED, CONFIDENCE_UNMAPPED
+        )
