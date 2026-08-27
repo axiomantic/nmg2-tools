@@ -160,6 +160,7 @@ class HouseFormTest(unittest.TestCase):
         self.assertEqual(
             carriers,
             [
+                "checksum.py",
                 "container.py",
                 "dsp56k_dis.py",
                 "flashimage.py",
@@ -167,6 +168,8 @@ class HouseFormTest(unittest.TestCase):
                 "pch2.py",
                 "pe.py",
                 "rsrc.py",
+                "sigscan.py",
+                "synth_pch2.py",
             ],
         )
         for name in carriers:

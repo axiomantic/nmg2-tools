@@ -9,6 +9,22 @@ base64. `nmg2_tools/testdata/pch2_synth/` is the only directory in any public
 repository of this project where a `*.pch2` file may live, and REPO-11's
 `no-clavia-payload` step enforces that.
 
+WHAT THIS FILE IS, because the licence makes it matter.
+
+`nmg2-tools` is MIT. The source of everything this generator writes is
+INTERNAL: design sections 15.7 and 15.3 are this project's own specification,
+and every choice those sections do not fix is listed below as AUTHORED HERE.
+Neither section is a third-party implementation, and no generator, parser or
+specification written by anyone else was consulted. No line of any other
+implementation is copied, transliterated or paraphrased here, because none was
+read.
+
+**This record is NOT a clean-room account and does not claim to be one.** A
+clean-room account describes a derivation made against a reference held at
+arm's length; here there is no reference. The claim stated just above -- that
+every byte of this corpus is authored by this project -- is the stronger one
+and it is the one that holds.
+
 THE CORPUS IS REGENERATED, NEVER HAND-EDITED. A fresh run of the generator
 reproduces every committed byte, so an edit made by hand cannot survive.
 

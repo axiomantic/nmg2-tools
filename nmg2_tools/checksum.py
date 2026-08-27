@@ -10,6 +10,21 @@ bytes and one over the plain bytes. Design section 7.3 step 3 verifies both.
 
 The value is a sum, so it does not depend on the order of the bytes. It detects
 a changed byte. It does not detect a permutation of the same bytes.
+
+WHAT THIS FILE IS, because the licence makes it matter.
+
+`nmg2-tools` is MIT. The source of the algorithm above is INTERNAL: design
+section 7.3 step 4 is this project's own specification, and it states the sum
+and the one's complement in its own words. That section is not a third-party
+implementation, and no implementation of this checksum by anyone else was
+consulted. No line of any other implementation is copied, transliterated or
+paraphrased here, because none was read.
+
+**This record is NOT a clean-room account and does not claim to be one.** A
+clean-room account describes a derivation made against a reference held at
+arm's length; here there is no reference. What the loader computes is a FACT
+about a data format, and the code below is this project's own expression of
+that fact.
 """
 
 from __future__ import annotations

@@ -51,6 +51,22 @@ blobs are stored 4 bytes per 24-bit word. Records with no X blob have
 
 No byte of any Clavia image is embedded here. The scanner is a pure function
 of the image bytes and the image's load address.
+
+WHAT THIS FILE IS, because the licence makes it matter.
+
+`nmg2-tools` is MIT. The source of the record layout above is INTERNAL: the
+logbook, ``AGENTS.md`` section 3.1, is this project's own note of which field
+sits at which offset, and design section 7.13 is this project's own
+specification of the scan. Neither is a third-party implementation, and no
+scanner written by anyone else was consulted. No line of any other
+implementation is copied, transliterated or paraphrased here, because none was
+read.
+
+**This record is NOT a clean-room account and does not claim to be one.** A
+clean-room account describes a derivation made against a reference held at
+arm's length; here there is no reference. The offsets are FACTS about a data
+format, and the search strategy below is this project's own expression of how
+to find them.
 """
 
 import struct
