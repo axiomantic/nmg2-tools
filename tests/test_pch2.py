@@ -326,3 +326,17 @@ def test_load_reads_a_file_from_disk(tmp_path):
     result = pch2.load(path)
 
     assert result == pch2.parse(image)
+
+
+# The codes the provenance record in `nmg2_tools/pch2.py` attributes to
+# observation rather than to design sections 15.7 and 18. The record names
+# them, and this constant is what makes the record's naming mechanical: a code
+# added to `ACCEPTED_OBJECT_TYPES` without a record, or a spec code the
+# synthesizer stops writing, moves the difference and reddens below.
+MEASURED_OBJECT_TYPES = frozenset({0x5A, 0x5B, 0x6F})
+
+
+def test_the_measured_codes_are_the_ones_the_provenance_record_names():
+    """`test_the_parser_accepts_every_object_type_the_generator_writes` above
+    holds the other direction: nothing the generator writes is refused."""
+    assert set(pch2.ACCEPTED_OBJECT_TYPES) - set(OBJECT_TYPES) == MEASURED_OBJECT_TYPES

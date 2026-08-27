@@ -1,5 +1,13 @@
 """The synthesized `.pch2` corpus generator. Task TOOL-12.
 
+WHAT THIS FILE IS, because the licence makes it matter.
+
+`nmg2-tools` is MIT. The framing and the CRC below are FACTS about the `.pch2`
+format, taken from design sections 15.7 and 15.3 and from nothing else. Facts
+are not copyrightable. No line of any other implementation that reads or writes
+`.pch2` -- g2ools among them -- is copied, transliterated or paraphrased here,
+and no Clavia byte is embedded in this file or in the corpus it writes.
+
 Design section 15.7 is the format specification. Design section 15.3 gives the
 CRC. This generator reads those two sections and NOTHING ELSE.
 

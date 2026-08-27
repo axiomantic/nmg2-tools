@@ -31,7 +31,9 @@ class GoodTreeTest(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertEqual(result.examined, 4)
         self.assertEqual(
-            result.examined_label, "files (0 excluded as the detector's own source)"
+            result.examined_label,
+            "files (0 excluded as the detector's own source, 0 excluded as "
+            "planted evidence)",
         )
 
     def test_the_good_tree_is_not_clean_by_examining_nothing(self):
@@ -160,6 +162,7 @@ class HouseFormTest(unittest.TestCase):
         self.assertEqual(
             carriers,
             [
+                "checksum.py",
                 "container.py",
                 "dsp56k_dis.py",
                 "flashimage.py",
@@ -167,11 +170,101 @@ class HouseFormTest(unittest.TestCase):
                 "pch2.py",
                 "pe.py",
                 "rsrc.py",
+                "sigscan.py",
+                "synth_pch2.py",
             ],
         )
         for name in carriers:
             with self.subTest(module=name):
                 self.assertEqual(provenance.record_defects(package / name), [])
+
+
+class SelfScanTest(unittest.TestCase):
+    """The lint held against the repository it ships in.
+
+    A lint that is red on its own tree is a lint whose own project does not
+    obey it, and until this test existed nothing read the two together: the
+    fixture trees are written to be red or green on purpose, and
+    `HouseFormTest` reads only the modules that already carry a record, so a
+    module that carries none was outside every test here.
+    """
+
+    def result(self):
+        import pathlib
+
+        root = pathlib.Path(provenance.__file__).resolve().parents[1]
+        return root, provenance.run(root)
+
+    def test_no_shipped_module_of_this_repository_owes_a_record(self):
+        _root, result = self.result()
+        self.assertEqual(
+            sorted(
+                f.evidence
+                for f in result.findings
+                if f.rule in {"missing-provenance-record", "incomplete-provenance-record"}
+            ),
+            [],
+        )
+
+    def test_no_copyleft_grant_sits_anywhere_in_this_repository(self):
+        """The artifact scan reads test code on purpose. The only copyleft
+        grants this repository holds are the lint's own negative fixtures, and
+        those declare themselves planted evidence, so the scan over the
+        repository reports nothing at all."""
+        _root, result = self.result()
+        self.assertEqual(
+            sorted(
+                f.evidence
+                for f in result.findings
+                if f.rule == "imported-copyleft-artifact"
+            ),
+            [],
+        )
+
+    def test_the_lint_is_green_on_the_repository_it_ships_in(self):
+        """The verdict a consumer reads. `planlint --repo . --only provenance`
+        exits on `failed`, and a lint whose own repository fails it is a lint
+        its own project does not obey."""
+        _root, result = self.result()
+        self.assertEqual([f.rule for f in result.findings], [])
+        self.assertEqual(result.failed, False)
+
+    def test_the_self_scan_is_not_clean_by_reading_nothing(self):
+        """The two zeroes above need a known positive, and after the planted
+        fixtures are excluded the repository itself no longer supplies one.
+
+        Three separate things are asserted, because a scan that walked nothing,
+        a scan that never reached the fixtures, and a scan whose text detector
+        does not fire would all satisfy the zeroes in silence: the walk read
+        files; it reached the planted trees and SAID SO in the label it prints;
+        and the same fixture tree, scanned as its own root, is red. That last
+        one is the known positive and it comes from the same population — the
+        very files the self-scan excluded.
+        """
+        _root, result = self.result()
+
+        self.assertGreater(result.examined, 0)
+        self.assertNotIn(", 0 excluded as planted evidence", result.examined_label)
+
+        planted = run("repo_provenance_bad")
+        self.assertGreater(
+            len([f for f in planted.findings if f.rule == "imported-copyleft-artifact"]),
+            0,
+        )
+
+    def test_the_marker_cannot_exempt_a_tree_from_a_scan_aimed_at_it(self):
+        """The exclusion would be an off switch if a directory could carry a
+        marker and go unread by every scan. It cannot: the marker is read only
+        when the directory sits BELOW the root."""
+        self.assertEqual(
+            sorted(
+                path.name
+                for path in fixture_path("repo_provenance_bad").iterdir()
+                if path.name == provenance.PLANTED_EVIDENCE
+            ),
+            [provenance.PLANTED_EVIDENCE],
+        )
+        self.assertEqual(run("repo_provenance_bad").failed, True)
 
 
 class EmptyTreeTest(unittest.TestCase):

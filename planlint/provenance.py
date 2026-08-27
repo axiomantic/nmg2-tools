@@ -70,6 +70,18 @@ it matches itself. A file carrying the sentinel `planlint-provenance-detector`
 is excluded from the TEXT SCAN and the count of such files is printed beside the
 examined count, because a silent exclusion and a clean scan read the same. The
 sentinel is a predicate and not a list: nothing here names a path.
+
+PLANTED EVIDENCE. This lint's own negative fixtures carry grant text on purpose,
+so a scan over the repository that ships the lint reports its own fixtures and
+the tool is red on itself forever. A directory carrying a
+`PLANTED-COPYLEFT-EVIDENCE` file declares that its contents were put there to be
+detected, and a scan skips such a directory — but ONLY when the directory sits
+BELOW the root being scanned. A scan whose root IS that directory still reports
+everything in it, which is how the negative fixtures stay red under their own
+tests. The two conditions together are what stop this from being an off switch:
+nothing can exempt itself from the scan aimed at it. These files are counted and
+the count is printed beside the examined count, for the same reason the sentinel
+count is.
 """
 
 import ast
@@ -79,6 +91,9 @@ import re
 from planlint.finding import ERROR, Finding, guard_no_input
 
 SENTINEL = "planlint-provenance-detector"
+# The marker file a directory of planted evidence carries. A FILE and not a
+# directory name, so nothing here names a path.
+PLANTED_EVIDENCE = "PLANTED-COPYLEFT-EVIDENCE"
 
 # The line every house record opens its provenance section with.
 HEADING = "because the licence makes it matter"
@@ -224,15 +239,35 @@ def _imported_artifact(text):
     return None
 
 
+def _planted_evidence_roots(root, files):
+    """Every directory BELOW `root` that declares itself planted evidence.
+
+    `root` itself is never one. A scan aimed at a tree of planted evidence is
+    the scan that must still report it, so the marker exempts a subtree from a
+    scan of something else and never a tree from a scan of itself.
+    """
+    return [
+        path.parent
+        for path in files
+        if path.name == PLANTED_EVIDENCE and path.parent != root
+    ]
+
+
 def run(root):
     root = pathlib.Path(root)
     files = _walk(root)
     findings = []
     excluded = 0
+    planted = 0
+    planted_roots = _planted_evidence_roots(root, files)
 
     for path in files:
         relative = str(path.relative_to(root))
         text = _text(path)
+
+        if any(marker in path.parents for marker in planted_roots):
+            planted += 1
+            continue
 
         if SENTINEL in text:
             excluded += 1
@@ -304,6 +339,9 @@ def run(root):
         "provenance",
         findings,
         len(files),
-        f"files ({excluded} excluded as the detector's own source)",
+        (
+            f"files ({excluded} excluded as the detector's own source, "
+            f"{planted} excluded as planted evidence)"
+        ),
         "provenance lint",
     )

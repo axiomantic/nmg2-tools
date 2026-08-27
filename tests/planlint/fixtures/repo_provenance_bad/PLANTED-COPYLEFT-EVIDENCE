@@ -1,0 +1,7 @@
+The files beside this marker carry copyleft licence text ON PURPOSE. They are
+the negative fixtures of `planlint/provenance.py` and they exist to be detected.
+
+A scan whose ROOT is this directory still reports every one of them; that is
+what the lint tests here assert. The marker only exempts this subtree from a
+scan of a tree that CONTAINS it, so the repository shipping the lint is not red
+on its own fixtures.

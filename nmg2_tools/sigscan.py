@@ -1,5 +1,14 @@
 """The descriptor signature scanner. Task TOOL-6, design 7.13, logbook ``AGENTS.md`` 3.1.
 
+WHAT THIS FILE IS, because the licence makes it matter.
+
+``nmg2-tools`` is MIT. The descriptor layout below is a FACT about Clavia's
+firmware: which field sits at which offset, how wide it is and in which byte
+order it is written. Facts are not copyrightable, and this layout was recovered
+from the firmware image itself and written down in ``AGENTS.md`` section 3.1.
+No line of any other implementation that reads these descriptors -- g2ools
+among them -- is copied, transliterated or paraphrased here.
+
 WHAT A MODULE DESCRIPTOR IS.
 
 The G2 firmware carries DSP module descriptors, each naming three blobs of

@@ -12,7 +12,7 @@ reference code is a different expression of them and is not used. The operator
 ruled on 2026-08-26 that this project takes the SPEC-ONLY CLEAN-ROOM route for
 this format.
 
-TWO SOURCES FED THIS FILE, AND THEY ARE NOT THE SAME KIND OF THING.
+THE SOURCES THAT FED THIS FILE ARE NOT THE SAME KIND OF THING.
 
 (a) THE CONTAINER SHAPE CAME FROM THIS PROJECT'S OWN DESIGN, sections 15.7 and
     15.3. That is an INTERNAL SPECIFICATION, not a third-party implementation.
@@ -21,17 +21,24 @@ TWO SOURCES FED THIS FILE, AND THEY ARE NOT THE SAME KIND OF THING.
     first, initial value 0, no final exclusive-or, stored big-endian -- both
     restated under THE FORMAT below.
 
-(b) THREE OF THE ELEVEN CODES IN `ACCEPTED_OBJECT_TYPES` CAME FROM OBSERVED
-    BYTES, added 2026-08-26. They were read off the operator's own patch by
-    walking the framing and reading each frame's type byte. No reference
-    implementation, and no description of one, was consulted for them. They
-    were then confirmed against the 73-file corpus at
-    `nmg2-artifacts/corpus/pch2`: all 73 files walk to `filesize-2` exactly,
-    all 73 CRCs verify, and the 1314 frames they hold carry exactly those
-    eleven codes and no twelfth. The header boundary is MEASURED per file --
-    two of the 73 carry a shorter text header than the rest, so a fixed offset
-    would have walked 71 and read the two failures as bad data rather than as
-    its own wrong assumption.
+(b) THE CODES `0x5A`, `0x5B` AND `0x6F` IN `ACCEPTED_OBJECT_TYPES` CAME FROM
+    OBSERVED BYTES, added 2026-08-26. They were read off the operator's own
+    patch by walking the framing and reading each frame's type byte. No
+    reference implementation, and no description of one, was consulted for
+    them. Naming them here is not a count: which codes the observation
+    contributed is the provenance claim, and
+    `test_the_measured_codes_are_the_ones_the_provenance_record_names` holds
+    the partition against the two constants, so a code added to either side
+    without a record reddens. They were then confirmed against the corpus at
+    `nmg2-artifacts/corpus/pch2`: every file there walks to `filesize-2`
+    exactly, every CRC verifies, and every frame those files hold carries a
+    code this set already names.
+    `test_the_accepted_object_types_are_exactly_the_ones_real_patches_carry`
+    is that confirmation, re-run per corpus rather than recalled from the run
+    that first made it. The header boundary is MEASURED per file, because some
+    files carry a shorter text header than the rest and a fixed offset would
+    have read their failures as bad data rather than as its own wrong
+    assumption.
 
 WHY THE RECORD CARRIES THE WEIGHT AND THE CODE CANNOT. A layout that merely
 happens to match a reference somebody read is not independent, and a matching
@@ -42,11 +49,10 @@ only thing between a false record and the repository.
 
 WHAT IS NOT DERIVED HERE, AND MUST NOT BE FILLED IN BY GUESSING.
 
-- THE ELEVEN TYPE CODES ARE UNNAMED AND THEIR MEANING IS NOT DERIVED. This
-  parser FRAMES and CRC-CHECKS. Every payload stays an opaque byte string that
-  nothing here interprets. Accepting eleven types is not decoding eleven types,
-  and a reader who reads it as the second is reading something this file never
-  claims.
+- THE TYPE CODES ARE UNNAMED AND THEIR MEANING IS NOT DERIVED. This parser
+  FRAMES and CRC-CHECKS. Every payload stays an opaque byte string that nothing
+  here interprets. Accepting a type is not decoding it, and a reader who reads
+  it as the second is reading something this file never claims.
 - Names may not come from this project's current sessions. Deriving a name
   needs a reader who has seen NEITHER the reference NOR any summary of one, and
   who correlates against observable patch properties. A name recalled from a
