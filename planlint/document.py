@@ -30,7 +30,9 @@ TASK_HEADER = re.compile(
 )
 HEADING = re.compile(r"^(?P<hashes>#{1,6}) +(?P<text>.+?)\s*$")
 FIELD = re.compile(r"^(?P<field>Files|Design|Depends|Check): ?(?P<value>.*)$")
-FENCE = re.compile(r"^\s*```")
+# A fence marker, split into the two parts that decide whether it can CLOSE a
+# fence rather than open one: the run of backticks, and whatever follows it.
+FENCE = re.compile(r"^\s*(?P<ticks>`{3,})(?P<info>.*)$")
 IDENT = re.compile(r"\b([A-Z]{2,6}-\d+)\b")
 TABLE_ROW = re.compile(r"^\s*\|(?P<cells>.+)\|\s*$")
 TABLE_RULE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
@@ -121,28 +123,60 @@ def strip_markup(text):
 #      stray backtick from swallowing the remainder of a body. `sentences()`
 #      already refuses to cross a line for the same reason.
 #
-# An UNTERMINATED fence is deliberately NOT a region. Letting it run to the end
-# of the text would hide every task below it, which is the failure this scanner
-# exists to end. It stays visible and `planlint.structure` reports it.
+# WHICH marker closes a fence, and what an unterminated one does, are both
+# decided in `fence_regions` below and stated there.
+
+
+def fence_regions(lines):
+    """`(the closed fenced regions, the index of an unclosed fence or None)`.
+
+    A region is the inclusive `(opening index, closing index)` pair. This is the
+    ONE place a fence marker's role is decided; `fenced_line_indexes`,
+    `PlanDocument._scan_fences` and `structure.unclosed_fence_line` all read it,
+    so the three cannot drift into three different readings of one document.
+
+    WHICH MARKER CLOSES. Not simply the next one. CommonMark 4.5 gives a closing
+    fence two properties an opening fence need not have: it carries NO info
+    string, and its run is AT LEAST as long as the opener's. A line that breaks
+    either rule is CONTENT of the fence it sits in and not a marker at all.
+    Pairing markers by position alone gets this wrong on the shape any document
+    about markdown carries -- a fence quoting another fence -- and it gets it
+    wrong twice over: the quoted body is left unmasked, and the real closer is
+    then read as an opener with no partner, which is a false `unclosed-fence`
+    against a well-formed document.
+
+    An UNTERMINATED fence is deliberately NOT a region. Letting it run to the
+    end of the text would hide every task below it, which is the failure this
+    scanner exists to end. It is returned separately so that
+    `planlint.structure` can report it.
+    """
+    regions = []
+    open_at = None
+    opener_ticks = 0
+    for index, line in enumerate(lines):
+        match = FENCE.match(line)
+        if match is None:
+            continue
+        run = len(match.group("ticks"))
+        if open_at is None:
+            open_at = index
+            opener_ticks = run
+            continue
+        if run >= opener_ticks and not match.group("info").strip():
+            regions.append((open_at, index))
+            open_at = None
+            opener_ticks = 0
+    return regions, open_at
 
 
 def fenced_line_indexes(lines):
     """The index of every line inside a CLOSED fence, both markers included.
 
-    A fence with no partner is absent from the result on purpose. `_scan_fences`
-    reads the document the same way, so the two agree, and nothing below a
-    broken fence is hidden from any lint.
+    A fence with no partner is absent from the result on purpose.
     """
     inside = set()
-    open_at = None
-    for index, line in enumerate(lines):
-        if not FENCE.match(line):
-            continue
-        if open_at is None:
-            open_at = index
-        else:
-            inside.update(range(open_at, index + 1))
-            open_at = None
+    for start, end in fence_regions(lines)[0]:
+        inside.update(range(start, end + 1))
     return inside
 
 
@@ -324,24 +358,17 @@ class PlanDocument:
 
     def _scan_fences(self):
         """Record every fenced block and whether it is a shell transcript."""
-        open_at = None
-        for index, line in enumerate(self.lines):
-            if not FENCE.match(line):
-                continue
-            if open_at is None:
-                open_at = index
-            else:
-                body = self.lines[open_at + 1:index]
-                first = next((b for b in body if b.strip()), "")
-                self._fences.append(
-                    {
-                        "start": open_at,
-                        "end": index,
-                        "transcript": first.lstrip().startswith("$ "),
-                        "body": body,
-                    }
-                )
-                open_at = None
+        for start, end in fence_regions(self.lines)[0]:
+            body = self.lines[start + 1:end]
+            first = next((b for b in body if b.strip()), "")
+            self._fences.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "transcript": first.lstrip().startswith("$ "),
+                    "body": body,
+                }
+            )
 
     def _in_fence(self, index):
         for fence in self._fences:

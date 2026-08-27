@@ -23,8 +23,8 @@ The four shapes are pinned here:
 
 import unittest
 
-from planlint import closure
-from planlint.document import PlanDocument
+from planlint import closure, structure
+from planlint.document import PlanDocument, fenced_line_indexes
 
 PRODUCER = (
     "**AAA-1 · The producer** — T0\n"
@@ -251,6 +251,101 @@ class UnmatchedInlineBacktickTest(unittest.TestCase):
                 "Scheduler::Config",
             ],
         )
+
+
+class FencePairingTest(unittest.TestCase):
+    """CommonMark 4.5 decides which marker closes a fence, and the two rules
+    that decide it are the two the scan did not read.
+
+    A closing fence carries NO info string and is AT LEAST as long as the
+    opener. A line that breaks either rule is CONTENT, not a marker. Without
+    those rules the scan pairs markers by position alone, so a fence documenting
+    another fence -- the shape any document about markdown carries -- closes at
+    the wrong line: the region below it is left unmasked, and the real closer is
+    then read as an opener with no partner, which is a false `unclosed-fence`
+    against a well-formed document.
+    """
+
+    # `structure.run` guards on an empty scan, so a document with no task at
+    # all cannot report a clean verdict. One well-formed task is what lets the
+    # verdict below be a reading and not the guard.
+    TASK = "\n".join(
+        [
+            "",
+            "**AAA-1 \u00b7 A task** \u2014 T0",
+            "Files: `src/one.cpp`",
+            "Depends: none",
+            "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`",
+            "",
+        ]
+    )
+
+    INFO_STRING = "\n".join(
+        ["before", "```", "```python", "code", "```", "after"]
+    )
+    LONGER_OPENER = "\n".join(
+        ["before", "````", "```", "code", "```", "````", "after"]
+    )
+
+    def test_a_marker_carrying_an_info_string_cannot_close_a_fence(self):
+        self.assertEqual(
+            sorted(fenced_line_indexes(self.INFO_STRING.split("\n"))),
+            [1, 2, 3, 4],
+        )
+
+    def test_a_run_shorter_than_the_opener_cannot_close_it(self):
+        self.assertEqual(
+            sorted(fenced_line_indexes(self.LONGER_OPENER.split("\n"))),
+            [1, 2, 3, 4, 5],
+        )
+
+    def test_neither_shape_is_reported_as_an_unclosed_fence(self):
+        """Both documents are well formed. A lint that reports one is telling a
+        reader to repair markup that is already correct."""
+        for label, text in (
+            ("info string", self.INFO_STRING),
+            ("longer opener", self.LONGER_OPENER),
+        ):
+            with self.subTest(shape=label):
+                doc = PlanDocument.from_text(text + self.TASK, name="inline")
+                self.assertEqual(structure.unclosed_fence_line(doc), 0)
+                result = structure.run(doc)
+                self.assertEqual([f.rule for f in result.findings], [])
+                self.assertEqual(result.failed, False)
+
+    def test_a_fence_that_never_closes_is_still_reported(self):
+        """The control. The rules above only ever REFUSE a closer, so a fence
+        with none must still be found, and at the line that opened it."""
+        doc = PlanDocument.from_text(
+            "\n".join(["before", "```", "```python", "code", "after"]),
+            name="inline",
+        )
+        self.assertEqual(structure.unclosed_fence_line(doc), 2)
+        self.assertEqual(fenced_line_indexes(doc.lines), set())
+
+    def test_a_task_header_quoted_inside_such_a_fence_is_not_a_task(self):
+        """The masking half, at the level a lint reads. A plan that QUOTES a
+        task block inside a fence that documents markdown must not gain a task
+        from the quotation."""
+        text = "\n".join(
+            [
+                "**AAA-1 \u00b7 The real task** \u2014 T0",
+                "Files: `src/one.cpp`",
+                "Depends: none",
+                "Check: `ctest --test-dir build --no-tests=error -R ^t0_alpha$`",
+                "",
+                "````",
+                "```markdown",
+                "**ZZZ-9 \u00b7 A quoted task** \u2014 T0",
+                "Files: `src/quoted.cpp`",
+                "Depends: none",
+                "Check: `ctest --test-dir build --no-tests=error -R ^t0_quoted$`",
+                "```",
+                "````",
+            ]
+        )
+        doc = PlanDocument.from_text(text, name="inline")
+        self.assertEqual([task.ident for task in doc.tasks], ["AAA-1"])
 
 
 if __name__ == "__main__":

@@ -98,6 +98,20 @@ An UNTERMINATED fence is deliberately NOT a region. Letting it run to the end of
 the text would hide every task below it, which is the failure being repaired.
 It stays visible, and `structure` reports it under `unclosed-fence`.
 
+**Which marker CLOSES a fence is not a matter of position.** CommonMark 4.5
+gives a closing fence two properties an opening fence need not have: no info
+string, and a run at least as long as the opener's. A line breaking either rule
+is CONTENT of the fence it sits in. Pairing markers by position alone gets this
+wrong on the one shape a document about markdown always carries — a fence
+quoting another fence — and it gets it wrong twice: the quoted body is left
+unmasked, so a task header inside the quotation becomes a task, and the real
+closer is then read as an opener with no partner, which is a false
+`unclosed-fence` against markup that is already correct.
+`planlint.document.fence_regions` is the ONE place that decides this;
+`fenced_line_indexes`, `PlanDocument._scan_fences` and
+`structure.unclosed_fence_line` all read it, so the three cannot drift into
+three readings of one document.
+
 The scanner is `planlint.document.inline_code_spans`. `closure`, `checks` and
 the `Files:` and table readers of `document` all read through it, so no consumer
 carries a second, private notion of what a quoted span is.

@@ -23,11 +23,19 @@ it should not. Both breakages are therefore findings of their own.
     reads a fence with no partner as no fence at all, so every boundary below
     it is the wrong one.
 
+The line this rule reports is the line `planlint.document.fence_regions` failed
+to close, read out of that scan rather than counted again here. Which marker
+closes a fence is CommonMark 4.5's question and not a matter of position: a
+closing fence carries no info string and is at least as long as the opener, so a
+fence quoting another fence closes where it really closes. A second pairing rule
+written beside this one would be a second reading of the same document, and the
+two would disagree on exactly the documents that matter.
+
 Both are ERRORs. A document a lint cannot read correctly is not a document that
 passed.
 """
 
-from planlint.document import FENCE, inline_code_spans
+from planlint.document import fence_regions, inline_code_spans
 from planlint.finding import ERROR, Finding, guard_no_input
 
 
@@ -49,14 +57,12 @@ def unmatched_backticks(task):
 def unclosed_fence_line(doc):
     """The 1-based line of a fence with no partner, or 0.
 
-    The document's own fence scan drops such a fence in silence. This reads the
-    same lines and keeps what that scan discards.
+    The document's own fence scan drops such a fence in silence. This reads it
+    out of `fence_regions`, the same scan, so the line reported here is the line
+    the parser actually failed to close and never a different marker.
     """
-    open_at = 0
-    for index, line in enumerate(doc.lines):
-        if FENCE.match(line):
-            open_at = 0 if open_at else index + 1
-    return open_at
+    _regions, open_at = fence_regions(doc.lines)
+    return 0 if open_at is None else open_at + 1
 
 
 def run(doc):
