@@ -1,7 +1,7 @@
 # Positive fixture — the removed-mechanism lint
 
 **WHAT THIS FILE IS, AND THE PART THAT IS UNCOMFORTABLE IS STATED FIRST.** This
-fixture carries five task blocks the removed-mechanism lint MUST report. Each
+fixture carries five task blocks; the lint REPORTS three and SPARES two [R1]. Each
 block is carried FROM ITS `Check:` LINE THROUGH THE END OF ITS TASK BODY, which
 is the extent `planlint` parses as a `Check:` block.
 
