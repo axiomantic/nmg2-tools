@@ -11,6 +11,8 @@ from nmg2_tools.payload_lint import (
     RegisterError,
     RegisterEntry,
     lint_committed_files,
+    REPO_SCOPED_VISIBILITIES,
+    _committed_files,
     load_register,
     main,
 )
@@ -75,12 +77,21 @@ def test_pch2_outside_synth_corpus_in_public_repo_still_fails(tmp_path):
     ]
 
 
-def test_unregistered_pch2_in_private_repo_passes(tmp_path):
-    """A private repository is not the place clause 1 polices, registered or not."""
+def test_unregistered_pch2_in_private_repo_is_reported_as_unregistered(tmp_path):
+    """Clause 1 does not police a private repository. Clause 2 does.
+
+    The location clause stays a PUBLIC-repository rule, so the finding here
+    names registration and not location -- but there IS a finding. A `.pch2`
+    the register has never heard of is exactly the file this guard exists to
+    mention, and where it sits does not change that.
+    """
     rel = "some/other/place.pch2"
     _write(tmp_path / rel, 10)
     failures = lint_committed_files(tmp_path, [rel], REGISTER, visibility="private")
-    assert failures == []
+    assert failures == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
 
 
 def test_unregistered_fixture_at_10_bytes_fails(tmp_path):
@@ -202,7 +213,9 @@ def test_scoped_exception_does_not_widen_to_other_paths_in_its_own_repo(tmp_path
         tmp_path, [rel], SCOPED_REGISTER, repo="axiomantic/G2-Edit"
     )
     assert failures == [
-        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}",
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification",
     ]
 
 
@@ -429,3 +442,277 @@ def test_default_register_is_found_from_a_foreign_working_directory(
     status = main([str(tree), "--repo", "axiomantic/nmg2-tools"])
     assert status == 0
     assert capsys.readouterr() == ("", "")
+
+
+# --- An UNREGISTERED path is a finding, not a skip ---------------------------
+#
+# The guard used to reach `if entry is None: continue` for any committed file
+# that carried no register row and sat under no scoped directory. Two real
+# files -- `dsp/g2_module_descriptors.csv` and `g2demo/g2_modules.json` --
+# passed that way. The control below is the same file under a scoped
+# directory, which the guard DID report: the silence was blindness, not a
+# clean bill.
+
+CLASS_REGISTER = [
+    RegisterEntry("golden/", "private"),
+    RegisterEntry("conformance/corpus/", "public allow-listed"),
+]
+
+
+def test_unregistered_file_outside_every_payload_directory_fails(tmp_path):
+    rel = "g2demo/g2_modules.json"
+    _write(tmp_path / rel, 297_564)
+    failures = lint_committed_files(
+        tmp_path, [rel], CLASS_REGISTER, visibility="private"
+    )
+    assert failures == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+def test_unregistered_file_under_a_payload_directory_still_fails(tmp_path):
+    """The control, from the same population: this one was never silent."""
+    rel = "fixtures/g2_modules.json"
+    _write(tmp_path / rel, 297_564)
+    failures = lint_committed_files(
+        tmp_path, [rel], CLASS_REGISTER, visibility="private"
+    )
+    assert failures == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+# --- Classes described by RULE, not by enumeration --------------------------
+#
+# Making an unregistered path fail lights up every project source file and
+# every prose file at once. Adding a row per file would be a roster where a
+# predicate belongs. Two classes are therefore decided in code:
+#
+#   source -- project-authored code and build metadata, read line by line in
+#             review. Bulk vendor payload does not arrive as reviewed source.
+#   prose  -- markdown and reStructuredText. Prose is PUBLIC by default; a
+#             prose file that must not be public carries an explicit row,
+#             which wins over the class.
+#
+# Neither class applies inside a payload directory, where the tree itself
+# declares that the contents are data.
+
+
+def test_project_source_needs_no_register_row(tmp_path):
+    rel = "nmg2_tools/payload_lint.py"
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+def test_project_source_is_exempt_from_the_ceiling(tmp_path):
+    """`tests/planlint/test_secondwrite.py` grew past the ceiling.
+
+    It is Python test source carrying no Clavia byte. The exemption is the
+    CLASS's, stated here and not granted by a row of its own: the ceiling
+    exists to notice bulk data, and the size of source is a code-review
+    concern.
+    """
+    rel = "tests/planlint/test_secondwrite.py"
+    _write(tmp_path / rel, 74_232)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+def test_prose_needs_no_register_row_and_is_exempt_from_the_ceiling(tmp_path):
+    rel = "docs/plans/2026-08-04-nmg2-emulator-impl.md"
+    _write(tmp_path / rel, 4_366_648)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+def test_an_explicit_row_beats_the_prose_class(tmp_path):
+    """`FINDINGS.md` is prose by suffix and private by decision."""
+    rel = "golden/FINDINGS.md"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], CLASS_REGISTER, visibility="public")
+    assert failures == [
+        f"PAYLOAD-PRIVATE-IN-PUBLIC: {rel}: register marks this path private, "
+        "but it is committed in a public repository"
+    ]
+
+
+def test_source_suffix_inside_a_payload_directory_still_needs_a_row(tmp_path):
+    """A `.py` under `fixtures/` is fixture DATA, not project source."""
+    rel = "tests/planlint/fixtures/repo_provenance_bad/nmg2_tools/isa.py"
+    _write(tmp_path / rel, 10)
+    failures = lint_committed_files(tmp_path, [rel], CLASS_REGISTER)
+    assert failures == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+# --- The ceiling keys on the ROW, never on a roster of directory names ------
+#
+# The ceiling used to apply only under `fixtures/`, `corpus/`, `golden/`,
+# `captures/` or `testdata/`. A 297,564-byte file in `g2demo/` escaped it for
+# no reason but the directory's name. The answer is NOT to add `g2demo/` to
+# that list -- an exception list amended once per case is a missing
+# predicate. The ceiling now applies to every REGISTERED path in either
+# visibility, and a path above it must say so with `allow-listed`.
+
+
+def test_ceiling_applies_to_a_registered_path_in_any_directory(tmp_path):
+    rel = "g2demo/g2_modules.json"
+    _write(tmp_path / rel, 297_564)
+    entries = [RegisterEntry("g2demo/", "private")]
+    failures = lint_committed_files(tmp_path, [rel], entries, visibility="private")
+    assert failures == [
+        f"PAYLOAD-CEILING: {rel}: 297564 bytes exceeds the 65536 byte ceiling "
+        "and is not allow-listed"
+    ]
+
+
+def test_private_allow_listed_row_passes_above_the_ceiling(tmp_path):
+    rel = "g2demo/g2_modules.json"
+    _write(tmp_path / rel, 297_564)
+    entries = [RegisterEntry("g2demo/g2_modules.json", "private allow-listed")]
+    failures = lint_committed_files(tmp_path, [rel], entries, visibility="private")
+    assert failures == []
+
+
+def test_private_allow_listed_row_is_still_private_in_a_public_repo(tmp_path):
+    rel = "g2demo/g2_modules.json"
+    _write(tmp_path / rel, 297_564)
+    entries = [RegisterEntry("g2demo/g2_modules.json", "private allow-listed")]
+    failures = lint_committed_files(tmp_path, [rel], entries, visibility="public")
+    assert failures == [
+        f"PAYLOAD-PRIVATE-IN-PUBLIC: {rel}: register marks this path private, "
+        "but it is committed in a public repository"
+    ]
+
+
+# --- A lint's own synthetic repositories are a class, named as one ----------
+#
+# `tests/planlint/fixtures/repo_public_bad/` is a fake repository built to
+# IMITATE a payload violation: it holds `.pch2` files outside the synth
+# corpus and a deliberately over-ceiling blob. Excepting each of those with a
+# row of its own would be the roster again, so the class carries one name.
+# The grant is strong, so it is scoped to the repository it was granted for,
+# exactly as `public pch2-exception` is.
+
+FIXTURE_REPO_REGISTER = [
+    RegisterEntry(
+        "tests/planlint/fixtures/", "public fixture-repo", "axiomantic/nmg2-tools"
+    ),
+]
+
+
+def test_fixture_repo_row_exempts_clause_1_and_the_ceiling(tmp_path):
+    pch2 = "tests/planlint/fixtures/repo_public_bad/patches/demo_bank.pch2"
+    blob = "tests/planlint/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
+    _write(tmp_path / pch2, 10)
+    _write(tmp_path / blob, 65_537)
+    failures = lint_committed_files(
+        tmp_path,
+        [pch2, blob],
+        FIXTURE_REPO_REGISTER,
+        visibility="public",
+        repo="axiomantic/nmg2-tools",
+    )
+    assert failures == []
+
+
+def test_fixture_repo_row_does_not_apply_in_another_repository(tmp_path):
+    pch2 = "tests/planlint/fixtures/repo_public_bad/patches/demo_bank.pch2"
+    _write(tmp_path / pch2, 10)
+    failures = lint_committed_files(
+        tmp_path,
+        [pch2],
+        FIXTURE_REPO_REGISTER,
+        visibility="public",
+        repo="axiomantic/mc68k",
+    )
+    assert failures == [
+        f"PAYLOAD-PCH2-LOCATION: {pch2}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_fixture_repo_row_grants_nothing_when_no_repository_is_supplied(tmp_path):
+    blob = "tests/planlint/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
+    _write(tmp_path / blob, 65_537)
+    failures = lint_committed_files(
+        tmp_path, [blob], FIXTURE_REPO_REGISTER, visibility="public", repo=None
+    )
+    assert failures == [
+        f"PAYLOAD-CEILING: {blob}: 65537 bytes exceeds the 65536 byte ceiling "
+        "and is not allow-listed"
+    ]
+
+
+def test_load_register_rejects_a_fixture_repo_row_with_no_repository_field(tmp_path):
+    path = _register_file(
+        tmp_path, "tests/planlint/fixtures/\tpublic fixture-repo\n"
+    )
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert str(caught.value) == (
+        f"{path}:1: a `public fixture-repo` row must carry a third, "
+        "tab-separated `owner/name` field naming the one repository it is "
+        "granted for: 'tests/planlint/fixtures/\\tpublic fixture-repo'"
+    )
+
+
+def test_load_register_rejects_an_unknown_visibility(tmp_path):
+    """A typo must not read as `public`, which is what silence would mean."""
+    path = _register_file(tmp_path, "golden/\tprivte\n")
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert str(caught.value) == (
+        f"{path}:1: unknown visibility 'privte'; the register accepts only "
+        "public, private, public allow-listed, private allow-listed, "
+        "public pch2-exception, public fixture-repo: 'golden/\\tprivte'"
+    )
+
+
+# --- The shipped register, held against the real tree ------------------------
+
+
+def test_shipped_register_classifies_every_committed_file_in_this_repository():
+    """No committed file in `nmg2-tools` is unclassified, and none fails.
+
+    This is the artifact check: not that the code has a branch for it, but
+    that the register and the class rules together cover the tree that is
+    actually committed. The control below plants one unclassifiable path into
+    the same population, so the empty list above is a measurement and not the
+    silence this whole change was about.
+    """
+    root = Path(__file__).resolve().parents[1]
+    entries = load_register(SHIPPED_REGISTER)
+    committed = _committed_files(root)
+    assert (
+        lint_committed_files(
+            root, committed, entries, "public", "axiomantic/nmg2-tools"
+        )
+        == []
+    )
+
+    planted = "evidence/unknown_capture.dat"
+    assert lint_committed_files(
+        root, [*committed, planted], entries, "public", "axiomantic/nmg2-tools"
+    ) == [
+        f"PAYLOAD-UNREGISTERED: {planted}: committed file with no register row "
+        "and no by-rule classification"
+    ]
+
+
+def test_every_repo_scoped_row_in_the_shipped_register_names_a_repository():
+    entries = load_register(SHIPPED_REGISTER)
+    scoped = [
+        (e.path, e.visibility, e.repo)
+        for e in entries
+        if e.visibility in REPO_SCOPED_VISIBILITIES
+    ]
+    assert scoped == [
+        ("PatchTestFiles/", "public pch2-exception", "axiomantic/G2-Edit"),
+        (
+            "tests/planlint/fixtures/",
+            "public fixture-repo",
+            "axiomantic/nmg2-tools",
+        ),
+    ]

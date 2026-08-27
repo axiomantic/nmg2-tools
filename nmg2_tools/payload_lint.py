@@ -13,23 +13,54 @@ independent conditions, each with its own failure name:
    outside ``nmg2_tools/testdata/pch2_synth/`` fails, unless the register
    holds a ``public pch2-exception`` row covering the path, in which case
    this clause passes.
-2. PAYLOAD-UNREGISTERED: any committed file under a ``fixtures/`` path with
-   no register row fails, at any size, in either visibility. ``.gitkeep``
-   files are exempt everywhere: they are directory markers, not fixtures,
-   and a private repository uses one to make a registered but empty
-   directory exist.
-3. PAYLOAD-CEILING: a committed file above 65,536 bytes, under a
-   ``fixtures/``, ``corpus/``, ``golden/``, ``captures/`` or ``testdata/``
-   path, with no allow-listed register row, fails. This scope check applies
-   in both visibilities.
+2. PAYLOAD-UNREGISTERED: any committed file that carries neither a register
+   row nor a by-rule classification fails, at any size, in either
+   visibility. This is the guard's default answer, and it is the reason the
+   guard can be trusted at all: a file the register has never heard of is
+   exactly what a payload check exists to notice, so silence is never the
+   response to one. ``.gitkeep`` files are exempt everywhere: they are
+   directory markers, not payload, and a private repository uses one to make
+   a registered but empty directory exist.
+
+   Two CLASSES are described by RULE rather than by enumeration, so that
+   making this clause fail does not turn the register into a roster of every
+   file in the tree:
+
+   - ``source`` -- project-authored code and build metadata, by suffix
+     (``SOURCE_SUFFIXES``) or by whole name (``SOURCE_BASENAMES``). It is read
+     line by line in review, and bulk vendor payload does not arrive as
+     reviewed source.
+   - ``prose`` -- markdown and reStructuredText (``PROSE_SUFFIXES``). Prose is
+     PUBLIC by default. A prose file that must not be public carries an
+     explicit row, which wins over the class; ``FINDINGS.md`` is the standing
+     example.
+
+   Neither class applies inside a directory named in
+   ``PAYLOAD_DECLARED_DIRS``: there, the tree itself declares that its
+   contents are data, so a ``.py`` under ``fixtures/`` is a fixture and not
+   project source.
+
+3. PAYLOAD-CEILING: a REGISTERED committed file above 65,536 bytes whose row
+   is not ``allow-listed`` fails, in either visibility. The ceiling keys on
+   the ROW and on nothing else. It used to key on a list of directory names,
+   and a 297,564-byte file escaped it because its directory was not on that
+   list; the answer was to retire the list, not to lengthen it. A file above
+   the ceiling therefore says so in its row -- ``public allow-listed`` or
+   ``private allow-listed`` -- and the size is a decision on the record. The
+   two by-rule classes are exempt: the ceiling exists to notice bulk data,
+   and the size of source or prose is a review concern.
+
 4. PAYLOAD-PRIVATE-IN-PUBLIC: in a PUBLIC repository, a path whose register
    row is ``private`` is a failure. In a PRIVATE repository a ``private``
    row passes; the row exists precisely so a private repository, such as
    ``nmg2-artifacts``, may hold it.
-5. PAYLOAD-REGISTER-MALFORMED: the register itself holds a
-   ``public pch2-exception`` row that does not name the repository it is
-   granted for. This is a failure of the REGISTER and not of any committed
-   file, so it fails whatever the tree holds, and in either visibility.
+5. PAYLOAD-REGISTER-MALFORMED: the register itself holds a row this module
+   refuses -- a repo-scoped row that does not name the repository it is
+   granted for, or a visibility outside the accepted vocabulary. This is a
+   failure of the REGISTER and not of any committed file, so it fails
+   whatever the tree holds, and in either visibility. An unknown visibility
+   is refused rather than read as ``public``, because reading a typo as the
+   most permissive value is the silent failure this module exists to stop.
 
 The register file format
 -------------------------
@@ -42,11 +73,20 @@ directory and covers every path beneath it. The optional third field is an
 ``owner/name`` repository slug that SCOPES the row to one repository; see
 ``public pch2-exception`` below. ``visibility`` is one of:
 
-- ``public``               -- the path may be committed in a public
-  repository, no size ceiling by itself (clause 3's path scope still
-  applies).
-- ``private``               -- the path is only for a private repository.
-- ``public allow-listed``   -- the path may exceed the size ceiling.
+- ``public``                -- the path may be committed in a public
+  repository, and is subject to the size ceiling.
+- ``private``               -- the path is only for a private repository, and
+  is subject to the size ceiling.
+- ``public allow-listed``   -- public, and may exceed the size ceiling.
+- ``private allow-listed``  -- private, and may exceed the size ceiling. This
+  is how a private repository records a large payload as a DECISION rather
+  than letting it pass because of where it sits.
+- ``public fixture-repo``   -- the path is a synthetic repository tree used as
+  a fixture by this project's own lints. Such a tree exists to IMITATE a
+  violation: it holds ``.pch2`` files outside the synth corpus and
+  deliberately over-ceiling blobs. Clauses 1 and 3 do not apply beneath it.
+  The grant is strong, so it MUST name the repository it is granted for, on
+  the same reasoning as ``public pch2-exception`` below.
 - ``public pch2-exception`` -- the path is exempt from clause 1 ONLY. It is
   an operator-granted exception for a ``.pch2`` file whose provenance is
   unestablished. It grants NO size exemption: clause 3 still applies, so
@@ -93,9 +133,28 @@ SHIPPED_REGISTER = Path(__file__).resolve().parent / "testdata" / "register.tsv"
 
 PCH2_ALLOWED_DIR = "nmg2_tools/testdata/pch2_synth/"
 
-# Clause 3 (the byte ceiling) applies only to a committed file under one of
-# these path prefixes. Anything else is out of scope for the ceiling check.
-CEILING_SCOPE_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testdata/")
+# A directory whose name DECLARES that its contents are data. The by-rule
+# classes below do not apply beneath one, so a `.py` under `fixtures/` is a
+# fixture and needs a register row like any other fixture. This list no
+# longer gates the byte ceiling: it did, and a 297,564-byte file escaped the
+# ceiling because `g2demo/` was not on it. Lengthening the list would have
+# been a roster where a predicate belongs.
+PAYLOAD_DECLARED_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testdata/")
+
+# The `source` class: project-authored code and build metadata, read line by
+# line in review. `.yml`/`.yaml` are deliberately ABSENT -- a 2.4 MB
+# `schematic_data.yaml` of vendor-derived data is the shape that argument
+# fails on, and workflow files are covered by a `.github/` register row.
+SOURCE_SUFFIXES = frozenset(
+    {".py", ".c", ".h", ".cpp", ".hpp", ".sh", ".toml", ".lock"}
+)
+SOURCE_BASENAMES = frozenset(
+    {"LICENSE", ".gitignore", ".gitattributes", ".gitmodules"}
+)
+
+# The `prose` class. Prose is PUBLIC by default; an explicit row wins over
+# the class, which is how a prose file that must stay private says so.
+PROSE_SUFFIXES = frozenset({".md", ".rst"})
 
 # The one accepted spelling of a clause 1 exception, and the substring that
 # says a line MEANT to be one. A line that carries the mark but not the exact
@@ -103,13 +162,57 @@ CEILING_SCOPE_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testdata/
 PCH2_EXCEPTION_VISIBILITY = "public pch2-exception"
 PCH2_EXCEPTION_MARK = "pch2-exception"
 
+# A synthetic repository tree used as a fixture by this project's own lints.
+FIXTURE_REPO_VISIBILITY = "public fixture-repo"
+FIXTURE_REPO_MARK = "fixture-repo"
 
-def _in_ceiling_scope(posix_path: str) -> bool:
+# A grant strong enough that it applies in ONE repository only, and must name
+# it. The register is a single file shared by every repository, so an
+# unqualified row would grant everywhere. Keyed by the substring that marks a
+# line as MEANING one of these, so a line that carries the mark without the
+# exact visibility is a malformed row and not an unrelated one.
+REPO_SCOPED_VISIBILITIES = (FIXTURE_REPO_VISIBILITY, PCH2_EXCEPTION_VISIBILITY)
+REPO_SCOPED_MARKS = {
+    FIXTURE_REPO_MARK: FIXTURE_REPO_VISIBILITY,
+    PCH2_EXCEPTION_MARK: PCH2_EXCEPTION_VISIBILITY,
+}
+
+VALID_VISIBILITIES = (
+    "public",
+    "private",
+    "public allow-listed",
+    "private allow-listed",
+    PCH2_EXCEPTION_VISIBILITY,
+    FIXTURE_REPO_VISIBILITY,
+)
+
+
+def _in_payload_declared_dir(posix_path: str) -> bool:
     parts = posix_path.split("/")
     for i in range(len(parts) - 1):
-        if parts[i] + "/" in CEILING_SCOPE_DIRS:
+        if parts[i] + "/" in PAYLOAD_DECLARED_DIRS:
             return True
     return False
+
+
+def classify(posix_path: str) -> str | None:
+    """Name the by-rule class of a path, or ``None`` if it has none.
+
+    ``None`` is the answer that makes clause 2 fail, so this function is the
+    whole difference between a guard and a guard-shaped skip.
+    """
+    if _in_payload_declared_dir(posix_path):
+        return None
+    name = posix_path.rsplit("/", 1)[-1]
+    if name in SOURCE_BASENAMES:
+        return "source"
+    dot = name.rfind(".")
+    suffix = name[dot:] if dot > 0 else ""
+    if suffix in SOURCE_SUFFIXES:
+        return "source"
+    if suffix in PROSE_SUFFIXES:
+        return "prose"
+    return None
 
 
 class RegisterError(ValueError):
@@ -132,7 +235,27 @@ class RegisterEntry:
 
     @property
     def allow_listed(self) -> bool:
-        return self.visibility == "public allow-listed"
+        return self.visibility.endswith("allow-listed")
+
+    @property
+    def is_private(self) -> bool:
+        return self.visibility.startswith("private")
+
+    @property
+    def fixture_repo(self) -> bool:
+        return self.visibility == FIXTURE_REPO_VISIBILITY
+
+    def fixture_repo_in(self, repo: str | None) -> bool:
+        """Is this row a fixture-repo grant for the repository being linted?
+
+        Fails closed on both sides, exactly as :meth:`pch2_excepted_in` does
+        and for the same reason: the register is one shared file.
+        """
+        if not self.fixture_repo:
+            return False
+        if self.repo is None or repo is None:
+            return False
+        return repo == self.repo
 
     @property
     def pch2_excepted(self) -> bool:
@@ -179,18 +302,26 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
         if len(parts) < 2:
             # Tolerate accidental runs of spaces instead of a literal tab.
             parts = line.split(None, 1)
-        if PCH2_EXCEPTION_MARK in line and (
-            len(parts) < 3
-            or parts[1].strip() != PCH2_EXCEPTION_VISIBILITY
-            or not parts[2].strip()
-        ):
-            raise RegisterError(
-                f"{register_path}:{lineno}: a `{PCH2_EXCEPTION_VISIBILITY}` row "
-                "must carry a third, tab-separated `owner/name` field naming "
-                f"the one repository it is granted for: {line!r}"
-            )
+        for mark, scoped_visibility in REPO_SCOPED_MARKS.items():
+            if mark in line and (
+                len(parts) < 3
+                or parts[1].strip() != scoped_visibility
+                or not parts[2].strip()
+            ):
+                raise RegisterError(
+                    f"{register_path}:{lineno}: a `{scoped_visibility}` row "
+                    "must carry a third, tab-separated `owner/name` field "
+                    "naming the one repository it is granted for: "
+                    f"{line!r}"
+                )
         path = parts[0].strip()
         visibility = parts[1].strip()
+        if visibility not in VALID_VISIBILITIES:
+            raise RegisterError(
+                f"{register_path}:{lineno}: unknown visibility "
+                f"{visibility!r}; the register accepts only "
+                f"{', '.join(VALID_VISIBILITIES)}: {line!r}"
+            )
         repo = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
         entries.append(RegisterEntry(path, visibility, repo))
     return entries
@@ -236,41 +367,44 @@ def lint_committed_files(
         if posix_path.endswith(".gitkeep"):
             continue
 
-        path_parts = posix_path.split("/")
-        is_fixture = "fixtures" in path_parts[:-1]
         entry = _find_register_entry(posix_path, entries)
+        fixture_repo_exempt = entry is not None and entry.fixture_repo_in(repo)
 
         if visibility == "public" and posix_path.endswith(".pch2"):
-            if not posix_path.startswith(PCH2_ALLOWED_DIR) and not (
-                entry is not None and entry.pch2_excepted_in(repo)
+            if (
+                not posix_path.startswith(PCH2_ALLOWED_DIR)
+                and not fixture_repo_exempt
+                and not (entry is not None and entry.pch2_excepted_in(repo))
             ):
                 failures.append(
                     f"PAYLOAD-PCH2-LOCATION: {posix_path}: .pch2 file outside "
                     f"{PCH2_ALLOWED_DIR}"
                 )
 
-        if is_fixture and entry is None:
-            failures.append(
-                f"PAYLOAD-UNREGISTERED: {posix_path}: committed fixture with "
-                "no register row"
-            )
-            continue
-
         if entry is None:
+            # The guard's default answer. A file with no row still gets one
+            # chance -- a by-rule class -- and if it has none it is reported.
+            # This branch used to be a bare `continue`, which is why two real
+            # payload files were never mentioned by a check whose whole job
+            # was to mention them.
+            if classify(posix_path) is None:
+                failures.append(
+                    f"PAYLOAD-UNREGISTERED: {posix_path}: committed file with "
+                    "no register row and no by-rule classification"
+                )
+            # A classified file is source or prose: no visibility question to
+            # answer, and the ceiling does not police text.
             continue
 
-        if (
-            visibility == "public"
-            and entry.visibility == "private"
-        ):
+        if fixture_repo_exempt:
+            continue
+
+        if visibility == "public" and entry.is_private:
             failures.append(
                 f"PAYLOAD-PRIVATE-IN-PUBLIC: {posix_path}: register marks "
                 "this path private, but it is committed in a public "
                 "repository"
             )
-            continue
-
-        if not _in_ceiling_scope(posix_path):
             continue
 
         full_path = repo_path / rel_path

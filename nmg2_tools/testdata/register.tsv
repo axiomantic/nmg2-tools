@@ -19,9 +19,6 @@ golden/	private
 captures/	private
 module_map.csv	private
 unclaimed_compute.txt	private
-BOOT_128_Loader.bin	private
-NMG2_128_OS.bin	private
-CODE_30000400.bin	private
 SRAM_20000800.bin	private
 FINDINGS.md	private
 # Operator-granted exception, 2026-08-05. Nine `.pch2` files inherited from
@@ -30,3 +27,43 @@ FINDINGS.md	private
 # patches, and that is a suggestion and not a finding. Revisit with upstream
 # commit provenance, or a comparison against a Clavia factory bank.
 PatchTestFiles/	public pch2-exception	axiomantic/G2-Edit
+# CI workflow definitions. One rule row per repository tree, not a row per
+# workflow file: `.yml` is deliberately NOT a by-rule source class, because a
+# vendor-derived `.yaml` data file would then read as project source.
+.github/	public
+# The package's own shipped test data. `pch2_synth/` above is the one part of
+# it that clause 1 names; this row classifies the rest.
+nmg2_tools/testdata/	public
+docs/check-targets.txt	public
+# Synthetic repository trees built to IMITATE payload violations, so that the
+# lints that read them have something to be red about. They hold `.pch2` files
+# outside the synth corpus and deliberately over-ceiling blobs; excepting each
+# of those with a row of its own would be a roster where a class belongs.
+tests/planlint/fixtures/	public fixture-repo	axiomantic/nmg2-tools
+# --- nmg2-artifacts (PRIVATE) ------------------------------------------------
+# Recorded run outputs kept as before/after evidence: test logs, register
+# dumps, lint transcripts. One rule row, not one row per baseline file, and
+# allow-listed as a CLASS because a captured run has no natural size. The
+# clause that carries the weight for this directory is the `private` half:
+# in a public repository every path beneath it fails clause 4.
+baselines/	private allow-listed
+# Vendor documentation PDFs. Large by nature and private by decision.
+datasheets/	private allow-listed
+dsp/	private
+g2demo/	private
+# 297,564 bytes of Clavia-derived module metadata. It escaped the ceiling
+# entirely while the ceiling keyed on a list of directory names. It is allowed
+# here as a DECISION, in a private repository, at a size written down.
+g2demo/g2_modules.json	private allow-listed
+# 2,428,093 bytes of Clavia-derived schematic data.
+schematic_data.yaml	private allow-listed
+# Firmware and memory images. They were `private` and above the ceiling, and
+# passed only because they sit at the repository root.
+BOOT_128_Loader.bin	private allow-listed
+NMG2_128_OS.bin	private allow-listed
+CODE_30000400.bin	private allow-listed
+# The same class of recorded run output, sitting at the repository root
+# instead of in `baselines/`. Registered where they are; moving them is the
+# artifacts repository's to do.
+int7-baseline-t1_boot-HEAD.txt	private allow-listed
+int7-t1_boot-after.txt	private allow-listed
