@@ -45,7 +45,8 @@ Each reference list holds one 12-byte entry per resource:
     +0x04  u8   the resource attributes.
     +0x05  24-bit, big-endian. The offset of the resource data, measured from
               the start of the fork's data area.
-    +0x08  4    reserved handle. Not read.
+    +0x08  u32  reserved handle. Its value is not read, but its four bytes are
+                part of the entry and so part of the stride.
 
 The data area holds the payload of every resource. At the data offset recorded
 in the reference list the first big-endian u32 is the payload length and the
@@ -68,7 +69,10 @@ IMAGE_ID = 128
 _RESOURCE_HEADER = struct.Struct(">IIII")
 _MAP_HEADER = struct.Struct(">HH")
 _TYPE_ENTRY = struct.Struct(">4sHH")
-_REF_ENTRY = struct.Struct(">hHB3s")
+# Five fields, not four. The reserved handle at +0x08 is never used, but it is
+# part of the entry, so leaving it out of the layout would stride the list four
+# bytes short of every entry after the first.
+_REF_ENTRY = struct.Struct(">hHB3s4s")
 _LENGTH = struct.Struct(">I")
 
 
@@ -158,7 +162,9 @@ def parse_fork(data: bytes | bytearray | memoryview) -> tuple[Resource, ...]:
 
         for j in range(num_refs):
             ref = ref_list_offset + j * _REF_ENTRY.size
-            identifier, name_offset, attributes, data_field = _REF_ENTRY.unpack_from(m, ref)
+            identifier, name_offset, attributes, data_field, _reserved = _REF_ENTRY.unpack_from(
+                m, ref
+            )
             data_in_area = int.from_bytes(data_field, "big")
 
             name = ""

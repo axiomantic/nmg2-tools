@@ -251,6 +251,34 @@ def test_rsrc_refuses_a_truncated_fork():
         rsrc.parse_fork(b"\x00" * 8)
 
 
+def test_rsrc_reference_entries_are_twelve_bytes():
+    """Inside Macintosh (Resource Manager) gives a reference-list entry five
+    fields: id (2), name offset (2), attributes (1), data offset (3) and a
+    reserved handle (4). The stride is the sum, not the four fields this
+    parser reads."""
+    assert rsrc._REF_ENTRY.size == 12
+
+
+def test_rsrc_parses_a_type_that_carries_two_resources():
+    """A second resource of the same type sits 12 bytes after the first. An
+    8-byte stride reads it starting inside the first entry's reserved handle,
+    so identifier, name and payload all come back wrong."""
+    fork = build_resource_fork(
+        [
+            (b"NMG2", 128, "NMG2_128_OS", OS_IMAGE),
+            (b"NMG2", 129, "NMG2_129_SPARE", b"SPARE-PAYLOAD"),
+            (b"BOOT", 128, "BOOT_128_Loader", LOADER),
+        ]
+    )
+    found = {(r.type_code, r.identifier): r for r in rsrc.parse_fork(fork)}
+    assert set(found) == {("NMG2", 128), ("NMG2", 129), ("BOOT", 128)}
+    assert found[("NMG2", 128)].payload == OS_IMAGE
+    assert found[("NMG2", 128)].name == "NMG2_128_OS"
+    assert found[("NMG2", 129)].payload == b"SPARE-PAYLOAD"
+    assert found[("NMG2", 129)].name == "NMG2_129_SPARE"
+    assert found[("BOOT", 128)].payload == LOADER
+
+
 # ---------------------------------------------------------------------------
 # PE parser, ungated.
 # ---------------------------------------------------------------------------
@@ -276,6 +304,49 @@ def test_pe_refuses_a_non_mz_file():
 def test_pe_refuses_an_mz_that_is_not_pe():
     blob = bytearray(0x60)
     blob[0:2] = b"MZ"
+    with pytest.raises(PeError):
+        pe.parse_pe(bytes(blob))
+
+
+def test_pe_out_of_range_resource_rva_names_the_rva():
+    """The error name promises the RVA. A plain string emits the placeholder
+    text instead, so the diagnostic says nothing the name did not."""
+    blob = bytearray(PEFILE)
+    struct.pack_into("<I", blob, 0x40 + 4 + 20 + 96 + 2 * 8, 0x00900000)
+    with pytest.raises(PeError) as excinfo:
+        pe.parse_pe(bytes(blob))
+    message = str(excinfo.value)
+    assert message.startswith("PE-OFFSET-OUT-OF-RANGE")
+    assert "0x00900000" in message
+    assert "{" not in message
+
+
+@pytest.mark.parametrize("length", [2, 0x3C, 0x3F])
+def test_pe_a_short_mz_raises_pe_error_not_struct_error(length):
+    """``struct.error`` is not a ``PeError``, so a caller catching the
+    documented error would not catch it at all."""
+    blob = bytearray(length)
+    blob[0:2] = b"MZ"
+    with pytest.raises(PeError):
+        pe.parse_pe(bytes(blob))
+
+
+def test_pe_a_truncated_header_raises_pe_error_not_struct_error():
+    """Every header read past the DOS stub is bounded too: a file whose PE
+    signature is the last thing in it must not leak ``struct.error``."""
+    blob = bytearray(0x44)
+    blob[0:2] = b"MZ"
+    struct.pack_into("<I", blob, 0x3C, 0x40)
+    blob[0x40:0x44] = b"PE\0\0"
+    with pytest.raises(PeError):
+        pe.parse_pe(bytes(blob))
+
+
+def test_pe_a_truncated_section_table_raises_pe_error_not_struct_error():
+    """The section-header loop reads ``section_count`` 40-byte entries. A file
+    that declares more sections than it carries must be a named error."""
+    blob = bytearray(PEFILE)
+    struct.pack_into("<H", blob, 0x40 + 4 + 2, 4096)
     with pytest.raises(PeError):
         pe.parse_pe(bytes(blob))
 

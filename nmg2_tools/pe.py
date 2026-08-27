@@ -76,7 +76,9 @@ class PeError(ValueError):
     """A PE file that this reader refuses to read.
 
     The message starts with a name: ``PE-NOT-MZ``, ``PE-NOT-PE``,
-    ``PE-NO-OPTIONAL-HEADER``, ``PE-UNKNOWN-MAGIC``, ``PE-NO-RESOURCES`` or
+    ``PE-TRUNCATED-DOS-HEADER``, ``PE-TRUNCATED-COFF-HEADER``,
+    ``PE-NO-OPTIONAL-HEADER``, ``PE-TRUNCATED-SECTION-TABLE``,
+    ``PE-UNKNOWN-MAGIC``, ``PE-NO-RESOURCES`` or
     ``PE-OFFSET-OUT-OF-RANGE``.
     """
 
@@ -203,15 +205,23 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
     if raw[:2] != b"MZ":
         raise PeError("PE-NOT-MZ")
 
+    if len(raw) < 0x40:
+        raise PeError(f"PE-TRUNCATED-DOS-HEADER: 64 bytes needed, {len(raw)} available")
+
     (e_lfanew,) = struct.unpack_from("<I", raw, 0x3C)
     if raw[e_lfanew : e_lfanew + 4] != _PE_SIGNATURE:
         raise PeError("PE-NOT-PE")
 
     coff = e_lfanew + 4
+    if coff + _COFF.size > len(raw):
+        raise PeError(
+            f"PE-TRUNCATED-COFF-HEADER: {_COFF.size} bytes needed at {coff}, "
+            f"{len(raw)} available"
+        )
     _machine, section_count, _t, _sym_ptr, _sym_count, opt_size, _chars = _COFF.unpack_from(raw, coff)
     optional = coff + _COFF.size
 
-    if opt_size < 2:
+    if opt_size < 2 or optional + 2 > len(raw):
         raise PeError("PE-NO-OPTIONAL-HEADER")
 
     (magic,) = struct.unpack_from("<H", raw, optional)
@@ -231,6 +241,11 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
 
     sections = []
     section_off = optional + opt_size
+    if section_off + section_count * _SECTION.size > len(raw):
+        raise PeError(
+            f"PE-TRUNCATED-SECTION-TABLE: {section_count} section headers at "
+            f"{section_off} need more than the {len(raw)} bytes available"
+        )
     for i in range(section_count):
         sec = _SECTION.unpack_from(raw, section_off + i * _SECTION.size)
         virtual_size, virtual_address, raw_size, raw_pointer = sec[1], sec[2], sec[3], sec[4]
@@ -238,7 +253,7 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
 
     base = _rva_to_offset(res_rva, sections)
     if base is None or base + res_size > len(raw):
-        raise PeError("PE-OFFSET-OUT-OF-RANGE: resource section RVA 0x{res_rva:08X}")
+        raise PeError(f"PE-OFFSET-OUT-OF-RANGE: resource section RVA 0x{res_rva:08X}")
 
     out: list[PeResource] = []
     _recurse(raw, base, base, sections, 0, None, None, None, out)
