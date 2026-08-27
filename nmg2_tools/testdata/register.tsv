@@ -35,6 +35,14 @@ PatchTestFiles/	public pch2-exception	axiomantic/G2-Edit
 # it that clause 1 names; this row classifies the rest.
 nmg2_tools/testdata/	public
 docs/check-targets.txt	public
+# This project's own ruff machinery, generated here and read by CI: the
+# pinned tool version and the finding baseline the `lint` job diffs against.
+# Both were written by cf3f216 and neither is vendor-derived. Two rows and
+# not a by-rule class: a predicate wide enough to cover them -- a `.ruff-*`
+# glob, or a `.txt` prose class -- would exempt every future file that
+# happens to match, and a guard that cannot be surprised is not a guard.
+.ruff-version	public
+.ruff-baseline.txt	public
 # Synthetic repository trees built to IMITATE payload violations, so that the
 # lints that read them have something to be red about. They hold `.pch2` files
 # outside the synth corpus and deliberately over-ceiling blobs; excepting each
