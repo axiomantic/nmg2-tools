@@ -14,7 +14,7 @@ Section 7.8 gives the steps:
     workflow whose path intersects a render, a dump, a capture or a corpus.
 
 The third step is the one that matters most, because the first two read
-COMMITTED FILES ONLY and cannot see an `actions/upload-artifact` step at all.
+TRACKED FILES ONLY and cannot see an `actions/upload-artifact` step at all.
 That is how a real breach got through.
 """
 

@@ -1,6 +1,8 @@
 """Check that committed payloads stay inside the agreed size and location rules.
 
-This check reads COMMITTED FILES ONLY (the output of ``git ls-files``). It
+This check reads TRACKED FILES ONLY (the output of ``git ls-files``), which is
+the INDEX and not the last commit -- so a staged-but-uncommitted file IS read,
+and "committed" would be off by exactly that set. It
 does not read workflow text and it implements no upload check; a separate
 step of the plan owns checking what a workflow actually uploads. This
 module only checks what is already sitting in the repository's git index.

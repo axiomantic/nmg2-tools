@@ -256,6 +256,12 @@ class SkippedLintVisibilityTest(unittest.TestCase):
     3,064 files printed the same count and the same verdict. Every pass on this
     project took the first number as its baseline without knowing which of the
     two it held.
+
+    The quoted string is a RECORD of what was observed then, and it is left as
+    written: the lint has since been repaired to read `git ls-files` and now
+    prints "tracked files examined", so this exact line can no longer be
+    produced. That is the point of keeping it -- the wording it quotes is the
+    wording that made the two runs indistinguishable.
     """
 
     def test_a_default_run_with_no_repo_enumerates_every_lint(self):
