@@ -69,6 +69,8 @@ format, and the search strategy below is this project's own expression of how
 to find them.
 """
 
+import csv
+import io
 import struct
 from dataclasses import dataclass
 
@@ -146,3 +148,74 @@ def scan(image: bytes, base: int) -> list[ModuleDescriptor]:
             )
         )
     return records
+
+
+# The CSV column order. TOOL-8's reader takes ``p_ptr`` with ``int(value, 16)``
+# and the three counts with ``int(value)``, so the pointer columns are hex and
+# the count columns are decimal; the count names carry their record offsets
+# because that is what makes a column self-describing to a reader holding the
+# layout above.
+CSV_COLUMNS = (
+    "index",
+    "record_addr",
+    "x_ptr",
+    "y_ptr",
+    "p_ptr",
+    "x_words_0x1C",
+    "y_words_0x20",
+    "p_words_0x24",
+    "identity",
+)
+
+IDENTITY_OK = "OK"
+IDENTITY_MISMATCH = "MISMATCH"
+IDENTITY_NOT_APPLICABLE = "NO-X"
+
+
+def identity_of(record: ModuleDescriptor) -> str:
+    """The validation identity's verdict for one record.
+
+    ``x_ptr + 4*(x_words + y_words) == p_ptr`` is the identity, and it is
+    undefined for a record that carries no X blob. Such a record is reported
+    ``NO-X`` rather than ``OK``: a column that answered "pass" where it had
+    nothing to check would report a clean table built from records it never
+    tested.
+    """
+    if not record.carries_x:
+        return IDENTITY_NOT_APPLICABLE
+    holds = record.x_ptr + 4 * (record.x_words + record.y_words) == record.p_ptr
+    return IDENTITY_OK if holds else IDENTITY_MISMATCH
+
+
+def to_csv_text(records) -> str:
+    """Render recovered records as ``dsp/g2_module_descriptors.csv`` text.
+
+    ``index`` is the signature-scan order, which is TOOL-8's
+    ``descriptor_index``. No byte of any Clavia image is embedded: every value
+    is computed from the scan.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(CSV_COLUMNS)
+    for index, record in enumerate(records):
+        writer.writerow(
+            (
+                index,
+                f"0x{record.record_addr:08X}",
+                f"0x{record.x_ptr:08X}",
+                f"0x{record.y_ptr:08X}",
+                f"0x{record.p_ptr:08X}",
+                record.x_words,
+                record.y_words,
+                record.p_words,
+                identity_of(record),
+            )
+        )
+    return buffer.getvalue()
+
+
+def write_csv(path, records) -> None:
+    """Write the descriptor table to ``path``. The map is generated, never
+    hand-edited, so this is the only writer."""
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(to_csv_text(records))
