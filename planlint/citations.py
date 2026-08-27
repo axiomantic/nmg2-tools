@@ -24,7 +24,24 @@ stranger's history. The citation form names the repository on EVERY entry, so
 this lint never hunts — it reads the one clone the entry names, or it reports
 that it read nothing.
 
-FOUR STATES ARE NOT A VERDICT, and each is REPORTED under
+THE TWO SPELLINGS OF A DECLARED PATH. Section 1.1.1 rule B says a path is
+repository-relative, and the plan writes some declared paths that way and some
+as a BARE basename — §7.4.2's DSP-21 row records `jitops.cpp`, `jitops.h` and
+`dsp_ops.inl` bare and calls that the owning spelling. `--name-only` prints
+full paths either way, so comparing the two spellings as strings refutes a
+citation the repository confirms. `tree_paths` and `resolve_bare` close that
+gap, and the resolution belongs HERE rather than in `planlint.document`: rules
+B and C are the DOCUMENT's own abbreviations and `expand_files_items` already
+applies both to every entry's paths, but a bare name can only be resolved
+against a REPOSITORY, and the document model has none.
+
+RESOLUTION, NOT MATCHING. A bare name is admitted only where the commit's own
+tree holds exactly ONE file by that name, and the resolved path is then
+compared EXACTLY. A suffix test is the obvious shortcut and it makes this rule
+VACUOUS: it admits any path ending in the name, so a citation naming a file in
+the wrong directory passes and the rule can no longer fail.
+
+FIVE STATES ARE NOT A VERDICT, and each is REPORTED under
 `done-marker-citation-undecided` rather than admitted:
 
   * no clone was supplied for the repository the entry names;
@@ -35,7 +52,11 @@ FOUR STATES ARE NOT A VERDICT, and each is REPORTED under
     "touched nothing" and "is a merge" are the same output, and reading the
     silence as an empty path set would build a false ERROR out of it;
   * no `git` ran at all — absent from the machine, or a clone that did not
-    answer inside the timeout.
+    answer inside the timeout;
+  * a BARE name that SEVERAL files in the commit's tree answer to. Picking one
+    would be the vacuity above arriving one layer down, and reporting an ERROR
+    would refute a citation that may well be true. A bare name NO file carries
+    is not this state: it is a claim the repository refutes, and it is an ERROR.
 
 The identity says one thing — this pair was not decided — and the EVIDENCE names
 which of the four it was. That split is deliberate: a rule whose one message
@@ -59,6 +80,15 @@ MERGE = (
     "the sha is a MERGE commit, and `--name-only` prints no path for one, so "
     "touching nothing and being a merge are indistinguishable here"
 )
+
+
+def ambiguous(path, count):
+    """The reason a BARE name that several files answer to decides nothing."""
+    return (
+        "the entry names a bare file name and the commit's tree holds "
+        f"{count} files called `{path}`, so which one it claims is not "
+        "decidable"
+    )
 
 
 def _git(root, *args):
@@ -104,6 +134,64 @@ def changed_paths(root, sha):
     return [line for line in out.splitlines() if line.strip()], None
 
 
+def tree_paths(root, sha):
+    """`(every file the commit's tree holds, why it could not be read)`.
+
+    `git ls-tree -r --name-only` is the second read-only command this rule
+    runs, and it exists for ONE reading: the repository half of section
+    1.1.1 rule B. `--name-only` on a commit prints repository-relative
+    paths; the plan writes some declared paths that way and some as a bare
+    basename, and §7.4.2's DSP-21 row records `jitops.cpp`, `jitops.h` and
+    `dsp_ops.inl` bare as the OWNING spelling. Comparing the two spellings
+    as strings refutes a citation the repository confirms.
+
+    The tree is the commit's own, not HEAD's. A file that moved after the
+    commit would otherwise resolve against a directory that did not hold it
+    when the commit was made.
+    """
+    status, out = _git(root, "ls-tree", "-r", "--name-only", sha, "--")
+    if status is None:
+        return None, NO_GIT
+    if status != 0:
+        return None, NO_SHA
+    return [line for line in out.splitlines() if line.strip()], None
+
+
+def is_bare(path):
+    """Whether an entry names a file WITHOUT saying where it lives.
+
+    A path that carries a directory, a directory itself, and a glob all say
+    where they look, and each is compared as written. Only a lone basename
+    makes no claim about a location, and only that spelling is resolved.
+    """
+    return (
+        "/" not in path
+        and "*" not in path
+        and "?" not in path
+        and "[" not in path
+    )
+
+
+def resolve_bare(tree, path):
+    """`(the one path the tree calls `path`, how many it calls that)`.
+
+    The resolution is the REPOSITORY's, and it is a resolution rather than a
+    match: a bare name is admitted only where the tree holds exactly ONE
+    file by that name, and the resolved path is then compared EXACTLY. A
+    suffix test would instead admit any path ending in the name, which
+    passes a citation naming a file in the wrong directory and leaves the
+    rule unable to fail.
+
+    Zero matches is NOT ambiguity and is not returned as one. A name no file
+    in the tree carries is a claim the repository refutes, and the caller
+    reports it as the ERROR it is.
+    """
+    matches = [found for found in tree if found.rsplit("/", 1)[-1] == path]
+    if len(matches) == 1:
+        return matches[0], 1
+    return None, len(matches)
+
+
 def covers(touched, path):
     """Whether a commit's changed paths cover a path an entry claims.
 
@@ -133,6 +221,7 @@ def run(doc, clones=None):
     findings = []
     examined = 0
     read = {}
+    trees = {}
 
     for marker in doc.done_markers:
         task = doc.task(marker.task)
@@ -149,7 +238,30 @@ def run(doc, clones=None):
             for path in entry.paths:
                 examined += 1
                 cited = f"`{entry.repository}` `{entry.sha}`"
-                if undecided is not None:
+                reason = undecided
+                # What the entry claims, and how it was arrived at. A path
+                # written with a directory is its own resolution, so both
+                # stay equal to the entry's own text and the clause below is
+                # empty. Only a bare name moves, and the evidence says so.
+                claimed = path
+                resolution = ""
+                if reason is None and is_bare(path):
+                    if key not in trees:
+                        trees[key] = tree_paths(root, entry.sha)
+                    tree, tree_undecided = trees[key]
+                    if tree_undecided is not None:
+                        reason = tree_undecided
+                    else:
+                        resolved, count = resolve_bare(tree, path)
+                        if count > 1:
+                            reason = ambiguous(path, count)
+                        elif resolved is not None:
+                            claimed = resolved
+                            resolution = (
+                                " — a bare name the commit's tree resolves "
+                                f"to `{resolved}`"
+                            )
+                if reason is not None:
                     findings.append(
                         Finding(
                             rule="done-marker-citation-undecided",
@@ -165,13 +277,13 @@ def run(doc, clones=None):
                             section=section,
                             line=marker.line,
                             evidence=(
-                                f"{cited} cited for `{path}`: {undecided}"
+                                f"{cited} cited for `{path}`: {reason}"
                             ),
                             severity=WARNING,
                         )
                     )
                     continue
-                if covers(touched, path):
+                if covers(touched, claimed):
                     continue
                 findings.append(
                     Finding(
@@ -187,11 +299,11 @@ def run(doc, clones=None):
                         section=section,
                         line=marker.line,
                         evidence=(
-                            f"{cited} is cited for `{path}`; `git show "
-                            f"--format= --name-only {entry.sha}` in that clone "
-                            f"lists {len(touched)} path"
-                            f"{'' if len(touched) == 1 else 's'} and `{path}` "
-                            "is not one of them"
+                            f"{cited} is cited for `{path}`{resolution}; "
+                            f"`git show --format= --name-only {entry.sha}` in "
+                            f"that clone lists {len(touched)} path"
+                            f"{'' if len(touched) == 1 else 's'} and "
+                            f"`{claimed}` is not one of them"
                         ),
                         severity=ERROR,
                     )

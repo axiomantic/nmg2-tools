@@ -189,6 +189,144 @@ class CommitInPathHistoryTest(unittest.TestCase):
 
 
 @unittest.skipUnless(HAS_GIT, "git is not on PATH, so no clone can be read")
+class BareNameTest(unittest.TestCase):
+    """A citation may name a file BARE, and `--name-only` never does.
+
+    Section 1.1.1 rule B says a path is repository-relative, and the plan
+    writes some declared paths that way and some as a bare basename —
+    §7.4.2's DSP-21 row records `jitops.cpp`, `jitops.h` and `dsp_ops.inl`
+    bare and calls that the owning spelling. Comparing a bare name against
+    `--name-only`'s full paths refutes a citation the repository confirms.
+
+    The resolution is the REPOSITORY's and not a roster's: the commit's own
+    tree is read, and a bare name is admitted only where the tree holds
+    exactly ONE file by that name. A suffix test would admit any file whose
+    name ends the same way and would make the rule unable to fail; this
+    resolves to ONE path and then compares EXACTLY, so the wrong-directory
+    claim a suffix test admits is still refused.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.tmp.name) / "core"
+        self.root.mkdir()
+        self.first, self.second = build_repository(self.root)
+        self.clones = {"axiomantic/core": self.root}
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_a_bare_name_unique_in_the_tree_resolves_and_is_silent(self):
+        doc = plan(
+            "**DONE. CITED PER DECLARED PATH:** `axiomantic/core` "
+            f"`{self.first}` → `one.cpp`."
+        )
+
+        self.assertEqual(citations.run(doc, clones=self.clones).findings, [])
+
+    def test_a_bare_name_the_cited_commit_never_touched_is_reported(self):
+        """THE ACCEPTANCE CASE. `one.cpp` resolves to `src/one.cpp`, and the
+        second commit did not touch it. A resolution that admitted the name
+        on a suffix test would pass this and the rule could not fail."""
+        doc = plan(
+            "**DONE. CITED PER DECLARED PATH:** `axiomantic/core` "
+            f"`{self.second}` → `one.cpp`."
+        )
+
+        self.assertEqual(
+            rows(citations.run(doc, clones=self.clones)),
+            [
+                (
+                    "done-marker-commit-not-in-path-history",
+                    "AAA-1",
+                    "ERROR",
+                    f"`axiomantic/core` `{self.second}` is cited for `one.cpp` "
+                    "— a bare name the commit's tree resolves to "
+                    "`src/one.cpp`; `git show --format= --name-only "
+                    f"{self.second}` in that clone lists 1 path and "
+                    "`src/one.cpp` is not one of them",
+                )
+            ],
+        )
+
+    def test_a_full_path_in_the_wrong_directory_is_still_reported(self):
+        """The wrong-directory claim, planted. `wrong/one.cpp` shares its
+        basename with a path the commit DID touch, and a suffix reading would
+        admit it. A written path carries a directory, so it is compared as
+        written and the repository refutes it."""
+        doc = plan(
+            "**DONE. CITED PER DECLARED PATH:** `axiomantic/core` "
+            f"`{self.first}` → `wrong/one.cpp`."
+        )
+
+        self.assertEqual(
+            rows(citations.run(doc, clones=self.clones)),
+            [
+                (
+                    "done-marker-commit-not-in-path-history",
+                    "AAA-1",
+                    "ERROR",
+                    f"`axiomantic/core` `{self.first}` is cited for "
+                    "`wrong/one.cpp`; `git show --format= --name-only "
+                    f"{self.first}` in that clone lists 2 paths and "
+                    "`wrong/one.cpp` is not one of them",
+                )
+            ],
+        )
+
+    def test_a_bare_name_no_file_in_the_tree_carries_is_reported(self):
+        """A bare name that resolves to NOTHING is a claim the repository
+        refutes, not a state this lint cannot decide. The commit's tree holds
+        no `absent.cpp` at all."""
+        doc = plan(
+            "**DONE. CITED PER DECLARED PATH:** `axiomantic/core` "
+            f"`{self.first}` → `absent.cpp`."
+        )
+
+        self.assertEqual(
+            rows(citations.run(doc, clones=self.clones)),
+            [
+                (
+                    "done-marker-commit-not-in-path-history",
+                    "AAA-1",
+                    "ERROR",
+                    f"`axiomantic/core` `{self.first}` is cited for "
+                    "`absent.cpp`; `git show --format= --name-only "
+                    f"{self.first}` in that clone lists 2 paths and "
+                    "`absent.cpp` is not one of them",
+                )
+            ],
+        )
+
+    def test_a_bare_name_several_files_carry_is_undecided(self):
+        """Resolution that PICKED one would be the vacuity this rule refuses.
+        Two files named `dup.cpp` make the entry's claim undecidable, and an
+        undecidable pair is reported rather than passed."""
+        other = pathlib.Path(self.tmp.name) / "twin"
+        other.mkdir()
+        git(other, "init", "-q", "-b", "main")
+        sha = commit(other, ["src/dup.cpp", "alt/dup.cpp"], "two files, one name")
+
+        doc = plan(
+            "**DONE. CITED PER DECLARED PATH:** `axiomantic/twin` "
+            f"`{sha}` → `dup.cpp`."
+        )
+
+        self.assertEqual(
+            rows(citations.run(doc, clones={"axiomantic/twin": other})),
+            [
+                (
+                    "done-marker-citation-undecided",
+                    "AAA-1",
+                    "WARNING",
+                    f"`axiomantic/twin` `{sha}` cited for `dup.cpp`: the entry "
+                    "names a bare file name and the commit's tree holds 2 "
+                    "files called `dup.cpp`, so which one it claims is not "
+                    "decidable",
+                )
+            ],
+        )
+
+
+@unittest.skipUnless(HAS_GIT, "git is not on PATH, so no clone can be read")
 class UndecidedTest(unittest.TestCase):
     """WHAT THIS LINT CANNOT DECIDE, asserted rather than described.
 
