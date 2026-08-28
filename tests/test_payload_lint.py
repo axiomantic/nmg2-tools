@@ -6,16 +6,21 @@ from pathlib import Path
 import pytest
 
 from nmg2_tools.payload_lint import (
+    KNOWN_REPOSITORIES,
     PCH2_ALLOWED_DIR,
+    PENDING_PREFIX,
     SHIPPED_REGISTER,
     RegisterError,
     RegisterEntry,
+    check_register_rows,
     lint_committed_files,
     REPO_SCOPED_VISIBILITIES,
     _committed_files,
     load_register,
     main,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # `pch2-exception` rows carry the repository they were granted for. An
 # unqualified row grants nothing anywhere, so a fixture that leaves the field
@@ -308,7 +313,7 @@ def _register_file(tmp_path: Path, text: str) -> Path:
 def test_load_register_rejects_a_pch2_exception_row_with_no_repository_field(tmp_path):
     path = _register_file(
         tmp_path,
-        "nmg2_tools/testdata/pch2_synth/\tpublic\n"
+        "nmg2_tools/testdata/pch2_synth/\tpublic\taxiomantic/nmg2-tools\n"
         "PatchTestFiles/\tpublic pch2-exception\n",
     )
     with pytest.raises(RegisterError) as caught:
@@ -450,12 +455,16 @@ def test_this_module_passes_from_a_foreign_working_directory(tmp_path):
 def test_default_register_is_found_from_a_foreign_working_directory(
     tmp_path, monkeypatch, capsys
 ):
-    """`--register` defaults to the shipped file wherever the tool is run."""
-    tree = tmp_path / "tree"
-    tree.mkdir()
-    subprocess.run(["git", "-C", str(tree), "init", "-q"], check=True)
+    """`--register` defaults to the shipped file wherever the tool is run.
+
+    The tree under test is THIS REPOSITORY and not an empty scratch directory.
+    An empty directory used to serve here, and clause 6 now reports one --
+    a lint that looped over no file prints what a clean tree prints. The
+    assertion the test was written for is unchanged: run from a foreign
+    working directory, the default register still resolves.
+    """
     monkeypatch.chdir(tmp_path)
-    status = main([str(tree), "--repo", "axiomantic/nmg2-tools"])
+    status = main([str(REPO_ROOT), "--repo", "axiomantic/nmg2-tools"])
     assert status == 0
     assert capsys.readouterr() == ("", "")
 
@@ -784,3 +793,280 @@ def test_every_repo_scoped_row_in_the_shipped_register_names_a_repository():
             "axiomantic/nmg2-tools",
         ),
     ]
+
+
+# --- Clause 6: the register read BACK against the tree ------------------------
+#
+# Every clause above walks committed files and asks the register about them.
+# None of them walks a ROW and asks the tree, and that is the direction in
+# which five `gearmulator` fixture rows carried a wrong root and a sixth named
+# a file that never existed, for months, while the guard stayed green. A row
+# that matched nothing by accident was indistinguishable from a row whose file
+# had not landed yet, so the tests below check BOTH buckets in BOTH directions:
+# an unexplained unmatched row is loud, an explicitly pending one is quiet, and
+# a pending row that starts matching is loud again so the marker cannot rot.
+
+HOME = "axiomantic/gearmulator"
+AWAY = "axiomantic/mc68k"
+FIXTURES = "source/nord/g2/g2Lib/test/fixtures/"
+TREE = [FIXTURES + "esai_sync_spin.asm", "README.md"]
+
+
+def test_a_row_matching_no_committed_path_in_its_home_is_reported():
+    entries = [RegisterEntry(FIXTURES + "no_such_spin.asm", "public", HOME)]
+    failures = check_register_rows(TREE, entries, HOME)
+    assert failures == [
+        f"PAYLOAD-REGISTER-UNMATCHED: {FIXTURES}no_such_spin.asm: this row is "
+        f"at home in {HOME} and matches no committed path there, so it "
+        "registers nothing. Correct the path, or mark the row "
+        f"`{PENDING_PREFIX}<reason>` if the file is yet to land"
+    ]
+
+
+def test_the_wrong_prefix_that_started_this_is_reported():
+    """The defect verbatim: `g2Lib/` where the tree says `source/nord/g2/`."""
+    entries = [RegisterEntry("g2Lib/test/fixtures/esai_sync_spin.asm",
+                             "public", HOME)]
+    failures = check_register_rows(TREE, entries, HOME)
+    assert len(failures) == 1
+    assert failures[0].startswith(
+        "PAYLOAD-REGISTER-UNMATCHED: g2Lib/test/fixtures/esai_sync_spin.asm:"
+    )
+
+
+def test_the_phantom_row_that_started_this_is_reported():
+    """`frame_sync_spin.asm` names a file that never existed in `gearmulator`.
+
+    The row is checked against a tree holding the file that DID land, which is
+    the known positive: the same call answers nothing for `esai_sync_spin.asm`
+    and answers this row, so the empty result below is a measurement.
+    """
+    phantom = RegisterEntry(FIXTURES + "frame_sync_spin.asm", "public", HOME)
+    landed = RegisterEntry(FIXTURES + "esai_sync_spin.asm", "public", HOME)
+    assert check_register_rows(TREE, [landed], HOME) == []
+    failures = check_register_rows(TREE, [phantom, landed], HOME)
+    assert len(failures) == 1
+    assert FIXTURES + "frame_sync_spin.asm" in failures[0]
+
+
+def test_a_row_is_only_read_back_in_the_repository_it_is_at_home_in():
+    """A row is checked where it lives, and applies where the path turns up.
+
+    Reading it back everywhere would report every `nmg2-artifacts` row against
+    `gearmulator`; not reading it back anywhere is the hole this clause fills.
+    """
+    entries = [
+        RegisterEntry(FIXTURES + "no_such_spin.asm", "public", HOME),
+        RegisterEntry("README.md", "public", AWAY),
+    ]
+    assert check_register_rows(TREE, entries, AWAY) == []
+    assert len(check_register_rows(TREE, entries, HOME)) == 1
+
+
+def test_a_pending_row_that_matches_nothing_is_quiet():
+    entries = [
+        RegisterEntry(FIXTURES + "golden/manifest.txt", "public", HOME,
+                      "SCH-40 will generate it"),
+        RegisterEntry(FIXTURES + "esai_sync_spin.asm", "public", HOME),
+    ]
+    assert check_register_rows(TREE, entries, HOME) == []
+
+
+def test_a_pending_row_stays_quiet_in_a_run_where_another_row_fails():
+    """The pending row is not merely masked by a red run; it is not reported.
+
+    A "quiet" that only holds while everything else passes would put the
+    forward declaration back in the silent bucket the moment the register had
+    a real defect -- which is precisely when it is read.
+    """
+    entries = [
+        RegisterEntry(FIXTURES + "golden/manifest.txt", "public", HOME,
+                      "SCH-40 will generate it"),
+        RegisterEntry(FIXTURES + "no_such_spin.asm", "public", HOME),
+    ]
+    failures = check_register_rows(TREE, entries, HOME)
+    assert len(failures) == 1
+    assert "no_such_spin.asm" in failures[0]
+    assert "manifest.txt" not in failures[0]
+
+
+def test_a_pending_row_that_starts_matching_is_reported():
+    """The marker expires by itself, so `pending` is not a hiding place."""
+    entries = [RegisterEntry(FIXTURES + "esai_sync_spin.asm", "public", HOME,
+                             "SCH-34 will add it")]
+    failures = check_register_rows(TREE, entries, HOME)
+    assert len(failures) == 1
+    assert failures[0].startswith("PAYLOAD-REGISTER-PENDING-SATISFIED: ")
+    assert "SCH-34 will add it" in failures[0]
+
+
+@pytest.mark.parametrize("repo", [None, "axiomantic/not-a-repository"])
+def test_an_unidentified_or_unrostered_repository_is_reported(repo):
+    entries = [RegisterEntry("README.md", "public", HOME)]
+    failures = check_register_rows(TREE, entries, repo)
+    assert len(failures) == 1
+    assert failures[0].startswith("PAYLOAD-REGISTER-UNCHECKED: ")
+
+
+def test_a_register_with_no_rows_is_reported():
+    failures = check_register_rows(TREE, [], HOME)
+    assert len(failures) == 1
+    assert failures[0].startswith("PAYLOAD-REGISTER-EMPTY: ")
+
+
+def test_a_tree_with_no_tracked_files_is_reported():
+    """A loop over a vanished scope exits 0 and prints what a clean tree does."""
+    entries = [RegisterEntry("README.md", "public", HOME)]
+    failures = check_register_rows([], entries, HOME)
+    assert len(failures) == 1
+    assert failures[0].startswith("PAYLOAD-REGISTER-NO-FILES: ")
+
+
+def test_a_rostered_repository_no_row_is_at_home_in_is_reported():
+    """Otherwise the clause is vacuous there and says so nowhere."""
+    entries = [RegisterEntry("README.md", "public", HOME)]
+    failures = check_register_rows(TREE, entries, AWAY)
+    assert len(failures) == 1
+    assert failures[0].startswith("PAYLOAD-REGISTER-NO-HOME-ROWS: ")
+
+
+# --- The home field is required, rostered, and single for a grant ------------
+
+
+def test_load_register_rejects_a_row_with_no_home_field(tmp_path):
+    path = _register_file(tmp_path, "golden/\tprivate\n")
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert str(caught.value) == (
+        f"{path}:1: every row must carry a third, tab-separated `home` field "
+        "naming the repositories this row is expected to match a committed "
+        "path in, comma-separated: 'golden/\\tprivate'"
+    )
+
+
+def test_load_register_rejects_a_home_outside_the_roster(tmp_path):
+    """A typo may not simply move from the path field to the home field."""
+    path = _register_file(tmp_path, "golden/\tprivate\taxiomantic/nmg2-tool\n")
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert "unknown home repository 'axiomantic/nmg2-tool'" in str(caught.value)
+
+
+def test_load_register_rejects_a_repo_scoped_row_naming_two_repositories(
+    tmp_path,
+):
+    """A grant this strong is granted in one place or it is a mistake."""
+    path = _register_file(
+        tmp_path,
+        "PatchTestFiles/\tpublic pch2-exception\t"
+        "axiomantic/G2-Edit,axiomantic/mc68k\n",
+    )
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert "must carry a third, tab-separated `owner/name` field" in str(
+        caught.value
+    )
+
+
+@pytest.mark.parametrize("field", ["pending=", "pending", "SCH-40"])
+def test_load_register_rejects_a_malformed_fourth_field(tmp_path, field):
+    path = _register_file(
+        tmp_path, f"golden/\tprivate\taxiomantic/nmg2-tools\t{field}\n"
+    )
+    with pytest.raises(RegisterError) as caught:
+        load_register(path)
+    assert "the fourth field must read `pending=<reason>`" in str(caught.value)
+
+
+def test_load_register_reads_homes_and_a_pending_reason(tmp_path):
+    path = _register_file(
+        tmp_path,
+        "golden/\tprivate\taxiomantic/nmg2-tools,axiomantic/gearmulator\n"
+        "later.bin\tprivate\taxiomantic/gearmulator\tpending=SCH-40 adds it\n",
+    )
+    entries = load_register(path)
+    assert [(e.path, e.homes, e.pending) for e in entries] == [
+        ("golden/", ("axiomantic/nmg2-tools", "axiomantic/gearmulator"), None),
+        ("later.bin", ("axiomantic/gearmulator",), "SCH-40 adds it"),
+    ]
+    # A row homed in two places is scoped to neither, so `.repo` -- the ONE
+    # repository a grant names -- has no answer for it.
+    assert entries[0].repo is None
+    assert entries[1].repo == "axiomantic/gearmulator"
+
+
+# --- The shipped register, held against the roster ---------------------------
+
+
+def test_every_shipped_row_names_at_least_one_rostered_home():
+    entries = load_register(SHIPPED_REGISTER)
+    assert entries
+    assert [e.path for e in entries if not e.homes] == []
+    assert [
+        (e.path, slug)
+        for e in entries
+        for slug in e.homes
+        if slug not in KNOWN_REPOSITORIES
+    ] == []
+
+
+def test_every_rostered_repository_has_at_least_one_row_at_home():
+    """Otherwise clause 6 examines no row there and reports nothing about it."""
+    entries = load_register(SHIPPED_REGISTER)
+    homeless = [
+        repo
+        for repo in KNOWN_REPOSITORIES
+        if not any(repo in entry.homes for entry in entries)
+    ]
+    assert homeless == []
+
+
+def test_the_shipped_register_is_matched_by_this_repository(tmp_path):
+    """Every row at home in `nmg2-tools` matches a path committed here.
+
+    The control plants one broken row into the same population, so the empty
+    list above is a measurement of the tree and not of an inert check.
+    """
+    entries = load_register(SHIPPED_REGISTER)
+    committed = _committed_files(REPO_ROOT)
+    repo = "axiomantic/nmg2-tools"
+    assert check_register_rows(committed, entries, repo) == []
+    planted = [*entries, RegisterEntry("no/such/path.bin", "public", repo)]
+    assert len(check_register_rows(committed, planted, repo)) == 1
+
+
+def test_clause_6_does_not_answer_for_clause_2(tmp_path, capsys):
+    """A new check that quietly disables an old one is the failure to avoid.
+
+    The planted file is unregistered AND the run is red for clause 6 as well,
+    because the scratch tree matches almost no row at home here. Both findings
+    must appear.
+    """
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    subprocess.run(["git", "-C", str(tree), "init", "-q"], check=True)
+    (tree / "planted_payload.bin").write_bytes(b"\x00" * 8)
+    subprocess.run(
+        ["git", "-C", str(tree), "add", "planted_payload.bin"], check=True
+    )
+    status = main([str(tree), "--repo", "axiomantic/nmg2-tools"])
+    assert status == 1
+    errors = capsys.readouterr().err.splitlines()
+    assert any(
+        line.startswith("PAYLOAD-UNREGISTERED: planted_payload.bin:")
+        for line in errors
+    )
+    assert any(line.startswith("PAYLOAD-REGISTER-UNMATCHED: ") for line in errors)
+
+
+def test_main_reports_a_missing_register_as_a_named_failure(tmp_path, capsys):
+    """The most complete way to know nothing gets a name, not a traceback."""
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    subprocess.run(["git", "-C", str(tree), "init", "-q"], check=True)
+    status = main(
+        [str(tree), "--register", str(tmp_path / "gone.tsv"),
+         "--repo", "axiomantic/nmg2-tools"]
+    )
+    assert status == 1
+    assert capsys.readouterr().err.startswith("PAYLOAD-REGISTER-UNREADABLE: ")

@@ -60,22 +60,40 @@ independent conditions, each with its own failure name:
    ``nmg2-artifacts``, may hold it.
 5. PAYLOAD-REGISTER-MALFORMED: the register itself holds a row this module
    refuses -- a repo-scoped row that does not name the repository it is
-   granted for, or a visibility outside the accepted vocabulary. This is a
-   failure of the REGISTER and not of any committed file, so it fails
-   whatever the tree holds, and in either visibility. An unknown visibility
-   is refused rather than read as ``public``, because reading a typo as the
-   most permissive value is the silent failure this module exists to stop.
+   granted for, a row that names no home repository at all, a home repository
+   outside the declared roster, or a visibility outside the accepted
+   vocabulary. This is a failure of the REGISTER and not of any committed
+   file, so it fails whatever the tree holds, and in either visibility. An
+   unknown visibility is refused rather than read as ``public``, because
+   reading a typo as the most permissive value is the silent failure this
+   module exists to stop.
+6. PAYLOAD-REGISTER-UNMATCHED, PAYLOAD-REGISTER-PENDING-SATISFIED,
+   PAYLOAD-REGISTER-UNCHECKED, PAYLOAD-REGISTER-EMPTY,
+   PAYLOAD-REGISTER-NO-FILES, PAYLOAD-REGISTER-NO-HOME-ROWS: the register is
+   READ BACK against the tree, so that a row asserting a provenance for a path
+   that is not there says so out loud. See "Reading the register back" below.
 
 The register file format
 -------------------------
 A simple tab-separated text file, one row per line::
 
-    <path><TAB><visibility>[<TAB><repo>]
+    <path><TAB><visibility><TAB><home>[<TAB>pending=<reason>]
 
 ``path`` is a repository-relative path. A path ending in ``/`` names a
-directory and covers every path beneath it. The optional third field is an
-``owner/name`` repository slug that SCOPES the row to one repository; see
-``public pch2-exception`` below. ``visibility`` is one of:
+directory and covers every path beneath it.
+
+``home`` is a comma-separated list of ``owner/name`` repository slugs naming
+the repositories this row is FOR -- the repositories in which it is expected
+to match a committed path. It is REQUIRED on every row, and every slug in it
+must appear in :data:`KNOWN_REPOSITORIES`. For the two repo-scoped
+visibilities below it additionally NARROWS the grant, and must then name
+exactly one repository. For every other visibility it narrows nothing: a
+``public`` row still registers its path in whichever repository the path turns
+up in. The field says where the row is CHECKED, not where it applies.
+
+``pending=<reason>`` is the optional fourth field. See below.
+
+``visibility`` is one of:
 
 - ``public``                -- the path may be committed in a public
   repository, and is subject to the size ceiling.
@@ -117,6 +135,48 @@ directory and covers every path beneath it. The optional third field is an
   reads.
 
 Blank lines and lines starting with ``#`` are ignored.
+
+Reading the register back
+-------------------------
+Every clause above reads a committed file and asks the register about it. None
+of them reads a REGISTER ROW and asks the tree about it, and that direction is
+where this register spent five rows asserting nothing for months. Five
+``gearmulator`` fixture rows carried the prefix ``g2Lib/`` where the
+repository-relative path is ``source/nord/g2/g2Lib/``; a sixth named
+``frame_sync_spin.asm``, a file that has never existed in that repository on
+any branch. Each compared unequal against every committed path, so no
+``PAYLOAD-UNREGISTERED`` finding was ever answered by one -- and nothing said
+so, because **a row that matches nothing by accident and a row that matches
+nothing on purpose looked identical**. The register legitimately carries rows
+for files that have not landed yet, so "unmatched" could not simply be an
+error.
+
+The fix makes the difference EXPLICIT IN THE DATA rather than inferring it:
+
+- Every row names its ``home`` repositories. In a home repository the row MUST
+  match at least one committed path, or clause 6 reports
+  ``PAYLOAD-REGISTER-UNMATCHED`` and names the row. A row whose home is wrong
+  is loud for the same reason, in the repository it wrongly names.
+- A row that is deliberately ahead of its file carries ``pending=<reason>``.
+  The reason is prose a human audits; the marker is what moves the row out of
+  the loud bucket, and it can only be added deliberately.
+- ``pending`` is not a hiding place: a ``pending`` row that DOES match is
+  ``PAYLOAD-REGISTER-PENDING-SATISFIED``, so the marker expires by itself when
+  the file lands. Both buckets are checked, in both directions.
+
+The check runs over the rows at home in ONE repository, so it needs to know
+which repository it is looking at and it must not fall quiet when it does not:
+
+- ``--repo`` absent, or naming a repository outside :data:`KNOWN_REPOSITORIES`
+  -> ``PAYLOAD-REGISTER-UNCHECKED``. A new repository joining the set is a
+  deliberate edit here, not a silent exemption for its whole tree.
+- a register with no rows -> ``PAYLOAD-REGISTER-EMPTY``.
+- a repository with no tracked files -> ``PAYLOAD-REGISTER-NO-FILES``. A loop
+  over a vanished scope prints nothing and exits 0, which is byte for byte
+  what a clean tree prints.
+- a rostered repository no row is at home in -> ``PAYLOAD-REGISTER-NO-HOME-ROWS``.
+  Without it the whole clause is vacuous in that repository and says so
+  nowhere.
 """
 
 from __future__ import annotations
@@ -181,6 +241,29 @@ REPO_SCOPED_MARKS = {
     PCH2_EXCEPTION_MARK: PCH2_EXCEPTION_VISIBILITY,
 }
 
+# The repositories that share this one register file. A row's `home` field is
+# checked against this roster, so a typo in a home slug is refused instead of
+# naming a repository that is never linted -- which would move the silent
+# bucket from the path field to the repository field and change nothing. A
+# `--repo` outside the roster is likewise refused rather than read as "no rows
+# are at home here, nothing to check": a repository joining the set is an edit
+# to this tuple, made once, on purpose.
+KNOWN_REPOSITORIES = (
+    "axiomantic/nmg2-tools",
+    "axiomantic/G2-Edit",
+    "axiomantic/mc68k",
+    "axiomantic/mcf5307",
+    "axiomantic/dsp56300",
+    "axiomantic/gearmulator",
+    "axiomantic/nmg2-artifacts",
+)
+
+# The fourth field's one accepted form. A row carrying it declares that it is
+# ahead of its file ON PURPOSE and says why. Nothing else moves a row out of
+# the loud bucket, and the marker expires by itself: see
+# PAYLOAD-REGISTER-PENDING-SATISFIED.
+PENDING_PREFIX = "pending="
+
 VALID_VISIBILITIES = (
     "public",
     "private",
@@ -224,14 +307,52 @@ class RegisterError(ValueError):
 
 
 class RegisterEntry:
-    __slots__ = ("path", "visibility", "repo")
+    __slots__ = ("path", "visibility", "homes", "pending")
 
     def __init__(
-        self, path: str, visibility: str, repo: str | None = None
+        self,
+        path: str,
+        visibility: str,
+        repo: str | tuple[str, ...] | list[str] | None = None,
+        pending: str | None = None,
     ) -> None:
         self.path = path
         self.visibility = visibility
-        self.repo = repo
+        if repo is None:
+            self.homes: tuple[str, ...] = ()
+        elif isinstance(repo, str):
+            self.homes = (repo,)
+        else:
+            self.homes = tuple(repo)
+        self.pending = pending
+
+    @property
+    def repo(self) -> str | None:
+        """The ONE repository this row names, or ``None`` if it names none.
+
+        A repo-scoped grant may name exactly one repository -- the parser
+        refuses more, because the grant is strong and "granted in two places"
+        is a sentence nobody meant to write. This property is that one slug.
+        A row homed in several repositories is not scoped to any of them and
+        answers ``None``; use :attr:`homes` to ask where a row is checked.
+        """
+        return self.homes[0] if len(self.homes) == 1 else None
+
+    @property
+    def is_pending(self) -> bool:
+        return self.pending is not None
+
+    def matches(self, posix_path: str) -> bool:
+        """Does this row's OWN predicate cover ``posix_path``?
+
+        Deliberately not :func:`_find_register_entry`, which answers a
+        different question -- which row WINS for a path. A directory row
+        shadowed for one path by a longer exact row still covers the rest of
+        its subtree, and clause 6 asks whether the row covers anything at all.
+        """
+        if self.is_dir_rule:
+            return posix_path.startswith(self.path)
+        return posix_path == self.path
 
     @property
     def is_dir_rule(self) -> bool:
@@ -266,9 +387,9 @@ class RegisterEntry:
         """
         if not self.is_repo_scoped:
             return True
-        if self.repo is None or repo is None:
+        if not self.homes or repo is None:
             return False
-        return repo == self.repo
+        return repo in self.homes
 
     @property
     def fixture_repo(self) -> bool:
@@ -282,9 +403,9 @@ class RegisterEntry:
         """
         if not self.fixture_repo:
             return False
-        if self.repo is None or repo is None:
+        if not self.homes or repo is None:
             return False
-        return repo == self.repo
+        return repo in self.homes
 
     @property
     def pch2_excepted(self) -> bool:
@@ -304,9 +425,9 @@ class RegisterEntry:
         """
         if not self.pch2_excepted:
             return False
-        if self.repo is None or repo is None:
+        if not self.homes or repo is None:
             return False
-        return repo == self.repo
+        return repo in self.homes
 
 
 def load_register(register_path: Path) -> list[RegisterEntry]:
@@ -321,6 +442,14 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
     Note that the space-separated fallback below produces two fields at most,
     so it can never carry the repository field: an exception row written with
     spaces is refused for that reason.
+
+    EVERY row must carry the third ``home`` field, and every slug in it must be
+    in :data:`KNOWN_REPOSITORIES`. Both refusals exist so that clause 6 cannot
+    be evaded by omission: a row with no home would be checked in no
+    repository, and a row homed to a repository that does not exist would be
+    checked in one that is never linted. Either is the same silent bucket the
+    clause was built to empty, reached through the home field instead of
+    through the path.
     """
     entries: list[RegisterEntry] = []
     for lineno, raw_line in enumerate(register_path.read_text().splitlines(), 1):
@@ -332,10 +461,15 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
             # Tolerate accidental runs of spaces instead of a literal tab.
             parts = line.split(None, 1)
         for mark, scoped_visibility in REPO_SCOPED_MARKS.items():
+            # A repo-scoped grant names exactly ONE repository. A comma here is
+            # refused rather than read as a home list: "granted in two places"
+            # is a sentence nobody meant to write, and the grants are the two
+            # strongest rows the register can carry.
             if mark in line and (
                 len(parts) < 3
                 or parts[1].strip() != scoped_visibility
                 or not parts[2].strip()
+                or "," in parts[2]
             ):
                 raise RegisterError(
                     f"{register_path}:{lineno}: a `{scoped_visibility}` row "
@@ -351,8 +485,37 @@ def load_register(register_path: Path) -> list[RegisterEntry]:
                 f"{visibility!r}; the register accepts only "
                 f"{', '.join(VALID_VISIBILITIES)}: {line!r}"
             )
-        repo = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
-        entries.append(RegisterEntry(path, visibility, repo))
+        if len(parts) < 3 or not parts[2].strip():
+            raise RegisterError(
+                f"{register_path}:{lineno}: every row must carry a third, "
+                "tab-separated `home` field naming the repositories this row "
+                "is expected to match a committed path in, comma-separated: "
+                f"{line!r}"
+            )
+        homes = tuple(
+            slug.strip() for slug in parts[2].split(",") if slug.strip()
+        )
+        for slug in homes:
+            if slug not in KNOWN_REPOSITORIES:
+                raise RegisterError(
+                    f"{register_path}:{lineno}: unknown home repository "
+                    f"{slug!r}; the register is shared by "
+                    f"{', '.join(KNOWN_REPOSITORIES)}: {line!r}"
+                )
+        pending = None
+        if len(parts) > 3 and parts[3].strip():
+            field = parts[3].strip()
+            if not field.startswith(PENDING_PREFIX) or not field[
+                len(PENDING_PREFIX) :
+            ].strip():
+                raise RegisterError(
+                    f"{register_path}:{lineno}: the fourth field must read "
+                    f"`{PENDING_PREFIX}<reason>` with a non-empty reason; it "
+                    "is the only thing that moves a row out of the loud "
+                    f"bucket, so it may not be blank: {line!r}"
+                )
+            pending = field[len(PENDING_PREFIX) :].strip()
+        entries.append(RegisterEntry(path, visibility, homes, pending))
     return entries
 
 
@@ -460,6 +623,84 @@ def lint_committed_files(
     return failures
 
 
+def check_register_rows(
+    committed_files: list[str],
+    entries: list[RegisterEntry],
+    repo: str | None = None,
+) -> list[str]:
+    """Read the REGISTER back against the tree -- clause 6.
+
+    Every other clause walks committed files and asks the register about them.
+    This one walks the rows at home in ``repo`` and asks the tree about them,
+    which is the direction in which five rows asserted a provenance for paths
+    that were not there and nothing ever said so.
+
+    It is deliberately NOT folded into :func:`lint_committed_files`. That
+    function answers a question about a LIST OF PATHS the caller chose, and it
+    is called throughout the tests with a one-element list; a row check inside
+    it would report every row in the register as unmatched against a list of
+    one. Two questions, two functions, and clause 2 keeps the meaning it had.
+    """
+    failures: list[str] = []
+
+    if repo is None or repo not in KNOWN_REPOSITORIES:
+        # No repository, no rows at home, nothing checked -- and that must not
+        # look like a clean run. The check fails CLOSED on an unidentified or
+        # unrostered caller for the same reason the pch2 grant does.
+        failures.append(
+            "PAYLOAD-REGISTER-UNCHECKED: "
+            f"{repo!r} is not one of the repositories this register is "
+            f"declared for ({', '.join(KNOWN_REPOSITORIES)}), so no register "
+            "row could be read back against this tree. Pass `--repo`, or add "
+            "the repository to KNOWN_REPOSITORIES"
+        )
+        return failures
+
+    if not entries:
+        failures.append(
+            "PAYLOAD-REGISTER-EMPTY: the register holds no rows; an empty "
+            "register answers every path the same way a complete one answers "
+            "a registered path, and exits 0"
+        )
+        return failures
+
+    if not committed_files:
+        failures.append(
+            "PAYLOAD-REGISTER-NO-FILES: the tree lists no tracked files, so "
+            "every clause looped over nothing and printed nothing, which is "
+            "what a clean tree prints"
+        )
+        return failures
+
+    at_home = [entry for entry in entries if repo in entry.homes]
+    if not at_home:
+        failures.append(
+            f"PAYLOAD-REGISTER-NO-HOME-ROWS: no register row names {repo} in "
+            "its `home` field, so this clause examined no row here and said "
+            "so nowhere"
+        )
+        return failures
+
+    for entry in at_home:
+        matched = any(entry.matches(path) for path in committed_files)
+        if not matched and not entry.is_pending:
+            failures.append(
+                f"PAYLOAD-REGISTER-UNMATCHED: {entry.path}: this row is at "
+                f"home in {repo} and matches no committed path there, so it "
+                "registers nothing. Correct the path, or mark the row "
+                f"`{PENDING_PREFIX}<reason>` if the file is yet to land"
+            )
+        elif matched and entry.is_pending:
+            failures.append(
+                f"PAYLOAD-REGISTER-PENDING-SATISFIED: {entry.path}: this row "
+                f"is marked `{PENDING_PREFIX}{entry.pending}` but now matches "
+                f"a committed path in {repo}. Drop the marker; a pending row "
+                "that is never re-read is the silent bucket in a new costume"
+            )
+
+    return failures
+
+
 def lint_repo_tree(
     repo_path: Path,
     register_path: Path,
@@ -468,7 +709,9 @@ def lint_repo_tree(
 ) -> list[str]:
     entries = load_register(register_path)
     committed = _committed_files(repo_path)
-    return lint_committed_files(repo_path, committed, entries, visibility, repo)
+    return lint_committed_files(
+        repo_path, committed, entries, visibility, repo
+    ) + check_register_rows(committed, entries, repo)
 
 
 def main(argv: list[str]) -> int:
@@ -508,6 +751,16 @@ def main(argv: list[str]) -> int:
         # A named finding and exit 1, the same shape as every other failure
         # this module reports. A traceback would say the same thing worse.
         print(f"PAYLOAD-REGISTER-MALFORMED: {error}", file=sys.stderr)
+        return 1
+    except OSError as error:
+        # A register that is absent or unreadable is the most complete way for
+        # this guard to know nothing, so it gets a named finding of its own
+        # rather than a traceback from `read_text`. The two are both non-zero,
+        # but only one of them says which check did not run.
+        print(
+            f"PAYLOAD-REGISTER-UNREADABLE: {args.register}: {error}",
+            file=sys.stderr,
+        )
         return 1
 
     for failure in failures:

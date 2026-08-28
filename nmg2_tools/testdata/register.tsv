@@ -1,4 +1,25 @@
-nmg2_tools/testdata/pch2_synth/	public
+# The payload register. ONE file, shared by seven repositories, read by
+# `nmg2_tools/payload_lint.py`; that module's docstring is the authority on
+# what each field means and this header does not restate it.
+#
+#     <path><TAB><visibility><TAB><home>[<TAB>pending=<reason>]
+#
+# `home` is REQUIRED on every row and lists, comma-separated, the repositories
+# where the row is EXPECTED TO MATCH a committed path. It is not a scope: a
+# `public` row still registers its path wherever the path turns up. It is
+# where the row is CHECKED. In a home repository a row that matches nothing is
+# `PAYLOAD-REGISTER-UNMATCHED`, which is the finding that did not exist while
+# six rows in this file asserted a provenance for paths that were not there --
+# five under a `g2Lib/` root the tree has never had, and one, `frame_sync_spin.asm`,
+# naming a file that has never existed in `gearmulator` on any branch. Nothing
+# reported them because a row matching nothing by accident and a row whose file
+# has not landed yet looked identical. The `home` field and the `pending=`
+# marker are what tells them apart, IN THE DATA, so only the deliberate one can
+# be quiet.
+#
+# A home slug must appear in `KNOWN_REPOSITORIES`, so a typo cannot move out of
+# the path field and into the home field and go on asserting nothing.
+nmg2_tools/testdata/pch2_synth/	public	axiomantic/nmg2-tools
 # `gearmulator` test fixtures. THE PREFIX ON THESE FIVE ROWS WAS WRONG AND THE
 # ROWS GRANTED NOTHING. `g2Lib/` is where the library sits inside its own
 # subtree; the repository-relative path -- the only thing `git ls-files` emits
@@ -33,35 +54,44 @@ nmg2_tools/testdata/pch2_synth/	public
 # frame carrying an index, a type code, a length and a CRC-16 over the payload,
 # and the corpus it describes is `nmg2_tools/testdata/pch2_synth/` above, whose
 # generator states that every byte of it is authored by this project.
-source/nord/g2/g2Lib/test/fixtures/synthetic_block_program.asm	public
-source/nord/g2/g2Lib/test/fixtures/esai_sync_spin.asm	public
-source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public
+source/nord/g2/g2Lib/test/fixtures/synthetic_block_program.asm	public	axiomantic/gearmulator
+source/nord/g2/g2Lib/test/fixtures/esai_sync_spin.asm	public	axiomantic/gearmulator
+source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public	axiomantic/gearmulator
 # `bit_test_spin.asm` was never registered under any prefix. It arrived in
 # e6c6257b for task DSP-19 and is the same shape as the two above.
-source/nord/g2/g2Lib/test/fixtures/bit_test_spin.asm	public
-# These two name no committed file in `gearmulator` today, under either prefix.
-# They are carried forward with the root corrected rather than dropped, because
-# the prefix defect was uniform; they remain UNVERIFIED against a real file and
-# assert nothing until one lands at the path.
-source/nord/g2/g2Lib/test/fixtures/golden/manifest.txt	public
-source/nord/g2/g2Lib/test/fixtures/module_map.coverage	public
-module_map.coverage	public
-unclaimed_compute.count	public
-artifacts.sha256	public
-golden.timebase	public
-conformance/corpus/	public allow-listed
-corpus/pch2/	private
-corpus/pch2/MANIFEST.txt	private
-fixtures/protocol/	private
-fixtures/protocol/editor_sequence.bin	private
-fixtures/protocol/m7_trace.bin	private
-fixtures/protocol/perf4_frame_sequence.bin	private
-golden/	private
-captures/	private
-module_map.csv	private
-unclaimed_compute.txt	private
-SRAM_20000800.bin	private
-FINDINGS.md	private
+source/nord/g2/g2Lib/test/fixtures/bit_test_spin.asm	public	axiomantic/gearmulator
+# The four rows that follow name no committed file in ANY of the seven
+# repositories. They are carried forward rather than dropped -- the prefix
+# defect was uniform, and dropping a row is a decision this pass has no
+# evidence for -- and they now say so in the data with `pending=`. That marker
+# is what moves a row out of the loud bucket, and clause 6 reports any row that
+# is unmatched WITHOUT one. It is not a hiding place either: the day a file
+# lands at one of these paths, `PAYLOAD-REGISTER-PENDING-SATISFIED` names the
+# row and the marker comes off.
+#
+# The first two are `gearmulator` fixture paths. The last two are root-level
+# and were never under the `g2Lib/` prefix at all; `git log --all` in all seven
+# repositories has never touched a file of either name, against a known
+# positive of 1 for `esai_sync_spin` from the same command.
+source/nord/g2/g2Lib/test/fixtures/golden/manifest.txt	public	axiomantic/gearmulator	pending=no file at this path in gearmulator on any branch; written in a91909d, the commit whose `g2Lib/` root was wrong for all five sibling rows, and no task is known to create it
+source/nord/g2/g2Lib/test/fixtures/module_map.coverage	public	axiomantic/gearmulator	pending=no file at this path in gearmulator on any branch; written in a91909d, the commit whose `g2Lib/` root was wrong for all five sibling rows, and no task is known to create it
+module_map.coverage	public	axiomantic/gearmulator	pending=no file of this name in any of the seven repositories, and no commit in any of them has ever touched one; written in a91909d, and no task is known to create it
+unclaimed_compute.count	public	axiomantic/gearmulator	pending=no file of this name in any of the seven repositories, and no commit in any of them has ever touched one; written in a91909d, and no task is known to create it
+artifacts.sha256	public	axiomantic/nmg2-tools,axiomantic/gearmulator
+golden.timebase	public	axiomantic/nmg2-tools,axiomantic/gearmulator
+conformance/corpus/	public allow-listed	axiomantic/mcf5307
+corpus/pch2/	private	axiomantic/nmg2-artifacts
+corpus/pch2/MANIFEST.txt	private	axiomantic/nmg2-artifacts
+fixtures/protocol/	private	axiomantic/nmg2-artifacts
+fixtures/protocol/editor_sequence.bin	private	axiomantic/nmg2-artifacts
+fixtures/protocol/m7_trace.bin	private	axiomantic/nmg2-artifacts
+fixtures/protocol/perf4_frame_sequence.bin	private	axiomantic/nmg2-artifacts
+golden/	private	axiomantic/nmg2-artifacts
+captures/	private	axiomantic/nmg2-artifacts
+module_map.csv	private	axiomantic/nmg2-artifacts
+unclaimed_compute.txt	private	axiomantic/nmg2-artifacts
+SRAM_20000800.bin	private	axiomantic/nmg2-artifacts
+FINDINGS.md	private	axiomantic/nmg2-artifacts
 # Operator-granted exception, 2026-08-05. Nine `.pch2` files inherited from
 # upstream `chrispurusha/G2-Edit`. Authorship is UNESTABLISHED: the filenames
 # suggest the upstream author's own test patches rather than Clavia factory
@@ -71,19 +101,19 @@ PatchTestFiles/	public pch2-exception	axiomantic/G2-Edit
 # CI workflow definitions. One rule row per repository tree, not a row per
 # workflow file: `.yml` is deliberately NOT a by-rule source class, because a
 # vendor-derived `.yaml` data file would then read as project source.
-.github/	public
+.github/	public	axiomantic/nmg2-tools,axiomantic/G2-Edit,axiomantic/mc68k,axiomantic/mcf5307,axiomantic/dsp56300,axiomantic/gearmulator,axiomantic/nmg2-artifacts
 # The package's own shipped test data. `pch2_synth/` above is the one part of
 # it that clause 1 names; this row classifies the rest.
-nmg2_tools/testdata/	public
-docs/check-targets.txt	public
+nmg2_tools/testdata/	public	axiomantic/nmg2-tools
+docs/check-targets.txt	public	axiomantic/nmg2-tools,axiomantic/gearmulator,axiomantic/dsp56300,axiomantic/mcf5307
 # This project's own ruff machinery, generated here and read by CI: the
 # pinned tool version and the finding baseline the `lint` job diffs against.
 # Both were written by cf3f216 and neither is vendor-derived. Two rows and
 # not a by-rule class: a predicate wide enough to cover them -- a `.ruff-*`
 # glob, or a `.txt` prose class -- would exempt every future file that
 # happens to match, and a guard that cannot be surprised is not a guard.
-.ruff-version	public
-.ruff-baseline.txt	public
+.ruff-version	public	axiomantic/nmg2-tools
+.ruff-baseline.txt	public	axiomantic/nmg2-tools
 # Synthetic repository trees built to IMITATE payload violations, so that the
 # lints that read them have something to be red about. They hold `.pch2` files
 # outside the synth corpus and deliberately over-ceiling blobs; excepting each
@@ -95,24 +125,24 @@ tests/planlint/fixtures/	public fixture-repo	axiomantic/nmg2-tools
 # allow-listed as a CLASS because a captured run has no natural size. The
 # clause that carries the weight for this directory is the `private` half:
 # in a public repository every path beneath it fails clause 4.
-baselines/	private allow-listed
+baselines/	private allow-listed	axiomantic/nmg2-artifacts
 # Vendor documentation PDFs. Large by nature and private by decision.
-datasheets/	private allow-listed
-dsp/	private
-g2demo/	private
+datasheets/	private allow-listed	axiomantic/nmg2-artifacts
+dsp/	private	axiomantic/nmg2-artifacts
+g2demo/	private	axiomantic/nmg2-artifacts
 # 297,564 bytes of Clavia-derived module metadata. It escaped the ceiling
 # entirely while the ceiling keyed on a list of directory names. It is allowed
 # here as a DECISION, in a private repository, at a size written down.
-g2demo/g2_modules.json	private allow-listed
+g2demo/g2_modules.json	private allow-listed	axiomantic/nmg2-artifacts
 # 2,428,093 bytes of Clavia-derived schematic data.
-schematic_data.yaml	private allow-listed
+schematic_data.yaml	private allow-listed	axiomantic/nmg2-artifacts
 # Firmware and memory images. They were `private` and above the ceiling, and
 # passed only because they sit at the repository root.
-BOOT_128_Loader.bin	private allow-listed
-NMG2_128_OS.bin	private allow-listed
-CODE_30000400.bin	private allow-listed
+BOOT_128_Loader.bin	private allow-listed	axiomantic/nmg2-artifacts
+NMG2_128_OS.bin	private allow-listed	axiomantic/nmg2-artifacts
+CODE_30000400.bin	private allow-listed	axiomantic/nmg2-artifacts
 # The same class of recorded run output, sitting at the repository root
 # instead of in `baselines/`. Registered where they are; moving them is the
 # artifacts repository's to do.
-int7-baseline-t1_boot-HEAD.txt	private allow-listed
-int7-t1_boot-after.txt	private allow-listed
+int7-baseline-t1_boot-HEAD.txt	private allow-listed	axiomantic/nmg2-artifacts
+int7-t1_boot-after.txt	private allow-listed	axiomantic/nmg2-artifacts
