@@ -10,6 +10,8 @@ from nmg2_tools.payload_lint import (
     PCH2_ALLOWED_DIR,
     PENDING_PREFIX,
     SHIPPED_REGISTER,
+    SOURCE_BASENAMES,
+    SOURCE_SUFFIXES,
     RegisterError,
     RegisterEntry,
     check_register_rows,
@@ -1408,3 +1410,177 @@ def test_a_row_covering_files_and_a_gitlink_is_matched_and_silent(tmp_path):
     assert [
         f for f in failures if f.startswith("PAYLOAD-REGISTER-UNMATCHED")
     ] == []
+
+
+# --- The residual backlog's predicates ----------------------------------------
+# Three predicates closed 19 of the 67 findings that remained after the
+# vendored-tree rows. Each one WIDENS the class, so each one gets a known
+# positive (the file it was written for goes quiet) AND a known negative (the
+# nearest payload-shaped spelling still goes red). A widening tested only by
+# its known positive cannot tell a class from a hole.
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "build_win64.bat",
+        "deploy/win/start_Impact__MS.bat",
+        "source/build_win32.bat",
+    ],
+)
+def test_a_windows_batch_script_needs_no_register_row(tmp_path, rel):
+    """`.sh` has always been in the class; `.bat` is the same thing for cmd.exe.
+
+    Excluding the Windows spelling was an omission, not a decision, and these
+    are three of the nine real files it left unanswered.
+    """
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "source/jucePluginLib/version.h.in",
+        "source/skins.h.in",
+        "source/synthLib/buildconfig.h.in",
+    ],
+)
+def test_a_configure_template_of_a_source_header_needs_no_register_row(
+    tmp_path, rel
+):
+    """The `.in` STEM rule: `version.h.in` is a `.h` with placeholders in it."""
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "source/firmware/dump.bin.in",
+        "source/firmware/dump.asm.in",
+        "source/firmware/dump.inc.in",
+        "source/firmware/patches.pch2.in",
+        "source/macsetup.command.in",
+        "source/portaudio/Makefile.in",
+        "source/libresample/configure.in",
+    ],
+)
+def test_the_template_rule_inherits_from_the_stem_and_invents_nothing(
+    tmp_path, rel
+):
+    """THE LOAD-BEARING TEST OF THE `.in` RULE, and the reason it is admissible.
+
+    A BLANKET `.in` class was refused, and this rule is not that class. The
+    exemption is INHERITED FROM THE STEM or it does not exist, so a template
+    can never be a way to put a refused suffix past this check: `dump.bin.in`
+    reads as `.bin` and `dump.asm.in` reads as `.asm`, and both are still
+    PAYLOAD-UNREGISTERED. If this test goes green while the previous one does
+    too, the rule has become the blanket class it was written to avoid.
+    """
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "CMakePresets.json",
+        "source/.clang-format",
+        "uncrustify.cfg",
+        ".nim-version",
+        "nested/dir/CMakePresets.json",
+    ],
+)
+def test_a_fixed_tool_defined_filename_needs_no_register_row(tmp_path, rel):
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        # The file the `.json` suffix class would have swallowed: 297,564
+        # bytes of Clavia-derived module metadata. The basename predicate
+        # cannot reach it, and that is why it is a basename.
+        "g2demo/g2_modules.json",
+        "conformance/presets.json",
+        "source/firmware/dump.cfg",
+        "source/firmware/dump.clang-format",
+        "source/firmware/version.txt",
+    ],
+)
+def test_the_basename_predicate_does_not_widen_into_a_suffix_class(
+    tmp_path, rel
+):
+    """The known negative for the fixed-name predicate.
+
+    A basename is the narrowest thing this module can say. It cannot be
+    reached by choosing a suffix or a directory, only by naming the file the
+    thing the tool actually reads -- so `presets.json` next to
+    `CMakePresets.json` is still a finding, and so is `dump.cfg` next to
+    `uncrustify.cfg`.
+    """
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+def test_a_batch_script_above_the_ceiling_passes_and_that_is_the_price(
+    tmp_path,
+):
+    """THE REACH THIS PASS GAVE UP, WRITTEN DOWN AS A GREEN TEST.
+
+    A `.bat` is now `source`, and the ceiling does not police source. So a
+    360 KB batch file with a base64 blob pasted into it passes, where before
+    this change it was PAYLOAD-UNREGISTERED at any size. That is exactly the
+    trade `.sh` has always made, and it is bounded: it buys nothing for clause
+    1, so a `.pch2` beside it is still refused, and it buys nothing for any
+    other spelling. If this bound is ever thought too generous, the fix is to
+    drop `.bat` from the class and write nine rows -- not to weaken this test.
+    """
+    rel = "scripts/build.bat"
+    _write(tmp_path / rel, 360_000)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+def test_the_register_reads_a_row_whose_path_holds_spaces(tmp_path):
+    """`G2-Edit` carries three of these, and the tab format is what saves them.
+
+    `load_register` falls back to splitting on whitespace ONLY when a line
+    yields fewer than two tab-separated fields. A row written with real tabs
+    therefore keeps its spaces, and the fallback -- which would read
+    `G2 Editor.xcodeproj/` as a path of `G2` -- never runs.
+    """
+    register = _register_file(
+        tmp_path,
+        "G2 Editor.xcodeproj/\tpublic\taxiomantic/G2-Edit\n"
+        "Module dev debug notes.txt\tpublic\taxiomantic/G2-Edit\n",
+    )
+    entries = load_register(register)
+    assert [entry.path for entry in entries] == [
+        "G2 Editor.xcodeproj/",
+        "Module dev debug notes.txt",
+    ]
+    assert entries[0].matches("G2 Editor.xcodeproj/project.pbxproj")
+    assert entries[1].matches("Module dev debug notes.txt")
+
+
+def test_the_shipped_register_still_refuses_the_suffixes_it_held_back():
+    """The refusal is a property of the SHIPPED module, not of a fixture.
+
+    The parametrized test above proves the classifier refuses these spellings.
+    This one proves nobody quietly added one to the shipped sets while doing
+    so, which is the edit that would make that test's fixture lie.
+    """
+    for suffix in (".asm", ".inc", ".sln", ".vcxproj", ".vcproj", ".filters",
+                   ".m4", ".am", ".cfg", ".html", ".js", ".txt", ".def",
+                   ".yml", ".yaml", ".json", ".png", ".bin", ".in"):
+        assert suffix not in SOURCE_SUFFIXES, suffix
+    assert "uncrustify.cfg" in SOURCE_BASENAMES
+    assert ".bat" in SOURCE_SUFFIXES

@@ -214,3 +214,122 @@ source/xtJucePlugin/	public allow-listed	axiomantic/gearmulator
 source/jucePluginData/	public allow-listed	axiomantic/gearmulator
 source/ronaldo/	public allow-listed	axiomantic/gearmulator
 source/nord/n2x/	public allow-listed	axiomantic/gearmulator
+# --- The residual PAYLOAD-UNREGISTERED backlog, closed 2026-08-28 -------------
+# 67 findings remained after the vendored-tree rows above. 19 of them were a
+# SUFFIX GAP and are answered by predicates in `payload_lint.py` (`.bat`, the
+# fixed tool-defined basenames, and the `.in` template stem rule) -- no row
+# here. 14 are `gearmulator`'s own `artifacts/boot/` CTest transcripts and are
+# DELIBERATELY LEFT UNREGISTERED; see the note at the end of this block. The
+# The 21 rows below answer the other 34.
+#
+# PROVENANCE, MEASURED, not assumed. Every path in this block except
+# `mcf5307`'s was present in its repository's tree at the fork point
+# [MEASURED 2026-08-28; `git ls-tree -r --name-only $(git merge-base HEAD
+# upstream/main)` for `gearmulator` and `dsp56300`; `git log --follow
+# --diff-filter=A` for `G2-Edit`, whose ten paths were every one of them
+# introduced by upstream authors and none by this fork; one unit is one
+# committed path]. `mcf5307` is NOT a fork and has no upstream, so no
+# fork-point claim can cover its rows -- theirs are established individually
+# below.
+#
+# WHY `allow-listed` APPEARS ONLY THREE TIMES HERE. Registering a path submits
+# it to clause 3, so a row over an over-ceiling file must decide the size too.
+# Three of these do, each measured: `doc/midilearn/` (four of eleven files over
+# the ceiling, largest 284,043), `doc/changelog.txt` (76,499) and `G2-Edit`'s
+# `todo.txt` (146,468). Every other row here covers only files under the
+# ceiling and stays TIGHT ON PURPOSE, so the first large blob to land under
+# `scripts/`, `installer/`, `temp/`, `doc/changelog_split/` or
+# `G2 Editor.xcodeproj/` is PAYLOAD-CEILING and someone has to decide about it.
+#
+# NOTE ON THE PATHS WITH SPACES IN THEM. This format is TAB-separated and the
+# space-separated fallback in `load_register` only runs when a line splits into
+# fewer than two tab fields, so `G2 Editor.xcodeproj/` and the two `notes.txt`
+# rows parse correctly. A test pins that.
+#
+# `gearmulator`: five trees this fork has never written into. All five carry
+# ZERO files added since the fork point [MEASURED 2026-08-28, same command as
+# above; doc/ 24 tracked, scripts/ 14, installer/ 1, temp/ 2, deploy/ 5]. They
+# are upstream's documentation, CI scripts, NSIS installer and committed build
+# scratch. `deploy/` needs no row: both of its findings were `.bat` and the
+# class answers them.
+#
+# THE PATHS ARE NARROWER THAN THE TREES, AND THAT IS DELIBERATE. A plain
+# `public` row is NOT scoped by its `home` field -- the module docstring is
+# explicit that `home` says where a row is CHECKED, not where it applies -- so
+# a row reading `scripts/` would register a `scripts/` tree in all seven
+# repositories and hand any of them a way to silence clause 2 by choosing a
+# directory name. Only `fixture-repo` and `pch2-exception` rows can be scoped.
+# So the generic tree names get exact file rows (`scripts/`, `installer/`) or a
+# qualified prefix (`temp/cmake_win64/`), and the reach that costs is stated: a
+# NEW inherited file under `scripts/` or `installer/` is PAYLOAD-UNREGISTERED
+# and someone has to look at it. That is the guard working, not a gap. The same
+# limitation applies to the root-level exact rows below -- `todo.txt`,
+# `do-release`, `do-uncrustify` -- which register those names in any of the
+# seven repositories a file of that name turns up in. An exact path is the
+# narrowest thing this format can say; there is no narrower spelling to prefer,
+# and the alternative is leaving the findings open.
+doc/midilearn/	public allow-listed	axiomantic/gearmulator
+doc/changelog.txt	public allow-listed	axiomantic/gearmulator
+doc/changelog_split/	public	axiomantic/gearmulator
+scripts/Jenkinsfile	public	axiomantic/gearmulator
+scripts/JenkinsfileMulti	public	axiomantic/gearmulator
+scripts/downloads.html	public	axiomantic/gearmulator
+installer/nsis/pluginInstaller.nsi	public	axiomantic/gearmulator
+temp/cmake_win64/	public	axiomantic/gearmulator
+# Azure Pipelines CI definition, 458 bytes. One file row and not a `.yml`
+# class: `.yml` is refused for the reason the `.github/` row above states.
+azure-pipelines.yml	public	axiomantic/gearmulator
+# A `configure_file` template whose STEM is `macsetup.command`, which is not a
+# source spelling this module knows, so the `.in` stem rule correctly declines
+# it. A `.command` class was considered and refused: there is no `.command`
+# file in any of the seven repositories, so it would be a suffix admitted for
+# a file that does not exist.
+source/macsetup.command.in	public	axiomantic/gearmulator
+# `G2-Edit`, all ten inherited from upstream `chrispurusha/G2-Edit`.
+# The Xcode project bundle is a DIRECTORY, so it is one row and not three.
+G2 Editor.xcodeproj/	public	axiomantic/G2-Edit
+# Upstream authors' working notes. `todo.txt` is 146,468 bytes of prose and is
+# allow-listed as a decision on the record, not because of where it sits.
+Module dev debug notes.txt	public	axiomantic/G2-Edit
+Third Party build notes.txt	public	axiomantic/G2-Edit
+todo.txt	public allow-listed	axiomantic/G2-Edit
+# Upstream's release and formatting shell scripts. They carry no suffix, so no
+# predicate reaches them. A "mode 0755 plus a shebang" rule was considered and
+# refused: it exempts by a content attribute a reader of this file cannot see,
+# and it would admit any executable blob whose first two bytes are `#!`.
+do-release	public	axiomantic/G2-Edit
+do-uncrustify	public	axiomantic/G2-Edit
+# Upstream's generated control-list include for the top bar, 4,904 bytes of
+# `X(...)` macro entries. `.def` gets a ROW and not a class, on the same
+# grounds `.inc` does.
+src/topbarControls.def	public	axiomantic/G2-Edit
+# `dsp56300`: upstream's MSVC project files for its own emulator core. THREE
+# FILES ARE NOT A CLASS. An `.sln`/`.vcxproj`/`.filters` suffix class would
+# additionally exempt six files under `source/HxDplugin/`, whose row is
+# deliberately tight, so the refusal in `SOURCE_SUFFIXES` stands and these get
+# rows.
+source/dsp56kEmu.sln	public	axiomantic/dsp56300
+source/dsp56kEmu/dsp56kEmu.vcxproj	public	axiomantic/dsp56300
+source/dsp56kEmu/dsp56kEmu.vcxproj.filters	public	axiomantic/dsp56300
+# `mcf5307`, FIRST-PARTY. `.inc` is refused as a class precisely because a
+# disassembly of Clavia firmware is an `.inc` file, so this file was held to
+# that bar individually and passed on its own evidence rather than being swept
+# in. It was added by this project in 9a7ef09 for task CPU-3, which also ruled
+# its owner. Its grammar is checked, not assumed: 43 comment lines, 28 lines of
+# the exact form `MCF5307_ABI_FN(<identifier>)`, and NOTHING ELSE [MEASURED
+# 2026-08-28 by an `awk` taxonomy over the file; one unit is one line]. There
+# are no instruction bytes, no addresses and no disassembled output in it. It
+# is read by two independent consumers -- `tests/abi_smoke.cpp` includes it
+# twice under two definitions of the macro, and `cmake/Nim.cmake` step 4a
+# parses it and fails the configure step against `include/mcf5307.h` -- so a
+# line of any other shape breaks the build rather than sitting here unread.
+tests/abi_smoke_symbols.inc	public	axiomantic/mcf5307
+# --- DELIBERATELY NOT REGISTERED --------------------------------------------
+# `gearmulator`'s 14 `artifacts/boot/` CTest transcripts stay PAYLOAD-
+# UNREGISTERED, and that is a decision and not an omission. They are the only
+# one of these classes this project AUTHORED rather than inherited. Two of the
+# three raw logs are sha-pinned and the third is not, the plan cites
+# `artifacts/boot` 21 times, and `gearmulator/.gitignore` already records the
+# ruling: "Three raw logs predate this convention and stay tracked." A row here
+# would decide the size of two ~2.5 MB logs on this pass's authority, and
+# untracking them would rot a live citation. Neither is this pass's to make.

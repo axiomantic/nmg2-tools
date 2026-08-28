@@ -41,9 +41,12 @@ independent conditions, each with its own failure name:
    file in the tree:
 
    - ``source`` -- project-authored code and build metadata, by suffix
-     (``SOURCE_SUFFIXES``) or by whole name (``SOURCE_BASENAMES``). It is read
-     line by line in review, and bulk vendor payload does not arrive as
-     reviewed source.
+     (``SOURCE_SUFFIXES``), by whole name (``SOURCE_BASENAMES``), or by the
+     STEM of a ``.in`` configure-time template (``TEMPLATE_SUFFIX``). Bulk
+     vendor payload does not arrive under one of these spellings; that
+     arrival-shape question, and not "is it reviewed", is the test a candidate
+     suffix has to pass, and the comment on ``SOURCE_SUFFIXES`` names the
+     spellings that fail it and why.
    - ``prose`` -- markdown and reStructuredText (``PROSE_SUFFIXES``). Prose is
      PUBLIC by default. A prose file that must not be public carries an
      explicit row, which wins over the class; ``FINDINGS.md`` is the standing
@@ -268,6 +271,21 @@ PAYLOAD_DECLARED_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testda
 # review, which is the entire argument the class rests on, so their absence
 # was an omission and not a decision.
 #
+# The third row is `.bat`: a shell script for `cmd.exe`, which is what `.sh`
+# already is for a POSIX shell. `.sh` has been in this class since it was
+# written, so excluding the Windows spelling of the same thing was an omission
+# and not a decision. MEASURED before adding: of the tracked `.bat` files in
+# the seven repositories, NONE sits in a tree whose register row is `public`
+# and tight (`source/fst/`, `source/3rdparty/`, `source/HxDplugin/`,
+# `source/vtuneSdk/`, `Musashi/`), so this class removes the ceiling's grip on
+# no file that has one today.
+#
+# THE TEST THIS CLASS ACTUALLY RESTS ON is not "read line by line" -- `.lock`
+# is in the set and nobody reads `uv.lock` line by line. It is: COULD BULK
+# VENDOR PAYLOAD PLAUSIBLY ARRIVE UNDER THIS SPELLING? That is the test the
+# `.asm`/`.inc` refusal below applies, and it is the one to apply to any
+# future candidate.
+#
 # What is deliberately NOT here, because the same argument does NOT reach it:
 #
 # - `.asm` and `.inc`. A DISASSEMBLY of Clavia firmware is an `.asm` file, and
@@ -275,24 +293,61 @@ PAYLOAD_DECLARED_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testda
 #   `.asm` fixture rows whose comment establishes, per file, that each is a
 #   hand-written spin of a few instructions and not disassembled output --
 #   evidence someone had to go and get. A class here would have made that
-#   paragraph unnecessary by making the question unaskable.
-# - `.in`, `.m4`, `.am`, `.sln`, `.vcproj`, `.bkl`, `.mms`, `.unx`, `.gcc`,
-#   `.vc`. Autotools, MSVC and bakefile build forms. In these trees they occur
-#   ONLY inside third-party directories, so a class would widen the guard over
-#   files nobody in this project reviews in order to quiet a named tree. The
-#   named tree gets a register row instead, which says whose tree it is.
+#   paragraph unnecessary by making the question unaskable. `mcf5307`'s
+#   `tests/abi_smoke_symbols.inc` was held to exactly that bar and got a ROW,
+#   not a class: see the register's comment on it.
+# - `.sln`, `.vcxproj`, `.filters`, `.vcproj`, `.m4`, `.am`, `.bkl`, `.mms`,
+#   `.unx`, `.gcc`, `.vc`. Autotools, MSVC and bakefile build forms. The
+#   earlier statement of this refusal said they occur "ONLY inside third-party
+#   directories", and that is FALSE AS WRITTEN: of the 720 tracked
+#   `.in`/`.sln`/`.vcxproj`/`.vcproj`/`.m4`/`.am` paths across the seven
+#   repositories, 7 sit outside every vendored tree the register names
+#   [MEASURED 2026-08-28; `git ls-files` per repository, filtered against the
+#   vendored-tree row prefixes; one unit is one tracked path]. The CAUTION the
+#   sentence was defending is nevertheless correct and is why the refusal
+#   stands: an MSVC class would exempt six files inside `source/HxDplugin/`,
+#   a tree whose row is deliberately TIGHT, to quiet three files in one
+#   directory of one repository. Three files are not a class. They get rows.
+# - `.cfg`, `.html`, `.js`, `.txt`, `.def`, `.yml`. Suffixes generic enough
+#   that extracted content arrives under them routinely.
 SOURCE_SUFFIXES = frozenset(
     {
         ".py", ".c", ".h", ".cpp", ".hpp", ".sh", ".toml", ".lock",
         ".cc", ".cxx", ".hh", ".hxx", ".inl", ".mm", ".nim", ".cmake",
+        ".bat",
     }
 )
+# The second row is FIXED, TOOL-DEFINED FILENAMES, in exactly the sense
+# `CMakeLists.txt` already in this set is one. A basename is the narrowest
+# predicate this module can express: it cannot be reached by choosing a
+# directory name or a suffix, only by naming the file the thing the tool reads.
+# `CMakePresets.json` is CMake's own fixed name -- and it is here rather than a
+# `.json` suffix ON PURPOSE, because `g2demo/g2_modules.json` is 297,564 bytes
+# of Clavia-derived data and a `.json` class would have swallowed it.
+# `.clang-format` and `uncrustify.cfg` are the two code formatters' fixed
+# config names; `.cfg` as a suffix is refused for the reason above.
+# `.nim-version` is the Nim toolchain pin, build metadata in the sense
+# `.gitignore` is.
 SOURCE_BASENAMES = frozenset(
     {
         "LICENSE", ".gitignore", ".gitattributes", ".gitmodules",
         "CMakeLists.txt",
+        "CMakePresets.json", ".clang-format", "uncrustify.cfg",
+        ".nim-version",
     }
 )
+
+# A CONFIGURE-TIME TEMPLATE SUFFIX, handled by RE-READING THE STEM and never
+# as a class of its own. `source/jucePluginLib/version.h.in` is a `.h` carrying
+# `@VAR@` placeholders that CMake's `configure_file` substitutes; it is source
+# in exactly the sense the `.h` it generates is.
+#
+# A BLANKET `.in` CLASS WAS REFUSED AND STAYS REFUSED. This is not that class,
+# and the difference is the whole reason it is admissible: `firmware.bin.in`
+# reads as `.bin`, classifies as nothing, and is still PAYLOAD-UNREGISTERED.
+# The exemption is inherited from the stem or it does not exist, so a template
+# can never be a way to put a suffix past this check.
+TEMPLATE_SUFFIX = ".in"
 
 # The `prose` class. Prose is PUBLIC by default; an explicit row wins over
 # the class, which is how a prose file that must stay private says so.
@@ -373,6 +428,11 @@ def classify(posix_path: str) -> str | None:
         return "source"
     dot = name.rfind(".")
     suffix = name[dot:] if dot > 0 else ""
+    if suffix == TEMPLATE_SUFFIX:
+        # Read the STEM, not the template suffix. `dot > 0` above means the
+        # stem is non-empty, so each step strips at least one character and the
+        # recursion terminates; a bare `.in` never reaches here at all.
+        return classify(posix_path[: -len(TEMPLATE_SUFFIX)])
     if suffix in SOURCE_SUFFIXES:
         return "source"
     if suffix in PROSE_SUFFIXES:
