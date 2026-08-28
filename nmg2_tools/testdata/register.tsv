@@ -157,20 +157,43 @@ int7-t1_boot-after.txt	private allow-listed	axiomantic/nmg2-artifacts
 # a reviewer reading this file cannot see. A row per tree costs more than one
 # line and keeps all three properties, which is the correct price.
 #
-# Every row is `public` and NONE is `allow-listed`. That is the property that
-# keeps the guard able to fail inside these trees: clause 3 still weighs every
-# non-source file beneath them, so a multi-megabyte blob dropped into
-# `source/wxWidgets/` is PAYLOAD-CEILING, and clause 1 still refuses a `.pch2`
-# there, because a `public` row is not a `pch2-exception` row. A new vendored
-# tree is still PAYLOAD-UNREGISTERED until someone writes its row.
+# Writing these rows made clause 3 READABLE for the first time, and it answered
+# 389 times: files above the ceiling in trees this project did not author. Every
+# one of the 389 is present in the upstream tree at the fork point and NONE was
+# added by this fork [MEASURED 2026-08-27; `comm` of each repository's ceiling
+# finding paths against `git ls-tree -r --name-only $(git merge-base HEAD
+# upstream/main)`; one unit is one finding line]. They are upstream's GUI skins,
+# fonts, gettext catalogues, sample media and generated ABI descriptions. The
+# largest are two 19 MB Photoshop sources for a plugin's demo background and a
+# 14.8 MB wxWidgets `.abi`, all authored upstream in 2022-2024.
+#
+# So the rows below split, and the split is what the measurement says and not a
+# preference. A tree MEASURED to carry inherited bulk is `allow-listed`, because
+# a tree we did not author and do not review line by line is one whose asset
+# sizes are upstream's decision, and repeating that verdict 389 times as file
+# rows would be the roster this file exists to avoid. A tree measured to carry
+# NONE is left `public`, and clause 3 still weighs every non-source file
+# beneath it -- so the first large blob to appear in `source/fst/`,
+# `source/3rdparty/`, `source/HxDplugin/`, `source/vtuneSdk/` or `Musashi/` is
+# PAYLOAD-CEILING and someone has to decide about it.
+#
+# WHAT `allow-listed` GIVES UP, stated rather than implied: inside the nine
+# trees that carry it, a new over-ceiling non-source file no longer fails. That
+# is the price of not writing 389 rows, and it is bounded -- it buys nothing for
+# clause 1, which still refuses a `.pch2` beneath any of these rows because a
+# `public allow-listed` row is not a `pch2-exception` row; it buys nothing for
+# clause 2, so a new vendored tree is still PAYLOAD-UNREGISTERED until someone
+# writes its row; and it buys nothing outside the named tree.
 #
 # Third-party libraries, vendored into these forks upstream.
-source/wxWidgets/	public	axiomantic/dsp56300
+# `wxWidgets` carries 204 over-ceiling files, `portaudio` 5, `portmidi` 5 and
+# `libresample` 1; the other three carry none and stay tight.
+source/wxWidgets/	public allow-listed	axiomantic/dsp56300
 source/HxDplugin/	public	axiomantic/dsp56300
 source/vtuneSdk/	public	axiomantic/dsp56300
-source/portaudio/	public	axiomantic/gearmulator
-source/portmidi/	public	axiomantic/gearmulator
-source/libresample/	public	axiomantic/gearmulator
+source/portaudio/	public allow-listed	axiomantic/gearmulator
+source/portmidi/	public allow-listed	axiomantic/gearmulator
+source/libresample/	public allow-listed	axiomantic/gearmulator
 source/fst/	public	axiomantic/gearmulator
 source/3rdparty/	public	axiomantic/gearmulator
 Musashi/	public	axiomantic/mc68k
@@ -179,10 +202,15 @@ Musashi/	public	axiomantic/mc68k
 # plugin asset directory. This fork's own work is `source/nord/g2/`, which is
 # deliberately NOT covered: the row names `source/nord/n2x/` so that a file
 # landing under `g2/` still has to answer for itself.
-source/osTIrusJucePlugin/	public	axiomantic/gearmulator
-source/osirusJucePlugin/	public	axiomantic/gearmulator
-source/mqJucePlugin/	public	axiomantic/gearmulator
-source/xtJucePlugin/	public	axiomantic/gearmulator
-source/jucePluginData/	public	axiomantic/gearmulator
-source/ronaldo/	public	axiomantic/gearmulator
-source/nord/n2x/	public	axiomantic/gearmulator
+# All seven carry over-ceiling inherited assets -- 53, 62, 20, 15, 3, 12 and 9
+# files respectively -- and all seven are `allow-listed` for that reason. 166 of
+# the 174 sit under a `skins/`, `assets/` or `assets2/` directory and the other
+# eight are two Roboto variable fonts, a `.psd`, and five generated
+# `parameterDescriptions_*.json` tables.
+source/osTIrusJucePlugin/	public allow-listed	axiomantic/gearmulator
+source/osirusJucePlugin/	public allow-listed	axiomantic/gearmulator
+source/mqJucePlugin/	public allow-listed	axiomantic/gearmulator
+source/xtJucePlugin/	public allow-listed	axiomantic/gearmulator
+source/jucePluginData/	public allow-listed	axiomantic/gearmulator
+source/ronaldo/	public allow-listed	axiomantic/gearmulator
+source/nord/n2x/	public allow-listed	axiomantic/gearmulator

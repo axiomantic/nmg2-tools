@@ -1174,14 +1174,40 @@ def test_a_tree_row_registers_only_the_tree_it_names(tmp_path):
     ]
 
 
-def test_no_tree_row_in_the_shipped_register_is_allow_listed():
-    """The property that keeps the guard able to fail inside these trees.
+#: The vendored tree rows carrying `allow-listed`, pinned by name rather than
+#: counted. Each one is a tree MEASURED to hold files above the ceiling that
+#: were present in upstream's tree at the fork point; the register's own
+#: comment carries the per-tree figures. Adding a row to this set reds this
+#: test, which is the point: `allow-listed` retires clause 3 over a whole tree
+#: and must be a decision someone writes down, never a default a new row
+#: inherits.
+ALLOW_LISTED_TREES = {
+    "source/wxWidgets/",
+    "source/portaudio/",
+    "source/portmidi/",
+    "source/libresample/",
+    "source/osTIrusJucePlugin/",
+    "source/osirusJucePlugin/",
+    "source/mqJucePlugin/",
+    "source/xtJucePlugin/",
+    "source/jucePluginData/",
+    "source/ronaldo/",
+    "source/nord/n2x/",
+}
 
-    Read off the register itself rather than asserted in its comment: an
-    `allow-listed` row on a vendored tree would retire the ceiling over the
-    whole tree, which is the one thing these rows must not do. The `nord/n2x/`
-    row is checked separately for a second reason -- `source/nord/g2/` is this
-    project's own work and no row may cover it.
+
+def test_the_allow_listed_tree_rows_are_exactly_the_pinned_set():
+    """Which vendored trees retire the ceiling, read off the register itself.
+
+    The set above is not the whole roster: `source/fst/`, `source/3rdparty/`,
+    `source/HxDplugin/`, `source/vtuneSdk/` and `Musashi/` hold no
+    over-ceiling file and stay plain `public`, so the first large blob to
+    land in one of them is still PAYLOAD-CEILING. This test pins BOTH
+    directions -- a tree gaining `allow-listed` and a tree losing it are each
+    a red -- so the split stays a decision and not a drift.
+
+    The `nord/n2x/` row is checked separately for a second reason:
+    `source/nord/g2/` is this project's own work and no row may cover it.
     """
     entries = load_register(SHIPPED_REGISTER)
     trees = [
@@ -1192,7 +1218,9 @@ def test_no_tree_row_in_the_shipped_register_is_allow_listed():
         and e.path.startswith(("source/", "Musashi/"))
     ]
     assert trees, "no vendored tree rows found; this test would pass vacuously"
-    assert [e.path for e in trees if e.allow_listed] == []
+    assert {e.path for e in trees if e.allow_listed} == ALLOW_LISTED_TREES
+    tight = {e.path for e in trees} - ALLOW_LISTED_TREES
+    assert tight, "every vendored tree is allow-listed; clause 3 now says nothing"
     assert [e.path for e in trees if e.is_private] == []
     assert [e.path for e in trees if e.path.startswith("source/nord/g2")] == []
 
