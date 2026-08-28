@@ -1070,3 +1070,126 @@ def test_main_reports_a_missing_register_as_a_named_failure(tmp_path, capsys):
     )
     assert status == 1
     assert capsys.readouterr().err.startswith("PAYLOAD-REGISTER-UNREADABLE: ")
+
+
+# --- The `source` class, and the tree rows that stand next to it -------------
+#
+# The guard was red on the great majority of every file it saw in five
+# repositories, all of it PAYLOAD-UNREGISTERED and none of it a payload-shaped
+# clause. Two things were missing, and they are different things.
+#
+# The class was missing spellings of the argument it already makes: a `.cxx` is
+# read line by line in review exactly as a `.cpp` is. The trees were missing a
+# DECISION: a vendored copy of wxWidgets is somebody else's code, and saying so
+# once per tree is a row, while saying so once per file would be a roster.
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "source/dsp56kEmu/asmjit/x86assembler.cxx",
+        "src/mcf5307/decode.nim",
+        "source/nord/g2/g2Lib/sources_dsp.cmake",
+        "source/nord/g2/g2Lib/CMakeLists.txt",
+        "CMakeLists.txt",
+        "src/misc.mm",
+        "include/wx/vector.inl",
+        "include/wx/string.hxx",
+    ],
+)
+def test_a_reviewed_source_spelling_needs_no_register_row(tmp_path, rel):
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
+
+
+@pytest.mark.parametrize("suffix", [".asm", ".inc", ".in", ".m4", ".sln", ".vcproj"])
+def test_the_suffixes_held_back_from_the_class_still_need_a_row(tmp_path, suffix):
+    """`.asm` is the one that matters, and it is why this test exists.
+
+    A DISASSEMBLY of Clavia firmware is an `.asm` file. The register carries
+    three `.asm` fixture rows whose comment establishes, per file, that each is
+    a hand-written spin and not disassembled output -- evidence somebody had to
+    go and get. Putting `.asm` in the class would have made that paragraph
+    unnecessary by making the question unaskable, so the class stops short of
+    it and this test is what notices if it ever stops stopping.
+    """
+    rel = f"source/firmware/dump{suffix}"
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+VENDORED = [RegisterEntry("source/wxWidgets/", "public", "axiomantic/dsp56300")]
+DSP = "axiomantic/dsp56300"
+
+
+def test_a_tree_row_does_not_move_its_source_files_above_the_ceiling(tmp_path):
+    """The row is a decision about the tree, not about its source files.
+
+    `Musashi/m68kops.c` is 840,080 bytes and passed the ceiling for as long as
+    nothing covered it, because the ceiling exempts the source class. Writing
+    `Musashi/` made it fail -- which turned every tree row into a reason not to
+    write the row. An unregistered `.cpp` and a registered one now answer the
+    same.
+    """
+    rel = "source/wxWidgets/src/common/filefn.cpp"
+    _write(tmp_path / rel, 840_080)
+    assert lint_committed_files(tmp_path, [rel], VENDORED, repo=DSP) == []
+
+
+def test_a_tree_row_keeps_the_ceiling_over_everything_that_is_not_source(tmp_path):
+    """The planted control for the exemption above.
+
+    A blob dropped into an exempted vendored tree is still PAYLOAD-CEILING.
+    That is the whole reason the tree rows are `public` and never
+    `public allow-listed`.
+    """
+    rel = "source/wxWidgets/src/common/harmless_looking.dat"
+    _write(tmp_path / rel, 300_000)
+    assert lint_committed_files(tmp_path, [rel], VENDORED, repo=DSP) == [
+        f"PAYLOAD-CEILING: {rel}: 300000 bytes exceeds the 65536 byte ceiling "
+        "and is not allow-listed"
+    ]
+
+
+def test_a_tree_row_does_not_except_a_pch2_dropped_inside_it(tmp_path):
+    """A `public` row is not a `pch2-exception` row, and clause 1 still runs."""
+    rel = "source/wxWidgets/docs/gtk/patch.pch2"
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], VENDORED, repo=DSP) == [
+        f"PAYLOAD-PCH2-LOCATION: {rel}: .pch2 file outside {PCH2_ALLOWED_DIR}"
+    ]
+
+
+def test_a_tree_row_registers_only_the_tree_it_names(tmp_path):
+    rel = "source/wxWidgetsExtra/blob.dat"
+    _write(tmp_path / rel, 10)
+    assert lint_committed_files(tmp_path, [rel], VENDORED, repo=DSP) == [
+        f"PAYLOAD-UNREGISTERED: {rel}: committed file with no register row and "
+        "no by-rule classification"
+    ]
+
+
+def test_no_tree_row_in_the_shipped_register_is_allow_listed():
+    """The property that keeps the guard able to fail inside these trees.
+
+    Read off the register itself rather than asserted in its comment: an
+    `allow-listed` row on a vendored tree would retire the ceiling over the
+    whole tree, which is the one thing these rows must not do. The `nord/n2x/`
+    row is checked separately for a second reason -- `source/nord/g2/` is this
+    project's own work and no row may cover it.
+    """
+    entries = load_register(SHIPPED_REGISTER)
+    trees = [
+        e
+        for e in entries
+        if e.is_dir_rule
+        and e.homes != ("axiomantic/nmg2-artifacts",)
+        and e.path.startswith(("source/", "Musashi/"))
+    ]
+    assert trees, "no vendored tree rows found; this test would pass vacuously"
+    assert [e.path for e in trees if e.allow_listed] == []
+    assert [e.path for e in trees if e.is_private] == []
+    assert [e.path for e in trees if e.path.startswith("source/nord/g2")] == []

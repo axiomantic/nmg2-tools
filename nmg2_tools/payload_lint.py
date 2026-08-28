@@ -54,6 +54,18 @@ independent conditions, each with its own failure name:
    two by-rule classes are exempt: the ceiling exists to notice bulk data,
    and the size of source or prose is a review concern.
 
+   That exemption is the CLASS's and not the absence of a row. It used to be
+   reachable only by a path the register had never heard of, because the
+   ceiling was tested after the row lookup had already claimed the path. So
+   writing a directory row over a tree TIGHTENED the ceiling onto every source
+   file inside it: a 840,080-byte ``m68kops.c`` passed while nothing covered
+   it and failed the moment ``Musashi/`` was registered. That is backwards --
+   a row is a decision that a tree may be committed, not a decision that its
+   source files are now bulk data -- and it is a reason not to write the row,
+   which is the one thing this register must never give anyone. The ceiling
+   therefore asks :func:`classify` on a registered path too, and an
+   unregistered ``.cpp`` and a registered one answer the same.
+
 4. PAYLOAD-PRIVATE-IN-PUBLIC: in a PUBLIC repository, a path whose register
    row is ``private`` is a failure. In a PRIVATE repository a ``private``
    row passes; the row exists precisely so a private repository, such as
@@ -209,11 +221,38 @@ PAYLOAD_DECLARED_DIRS = ("fixtures/", "corpus/", "golden/", "captures/", "testda
 # line in review. `.yml`/`.yaml` are deliberately ABSENT -- a 2.4 MB
 # `schematic_data.yaml` of vendor-derived data is the shape that argument
 # fails on, and workflow files are covered by a `.github/` register row.
+#
+# The second row is the same class arriving under a different spelling. `.cxx`
+# is C++ in exactly the sense `.cpp` is, `.nim` is the language one whole
+# repository in this set is written in, and `CMakeLists.txt` is build metadata
+# in exactly the sense `.toml` is. Every one of them is read line by line in
+# review, which is the entire argument the class rests on, so their absence
+# was an omission and not a decision.
+#
+# What is deliberately NOT here, because the same argument does NOT reach it:
+#
+# - `.asm` and `.inc`. A DISASSEMBLY of Clavia firmware is an `.asm` file, and
+#   that is the shape this guard exists to notice. The register carries three
+#   `.asm` fixture rows whose comment establishes, per file, that each is a
+#   hand-written spin of a few instructions and not disassembled output --
+#   evidence someone had to go and get. A class here would have made that
+#   paragraph unnecessary by making the question unaskable.
+# - `.in`, `.m4`, `.am`, `.sln`, `.vcproj`, `.bkl`, `.mms`, `.unx`, `.gcc`,
+#   `.vc`. Autotools, MSVC and bakefile build forms. In these trees they occur
+#   ONLY inside third-party directories, so a class would widen the guard over
+#   files nobody in this project reviews in order to quiet a named tree. The
+#   named tree gets a register row instead, which says whose tree it is.
 SOURCE_SUFFIXES = frozenset(
-    {".py", ".c", ".h", ".cpp", ".hpp", ".sh", ".toml", ".lock"}
+    {
+        ".py", ".c", ".h", ".cpp", ".hpp", ".sh", ".toml", ".lock",
+        ".cc", ".cxx", ".hh", ".hxx", ".inl", ".mm", ".nim", ".cmake",
+    }
 )
 SOURCE_BASENAMES = frozenset(
-    {"LICENSE", ".gitignore", ".gitattributes", ".gitmodules"}
+    {
+        "LICENSE", ".gitignore", ".gitattributes", ".gitmodules",
+        "CMakeLists.txt",
+    }
 )
 
 # The `prose` class. Prose is PUBLIC by default; an explicit row wins over
@@ -614,7 +653,16 @@ def lint_committed_files(
         except OSError:
             size = 0
 
-        if size > SIZE_CEILING and not entry.allow_listed:
+        # `classify` is asked here as well as in the no-row branch above, so
+        # that the class's ceiling exemption does not depend on whether a row
+        # happens to cover the path. Without it, registering a vendored tree
+        # is a way of making its source files fail a check they passed while
+        # nothing had decided anything about them.
+        if (
+            size > SIZE_CEILING
+            and not entry.allow_listed
+            and classify(posix_path) is None
+        ):
             failures.append(
                 f"PAYLOAD-CEILING: {posix_path}: {size} bytes exceeds the "
                 f"{SIZE_CEILING} byte ceiling and is not allow-listed"

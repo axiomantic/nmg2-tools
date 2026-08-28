@@ -146,3 +146,43 @@ CODE_30000400.bin	private allow-listed	axiomantic/nmg2-artifacts
 # artifacts repository's to do.
 int7-baseline-t1_boot-HEAD.txt	private allow-listed	axiomantic/nmg2-artifacts
 int7-t1_boot-after.txt	private allow-listed	axiomantic/nmg2-artifacts
+# --- Trees this project did not author -----------------------------------------
+# Each row below names ONE tree, and is a decision on the record about that tree
+# and nothing else. Together they answer most of the PAYLOAD-UNREGISTERED
+# backlog these repositories carried; the alternative that clears the same
+# ground in one line -- "exempt anything present at the upstream fork point" --
+# was measured and REJECTED. It exempts by history rather than by content, so it
+# cannot see a file arriving by another route; it makes the verdict depend on a
+# fetched remote ref that moves between CI runs; and it exempts by an attribute
+# a reviewer reading this file cannot see. A row per tree costs more than one
+# line and keeps all three properties, which is the correct price.
+#
+# Every row is `public` and NONE is `allow-listed`. That is the property that
+# keeps the guard able to fail inside these trees: clause 3 still weighs every
+# non-source file beneath them, so a multi-megabyte blob dropped into
+# `source/wxWidgets/` is PAYLOAD-CEILING, and clause 1 still refuses a `.pch2`
+# there, because a `public` row is not a `pch2-exception` row. A new vendored
+# tree is still PAYLOAD-UNREGISTERED until someone writes its row.
+#
+# Third-party libraries, vendored into these forks upstream.
+source/wxWidgets/	public	axiomantic/dsp56300
+source/HxDplugin/	public	axiomantic/dsp56300
+source/vtuneSdk/	public	axiomantic/dsp56300
+source/portaudio/	public	axiomantic/gearmulator
+source/portmidi/	public	axiomantic/gearmulator
+source/libresample/	public	axiomantic/gearmulator
+source/fst/	public	axiomantic/gearmulator
+source/3rdparty/	public	axiomantic/gearmulator
+Musashi/	public	axiomantic/mc68k
+# Upstream `gearmulator`'s plugin trees for the other synths it emulates --
+# Access Virus, Waldorf Microwave and XT, JE8086, Nord Lead 2x -- and the shared
+# plugin asset directory. This fork's own work is `source/nord/g2/`, which is
+# deliberately NOT covered: the row names `source/nord/n2x/` so that a file
+# landing under `g2/` still has to answer for itself.
+source/osTIrusJucePlugin/	public	axiomantic/gearmulator
+source/osirusJucePlugin/	public	axiomantic/gearmulator
+source/mqJucePlugin/	public	axiomantic/gearmulator
+source/xtJucePlugin/	public	axiomantic/gearmulator
+source/jucePluginData/	public	axiomantic/gearmulator
+source/ronaldo/	public	axiomantic/gearmulator
+source/nord/n2x/	public	axiomantic/gearmulator
