@@ -474,6 +474,46 @@ def _check_non_empty_check_blocks(doc):
     return findings
 
 
+def target_origins(doc):
+    """Every check target the plan's admitted scope names, and where from.
+
+    `{target: [origin, ...]}` in the order the origins appear, where an origin
+    is a `Segment.origin` — `check:CPU-3`, `milestone:M1`, `fence:858`. A
+    target is a whole `pytest <path>` invocation or a name a `ctest -R`
+    argument passes.
+
+    This is the ONE extractor. `_check_targets` compares its output against a
+    roster and `planlint.registries` compares the same output against the
+    repositories' test registries; a second implementation of the extraction
+    would let the two lints disagree about what the plan says while both
+    reported clean.
+    """
+    origins = {}
+    for segment in doc.scoped_segments():
+        for target in _targets_in(segment.text):
+            seen = origins.setdefault(target, [])
+            if segment.origin not in seen:
+                seen.append(segment.origin)
+    return origins
+
+
+def _targets_in(text):
+    """The check targets one run of text names, in no particular order."""
+    out = set()
+    for command in commands_in(text):
+        if "pytest" in command:
+            for match in PYTEST_PATH.finditer(command):
+                out.add(match.group(0).rstrip(SENTENCE_TRAILING))
+            if not PYTEST_PATH.search(command):
+                for match in re.finditer(r"\bpytest\s+(\S+)", command):
+                    out.add(match.group(0).rstrip(SENTENCE_TRAILING))
+        if "ctest" in command:
+            for name in r_arguments(command):
+                if name not in PREFIX_ALLOW_LIST:
+                    out.add(name)
+    return out
+
+
 def _check_targets(doc, check_targets_path):
     findings = []
     path = pathlib.Path(check_targets_path)
@@ -494,22 +534,7 @@ def _check_targets(doc, check_targets_path):
             continue
         expected.add(line)
 
-    actual = set()
-    segments = doc.scoped_segments()
-    for segment in segments:
-        for command in commands_in(segment.text):
-            if "pytest" in command:
-                for match in PYTEST_PATH.finditer(command):
-                    pytest_target = match.group(0).rstrip(SENTENCE_TRAILING)
-                    actual.add(pytest_target)
-                if not PYTEST_PATH.search(command):
-                    for match in re.finditer(r"\bpytest\s+(\S+)", command):
-                        target = match.group(0).rstrip(SENTENCE_TRAILING)
-                        actual.add(target)
-            if "ctest" in command:
-                for name in r_arguments(command):
-                    if name not in PREFIX_ALLOW_LIST:
-                        actual.add(name)
+    actual = set(target_origins(doc))
 
     missing_in_plan = sorted(expected - actual)
     extra_in_plan = sorted(actual - expected)

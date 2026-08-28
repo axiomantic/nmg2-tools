@@ -68,8 +68,9 @@ class ExitCodeTest(unittest.TestCase):
         self.assertIn("graph: clean", text)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
-            "payload, provenance). A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 4 lints SKIPPED (citations, "
+            "payload, provenance, registries). A skipped lint is not a "
+            "clean lint.",
         )
 
     def test_the_anchors_lint_runs_in_the_default_set_and_states_its_count(self):
@@ -289,8 +290,9 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(
             result_line(text),
-            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
-            "payload, provenance). A skipped lint is not a clean lint.",
+            "RESULT: SELECTED LINTS CLEAN. 4 lints SKIPPED (citations, "
+            "payload, provenance, registries). A skipped lint is not a "
+            "clean lint.",
         )
 
     def test_a_run_with_findings_and_a_skip_states_both(self):
@@ -300,7 +302,7 @@ class SkippedLintVisibilityTest(unittest.TestCase):
         self.assertEqual(
             result_line(text),
             "RESULT: findings reported. See each rule above. "
-            "3 lints SKIPPED (citations, payload, provenance). A skipped lint "
+            "4 lints SKIPPED (citations, payload, provenance, registries). A skipped lint "
             "is not a clean lint.",
         )
 
@@ -312,6 +314,7 @@ class SkippedLintVisibilityTest(unittest.TestCase):
                 "--plan", str(fixture_path("clean_plan.md")),
                 "--repo", str(fixture_path("repo_public_good")),
                 "--clone", "axiomantic/core=" + str(fixture_path("repo_public_good")),
+                "--source-repo", "core=" + str(fixture_path("repo_registry_good")),
             ]
         )
 
@@ -407,6 +410,7 @@ class LintRegistryTest(unittest.TestCase):
                 "payload",
                 "provenance",
                 "registrar",
+                "registries",
                 "removed",
                 "rule9",
                 "secondwrite",
@@ -548,6 +552,7 @@ class LintOrdinalTest(unittest.TestCase):
                 "rule9": 16,
                 "gate": 17,
                 "selfcite": 19,
+                "registries": 20,
             },
         )
 
@@ -762,13 +767,15 @@ class CollapseExitCodeTest(unittest.TestCase):
         self.assert_same_code(["--plan", "/no/such/plan.md"], 2)
 
     def test_the_skipped_notice_survives_the_collapse(self):
-        """Three lints skip without `--repo`/`--clone`, and the verdict names
+        """Four lints skip without `--repo`/`--clone`/`--source-repo`, and
+        the verdict names
         them because a skipped lint is not a clean lint. The collapse notice
         is a SEPARATE line and never edits the verdict."""
         plan = str(fixture_path("clean_plan.md"))
         expected = (
-            "RESULT: SELECTED LINTS CLEAN. 3 lints SKIPPED (citations, "
-            "payload, provenance). A skipped lint is not a clean lint."
+            "RESULT: SELECTED LINTS CLEAN. 4 lints SKIPPED (citations, "
+            "payload, provenance, registries). A skipped lint is not a "
+            "clean lint."
         )
         for argv in ([], ["--full-warnings"]):
             _, text = run(["--plan", plan, *argv])

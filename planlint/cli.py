@@ -37,6 +37,7 @@ from planlint import (
     payload,
     provenance,
     registrar,
+    registries,
     removed,
     rule9,
     secondwrite,
@@ -77,7 +78,7 @@ DOCUMENT_LINTS = {
 # here and in `LINT_REQUIREMENTS` is asserted to be the SAME set, so a lint
 # cannot be moved out of the default run without also acquiring the reason the
 # report prints for it.
-CONDITIONAL_LINTS = ("citations", "payload", "provenance")
+CONDITIONAL_LINTS = ("citations", "payload", "provenance", "registries")
 ALL_LINTS = list(DOCUMENT_LINTS) + list(CONDITIONAL_LINTS)
 
 
@@ -100,6 +101,9 @@ LINT_REQUIREMENTS = {
     "citations": Requirement("--clone", lambda args: bool(args.clone)),
     "payload": Requirement("--repo", lambda args: bool(args.repo)),
     "provenance": Requirement("--repo", lambda args: bool(args.repo)),
+    "registries": Requirement(
+        "--source-repo", lambda args: bool(args.source_repo)
+    ),
 }
 
 
@@ -366,6 +370,8 @@ def main(argv=None, stream=None):
             result = citations.run(doc, clones=clones)
         elif name == "provenance":
             result = provenance.run(args.repo)
+        elif name == "registries":
+            result = registries.run(doc, source_repos=source_repos)
         else:
             result = payload.run(
                 args.repo, public=not args.private, register=doc.fixture_register
