@@ -79,6 +79,55 @@ module_map.coverage	public	axiomantic/gearmulator	pending=no file of this name i
 unclaimed_compute.count	public	axiomantic/gearmulator	pending=no file of this name in any of the seven repositories, and no commit in any of them has ever touched one; written in a91909d, and no task is known to create it
 artifacts.sha256	public	axiomantic/nmg2-tools,axiomantic/gearmulator
 golden.timebase	public	axiomantic/nmg2-tools,axiomantic/gearmulator
+# `gearmulator`'s own recorded boot runs: eleven summaries and three raw CTest
+# transcripts of the `t1_boot` test. FOURTEEN EXACT-PATH ROWS AND NOT AN
+# `artifacts/boot/` DIRECTORY ROW, on the reasoning the `.ruff-*` rows above
+# state: a directory row would register every future run transcript nobody has
+# looked at, and a guard that cannot be surprised is not a guard. A new file in
+# either directory is still `PAYLOAD-UNREGISTERED`, which is what makes writing
+# the next one a decision.
+#
+# THEY WERE LEFT IN PLACE ON PURPOSE and this is the other half of that ruling.
+# The repository's own `.gitignore` records it -- "Three raw logs predate this
+# convention and stay tracked" -- and the plan cites `artifacts/boot` paths 21
+# times [MEASURED 2026-08-28; `grep -o 'artifacts/boot[A-Za-z0-9_/.-]*'` over
+# `nmg2-artifacts/docs/plans/2026-08-04-nmg2-emulator-impl.md`; one unit is one
+# OCCURRENCE, not one line -- `grep -c` counts 12 lines for those 21
+# occurrences]. Ten of the fourteen are cited by exact path,
+# `t1_boot_head_4fd2fa79.log` by row W3-361 and `t1_boot_pre_sch35.log` by
+# W3-355. Untracking them would rot a live citation; leaving them unregistered
+# leaves this guard permanently red in `gearmulator`, and a guard that is always
+# red stops being read. So they get rows.
+#
+# `public` ASSERTS A PROVENANCE AND HERE IS THE EVIDENCE FOR IT. Structural scan
+# of all fourteen tracked files [MEASURED 2026-08-28, read-only]: ZERO lines of
+# disassembly shape, against a known positive of 1 for the same expression on a
+# planted `0001f0: move x:(r0),a`. EXACTLY TWO lines anywhere carry eight or more
+# consecutive hex byte pairs, against a known positive of 1 for that expression
+# on a planted line. Both are the identical `BANNERDUMP` of the emulated LCD --
+# the ASCII of `Nord Modular G2X` / `Version 1.62 Ex` and padding. That string is
+# already the hardcoded expected value in the public test source that produced
+# these files. A product name and a version string are not payload.
+#
+# The two `allow-listed` rows are the ceiling recorded as a DECISION at a size
+# written down, which is the only thing that visibility means here. The third
+# `.log` is 40,260 bytes and gets a plain `public` row ON PURPOSE: it is under
+# the ceiling, so if it ever grows past 65,536 clause 3 goes red and somebody
+# decides again. Sizes MEASURED 2026-08-28 by `stat -f%z` over the tracked tree.
+artifacts/boot/t1_boot_head_4fd2fa79.log	public allow-listed	axiomantic/gearmulator
+artifacts/boot/t1_boot_pre_sch35.log	public allow-listed	axiomantic/gearmulator
+artifacts/boot/t1_boot_post_sch35_jit203.log	public	axiomantic/gearmulator
+artifacts/boot/summaries/PRE-REPAIR-NOTICE.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_bannerdump.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_brd32_preinit.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_brd32_preinit_1u.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_cfi_id_fix.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_cs2trace.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_g2x.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_head_4fd2fa79.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_post_sch35_jit203.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_pre_sch35.txt	public	axiomantic/gearmulator
+artifacts/boot/summaries/t1_boot_settle.txt	public	axiomantic/gearmulator
 conformance/corpus/	public allow-listed	axiomantic/mcf5307
 corpus/pch2/	private	axiomantic/nmg2-artifacts
 corpus/pch2/MANIFEST.txt	private	axiomantic/nmg2-artifacts
@@ -146,6 +195,24 @@ CODE_30000400.bin	private allow-listed	axiomantic/nmg2-artifacts
 # artifacts repository's to do.
 int7-baseline-t1_boot-HEAD.txt	private allow-listed	axiomantic/nmg2-artifacts
 int7-t1_boot-after.txt	private allow-listed	axiomantic/nmg2-artifacts
+# The GENERATED check-target roster. `tools/generate_check_targets.py` writes it
+# from `2026-08-04-nmg2-emulator-impl.md`, and its own header says so: "GENERATED
+# FILE -- DO NOT EDIT BY HAND." This row asserts that provenance and no other:
+# nobody in this project authored these 674 lines, a program derived them from a
+# plan in the same directory.
+#
+# `private`, because it is derived from the private plan and lives in the private
+# repository, and because that is the FAIL-CLOSED half: were this file ever to
+# turn up in a public repository, clause 4 says so and somebody decides. A
+# `public` row would let it travel silently. It is 8,313 bytes, under the
+# ceiling, and gets NO `allow-listed`: a generated roster that grows past 65,536
+# should make somebody look at it.
+#
+# One exact-path row and not a `docs/plans/` directory row. The plan documents
+# beside it are `prose` by class already; a directory row would register every
+# future generated artefact dropped into that directory, which is the reach this
+# register keeps refusing.
+docs/plans/2026-08-04-nmg2-emulator-impl.check-targets.txt	private	axiomantic/nmg2-artifacts
 # --- Trees this project did not author -----------------------------------------
 # Each row below names ONE tree, and is a decision on the record about that tree
 # and nothing else. Together they answer most of the PAYLOAD-UNREGISTERED

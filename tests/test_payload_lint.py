@@ -1227,6 +1227,39 @@ def test_the_allow_listed_tree_rows_are_exactly_the_pinned_set():
     assert [e.path for e in trees if e.path.startswith("source/nord/g2")] == []
 
 
+def test_no_directory_row_covers_the_recorded_boot_runs():
+    """`artifacts/boot/` is registered file by file, and that is the decision.
+
+    Fourteen recorded `t1_boot` runs in `gearmulator` carry an exact-path row
+    each. ONE `artifacts/boot/` directory row would register the same fourteen
+    in one line -- and every run transcript written after it, none of which
+    anybody has read. That is the reach this register keeps refusing, and
+    nothing but this test stops a later pass from collapsing the rows and
+    calling it tidying: the lint is GREEN either way, because a directory row
+    covers everything the exact rows cover.
+
+    So the test pins the SHAPE and not the roster. It reds when a directory
+    row appears under `artifacts/`, which is the reversal; it says nothing
+    about which files are registered, which is free to change.
+    """
+    entries = load_register(SHIPPED_REGISTER)
+    boot_paths = [
+        e.path for e in entries if e.path.startswith("artifacts/boot/")
+    ]
+    assert boot_paths, (
+        "no `artifacts/boot/` row found; this test would pass vacuously"
+    )
+    # Asked through `matches`, so `artifacts/`, `artifacts/boot/` and
+    # `artifacts/boot/summaries/` are all caught. A prefix test written against
+    # one of those three spellings would let the other two through.
+    covering = [
+        e.path
+        for e in entries
+        if e.is_dir_rule and any(e.matches(path) for path in boot_paths)
+    ]
+    assert covering == []
+
+
 # --- Gitlinks are not files, and the test is the mode ------------------------
 
 
