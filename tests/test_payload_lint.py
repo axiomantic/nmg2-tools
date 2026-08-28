@@ -1288,3 +1288,95 @@ def test_a_path_holding_a_tab_survives_the_listing(tmp_path):
         ["git", "-C", str(tmp_path), "add", "--", awkward], check=True
     )
     assert _committed_files(tmp_path) == [awkward]
+
+
+# --- What a register row does and does not assert about a gitlink -----------
+#
+# A directory row may sit above a submodule gitlink. In `gearmulator` the
+# `source/3rdparty/` row does exactly that: it covers 66 committed files and
+# three gitlinks (`RmlUi`, `freetype`, `lunasvg`). Those three were silent
+# before the mode filter landed, absorbed by a row that legitimately covers
+# the 66 -- so the true false-positive population was larger than the visible
+# findings, and no clause said so.
+#
+# Reporting that coverage was considered and REJECTED. The register asserts
+# the provenance of BYTES IN THIS REPOSITORY, and a gitlink has none here; its
+# content lives in another repository, where `submodule_lint` owns it entirely
+# -- the URL authority table, `SUBMODULE-UNDECLARED` for a gitlink no section
+# declares, and `SUBMODULE-STALE-DECLARATION` for the reverse. Every gitlink
+# in a tree therefore reaches a named check that goes red, and it does so
+# without the register. A finding here would fire three times on `gearmulator`
+# for a non-defect, and its only remedy would be to narrow or not write the
+# `source/3rdparty/` row -- pressure against writing register rows, which this
+# module names as the one thing the register must never create.
+#
+# What keeps the register HONEST instead is clause 6, and the property is a
+# consequence of the mode filter rather than a rule written anywhere: rows are
+# matched against `_committed_files`, which excludes gitlinks, so a row whose
+# only would-be matches are gitlinks matches nothing and is reported. The two
+# tests below pin that. It arrived as a side effect and nothing held it, so a
+# later change to either the population or `matches` could restore the hole in
+# silence.
+
+
+def _gitlink_only_subtree(tmp_path):
+    """A repository where `vendor/` holds ONLY gitlinks, and `lib/` holds both."""
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    _write(tmp_path / "lib" / "payload.bin", 10)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "add", "lib/payload.bin"], check=True
+    )
+    for gitlink in ("vendor/RmlUi", "lib/freetype"):
+        subprocess.run(
+            [
+                "git", "-C", str(tmp_path), "update-index", "--add",
+                "--cacheinfo", "160000," + "0" * 39 + "1," + gitlink,
+            ],
+            check=True,
+        )
+    return tmp_path
+
+
+def test_a_row_whose_only_subtree_entries_are_gitlinks_is_unmatched(tmp_path):
+    """THE HONESTY PROPERTY, and the load-bearing test of this pair.
+
+    An operator who writes `vendor/` believing they have registered the
+    submodule beneath it has registered nothing, and must be told so. If this
+    goes green, a register row can assert a provenance that no committed byte
+    answers for, which is precisely the defect clause 6 exists to end.
+    """
+    root = _gitlink_only_subtree(tmp_path)
+    register = _register_file(
+        tmp_path, "vendor/\tpublic\taxiomantic/nmg2-tools\n"
+    )
+    failures = lint_repo_tree(
+        root, register, repo="axiomantic/nmg2-tools"
+    )
+    assert [
+        f for f in failures if f.startswith("PAYLOAD-REGISTER-UNMATCHED")
+    ] == [
+        "PAYLOAD-REGISTER-UNMATCHED: vendor/: this row is at home in "
+        "axiomantic/nmg2-tools and matches no committed path there, so it "
+        "registers nothing. Correct the path, or mark the row "
+        f"`{PENDING_PREFIX}<reason>` if the file is yet to land"
+    ]
+
+
+def test_a_row_covering_files_and_a_gitlink_is_matched_and_silent(tmp_path):
+    """The known negative, and the `source/3rdparty/` shape in miniature.
+
+    `lib/` covers one committed file and one gitlink. The row is matched by
+    the file, and the gitlink beneath it draws no finding of its own. This is
+    the DELIBERATE answer, not an oversight: see the note above this block.
+    """
+    root = _gitlink_only_subtree(tmp_path)
+    register = _register_file(
+        tmp_path, "lib/\tpublic\taxiomantic/nmg2-tools\n"
+    )
+    failures = lint_repo_tree(
+        root, register, repo="axiomantic/nmg2-tools"
+    )
+    assert [f for f in failures if "freetype" in f] == []
+    assert [
+        f for f in failures if f.startswith("PAYLOAD-REGISTER-UNMATCHED")
+    ] == []

@@ -47,6 +47,38 @@ it. That was a false positive for every DECLARED submodule in the set, and it
 has been removed there, so the case it covered by accident is covered here on
 purpose. SUBMODULE-UNDECLARED walks the mode-160000 index entries and reports
 any the text does not declare.
+
+A THIRD CLAUSE READS THE DECLARATION BACK AGAINST THE INDEX.
+
+SUBMODULE-UNDECLARED runs from the index to the text. The reverse direction --
+a section declaring a `path` the index holds no gitlink at -- was unchecked,
+and it is a DIFFERENT defect, not the same one seen from the other side. Its
+usual origin is a submodule removed by hand: `git rm --cached` drops the
+gitlink and leaves the section standing, which is a documented git footgun.
+What is left behind is a declaration that binds nothing: the authority table
+is asked about a URL for a submodule that is not in the tree, so the check
+reports a clean answer about a repository this one no longer pulls in.
+
+THERE IS NO "NOT YET" CASE HERE, AND THAT IS WHY THIS IS A PLAIN ERROR.
+
+The provenance register in `payload_lint` needed a `pending=<reason>` marker
+because a row may legitimately precede its file: that register is ONE
+hand-written file shared by seven repositories, so a row can name a path that
+is real in a repository which has not landed it yet. `.gitmodules` is not that
+kind of file. It describes ONE tree, it is maintained by git itself, and no
+git operation writes a section without staging the gitlink in the same
+commit -- `git submodule add` does both at once. A section with no gitlink is
+therefore always wrong and never merely early. Giving it a `pending=` escape
+would build a hiding place with no legitimate occupant, which is the silent
+bucket this project keeps closing, in a new costume.
+
+The parse is SECTION-AWARE for the same reason clause 2 keys on `path =` and
+not on the section label: it must agree with git about what a declaration IS.
+A `path =` line outside any `[submodule "..."]` section declares nothing to
+git, so it must not be able to answer SUBMODULE-UNDECLARED either -- otherwise
+a line git ignores could silence the clause. A section that declares no `path`
+at all binds to no gitlink and is reported as SUBMODULE-DECLARATION-NO-PATH:
+it is the same "declares nothing" defect arriving one field over.
 """
 
 from __future__ import annotations
@@ -55,6 +87,7 @@ import argparse
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from nmg2_tools.gitindex import gitlink_paths
@@ -88,6 +121,13 @@ _URL_RE = re.compile(
 # matches a gitlink against -- NOT the section name, which is only a label and
 # is free to differ from the path.
 _PATH_RE = re.compile(r"^\s*path\s*=\s*(?P<path>\S.*?)\s*$")
+
+# The section header. git spells a submodule section `[submodule "<name>"]`,
+# and the quoted name is a LABEL: it is conventionally the path and is under
+# no obligation to be. Any other section header closes the submodule section
+# that was open, so `path =` lines below it belong to something else.
+_SUBMODULE_SECTION_RE = re.compile(r'^\s*\[submodule\s+"(?P<name>[^"]*)"\]\s*$')
+_ANY_SECTION_RE = re.compile(r"^\s*\[")
 
 
 def _repo_name(url_line: str) -> str | None:
@@ -128,14 +168,115 @@ def lint_gitmodules_text(text: str) -> tuple[list[str], list[str]]:
     return failures, notes
 
 
-def declared_paths(text: str) -> set[str]:
-    """Return the ``path = `` values declared in a ``.gitmodules`` text."""
-    paths: set[str] = set()
-    for line in text.splitlines():
+@dataclass(frozen=True)
+class Section:
+    """One ``[submodule "<name>"]`` section of a ``.gitmodules`` file.
+
+    ``path`` is ``None`` when the section declares no ``path = `` line. That
+    is not the same as an empty path: git binds a section to a gitlink through
+    this field alone, so a section without one binds to nothing at all, and
+    the two cases get different findings.
+    """
+
+    name: str
+    lineno: int
+    path: str | None = None
+
+
+def parse_sections(text: str) -> list[Section]:
+    """Return the ``[submodule "..."]`` sections of a ``.gitmodules`` text.
+
+    The parse is section-aware rather than a scan for ``path = `` lines,
+    because this module must agree with git about what a declaration IS. git
+    reads ``path`` only inside a submodule section; a ``path = `` line at top
+    level, or under some other section, is not a declaration to git and must
+    not be treated as one here either. A line-based scan would let a line git
+    ignores answer :func:`lint_undeclared_gitlinks`, which is a way to silence
+    that clause without declaring anything.
+
+    A repeated ``path = `` inside one section takes the LAST value, which is
+    what git's config parser does with a repeated single-valued key.
+    """
+    sections: list[Section] = []
+    open_name: str | None = None
+    open_lineno = 0
+    open_path: str | None = None
+
+    def close() -> None:
+        nonlocal open_name
+        if open_name is not None:
+            sections.append(
+                Section(name=open_name, lineno=open_lineno, path=open_path)
+            )
+            open_name = None
+
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        header = _SUBMODULE_SECTION_RE.match(line)
+        if header:
+            close()
+            open_name = header.group("name")
+            open_lineno = lineno
+            open_path = None
+            continue
+        if _ANY_SECTION_RE.match(line):
+            # Some other section. It ENDS the submodule section that was open;
+            # the keys below it are not this submodule's.
+            close()
+            continue
+        if open_name is None:
+            continue
         m = _PATH_RE.match(line)
         if m:
-            paths.add(m.group("path").rstrip("/"))
-    return paths
+            open_path = m.group("path").rstrip("/")
+
+    close()
+    return sections
+
+
+def declared_paths(text: str) -> set[str]:
+    """Return the ``path = `` values declared by the text's submodule sections."""
+    return {
+        section.path
+        for section in parse_sections(text)
+        if section.path is not None
+    }
+
+
+def lint_stale_declarations(
+    gitlinks: list[str], sections: list[Section]
+) -> list[str]:
+    """Report each section whose declaration binds to no gitlink -- clause 3.
+
+    The mirror of :func:`lint_undeclared_gitlinks`, and a different defect
+    from it. A section left behind by a submodule removed by hand still names
+    a URL, so the authority table goes on answering about a repository this
+    tree no longer pulls in, and the answer looks like a check that ran.
+
+    There is no ``pending`` escape and there is deliberately no way to write
+    one. See this module's docstring: git writes the section and stages the
+    gitlink in the same operation, so a section ahead of its gitlink is not a
+    state any git command produces.
+    """
+    present = {path.rstrip("/") for path in gitlinks}
+    failures: list[str] = []
+    for section in sections:
+        if section.path is None:
+            failures.append(
+                f"SUBMODULE-DECLARATION-NO-PATH: line {section.lineno}: "
+                f"section [submodule \"{section.name}\"] declares no `path = `, "
+                "so git binds it to no gitlink and it declares nothing. The "
+                "section name is a label, not a path"
+            )
+        elif section.path not in present:
+            failures.append(
+                f"SUBMODULE-STALE-DECLARATION: line {section.lineno}: "
+                f"section [submodule \"{section.name}\"] declares "
+                f"`path = {section.path}`, but the index records no submodule "
+                "gitlink there, so this declaration binds nothing and its URL "
+                "names a repository this tree does not pull in. Remove the "
+                "section, or restore the gitlink"
+            )
+    return failures
 
 
 def lint_undeclared_gitlinks(
@@ -166,6 +307,19 @@ def lint_repo_tree(repo_path: Path) -> tuple[list[str], list[str]]:
     return a clean pass, which is the same answer this function gives for a
     repository that genuinely has no submodules -- and one of those two is a
     tree with undeclared gitlinks in it.
+
+    Both DIRECTIONS between the text and the index are checked here, and they
+    are separate clauses because they are separate defects. A gitlink with no
+    section reached the authority table with no URL
+    (``SUBMODULE-UNDECLARED``); a section with no gitlink asked the authority
+    table about a submodule that is not in this tree
+    (``SUBMODULE-STALE-DECLARATION``). A ``.gitmodules`` can be wrong in both
+    directions at once, and then both fire.
+
+    Neither direction is checked when the index could not be read. That path
+    returns early with ``SUBMODULE-INDEX-UNREADABLE`` rather than running the
+    stale clause against an empty gitlink list, which would report every
+    section in the file as stale and bury the one finding that is true.
     """
     gitmodules = repo_path / ".gitmodules"
     text = gitmodules.read_text() if gitmodules.is_file() else ""
@@ -184,7 +338,9 @@ def lint_repo_tree(repo_path: Path) -> tuple[list[str], list[str]]:
         )
         return failures, notes
 
+    sections = parse_sections(text)
     failures.extend(lint_undeclared_gitlinks(gitlinks, declared_paths(text)))
+    failures.extend(lint_stale_declarations(gitlinks, sections))
     return failures, notes
 
 

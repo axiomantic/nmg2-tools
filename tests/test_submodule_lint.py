@@ -1,10 +1,13 @@
 import subprocess
 
 from nmg2_tools.submodule_lint import (
+    Section,
     declared_paths,
     lint_gitmodules_text,
     lint_repo_tree,
+    lint_stale_declarations,
     lint_undeclared_gitlinks,
+    parse_sections,
 )
 
 
@@ -202,3 +205,163 @@ def test_undeclared_clause_is_a_pure_set_difference():
         "here, but no `.gitmodules` section declares this path, so no URL "
         "reached the authority table"
     ]
+
+
+# ------------------------------------------- clause 3: the reverse direction
+
+
+def test_a_gitmodules_section_with_no_gitlink_fails_and_names_the_section(
+    tmp_path,
+):
+    """The reverse blind spot, and the mirror of SUBMODULE-UNDECLARED.
+
+    A submodule removed by hand -- `git rm --cached` and a `rm -rf` -- drops
+    the gitlink and leaves the section standing. The URL clause then goes on
+    answering about a repository this tree no longer pulls in, and the answer
+    reads exactly like a check that ran and found nothing wrong.
+    """
+    repo = _git_repo(tmp_path)
+    (repo / ".gitmodules").write_text(
+        '[submodule "vendor/removed"]\n'
+        "\tpath = vendor/removed\n"
+        "\turl = https://github.com/dsp56300/JUCE\n"
+    )
+    failures, _notes = lint_repo_tree(repo)
+    stale = [f for f in failures if f.startswith("SUBMODULE-STALE-DECLARATION")]
+    assert stale == [
+        'SUBMODULE-STALE-DECLARATION: line 1: section [submodule '
+        '"vendor/removed"] declares `path = vendor/removed`, but the index '
+        "records no submodule gitlink there, so this declaration binds "
+        "nothing and its URL names a repository this tree does not pull in. "
+        "Remove the section, or restore the gitlink"
+    ]
+
+
+def test_restoring_the_gitlink_clears_the_stale_finding(tmp_path):
+    """The known negative for the test above, in the SAME tree.
+
+    A green run over a tree that never had the defect proves the clause is
+    quiet, not that it discriminates. This is the same `.gitmodules`, with the
+    one thing the finding named put back.
+    """
+    repo = _git_repo(tmp_path)
+    (repo / ".gitmodules").write_text(
+        '[submodule "vendor/removed"]\n'
+        "\tpath = vendor/removed\n"
+        "\turl = https://github.com/dsp56300/JUCE\n"
+    )
+    _add_gitlink(repo, "vendor/removed")
+    failures, _notes = lint_repo_tree(repo)
+    assert failures == []
+
+
+def test_a_section_that_declares_no_path_is_named(tmp_path):
+    """`declares nothing`, arriving one field over.
+
+    git binds a section to a gitlink through `path =` alone. A section with a
+    URL and no path is inert to git, so it is not merely cosmetic: it reads
+    like a declaration and is not one.
+    """
+    repo = _git_repo(tmp_path)
+    (repo / ".gitmodules").write_text(
+        '[submodule "vendor/thing"]\n'
+        "\turl = https://github.com/dsp56300/JUCE\n"
+    )
+    failures, _notes = lint_repo_tree(repo)
+    assert [
+        f for f in failures if f.startswith("SUBMODULE-DECLARATION-NO-PATH")
+    ] == [
+        'SUBMODULE-DECLARATION-NO-PATH: line 1: section [submodule '
+        '"vendor/thing"] declares no `path = `, so git binds it to no gitlink '
+        "and it declares nothing. The section name is a label, not a path"
+    ]
+
+
+def test_both_directions_fire_on_a_gitmodules_wrong_in_both(tmp_path):
+    """One file can be wrong in both directions, and they are two defects.
+
+    A gitlink at `vendor/thing` that no section declares, and a section
+    declaring `somewhere/else` where no gitlink sits. Reporting only one of
+    the two would leave the other silent behind a fixed finding.
+    """
+    repo = _git_repo(tmp_path)
+    _add_gitlink(repo, "vendor/thing")
+    (repo / ".gitmodules").write_text(
+        '[submodule "vendor/thing"]\n'
+        "\tpath = somewhere/else\n"
+        "\turl = https://github.com/dsp56300/JUCE\n"
+    )
+    failures, _notes = lint_repo_tree(repo)
+    assert any(
+        f.startswith("SUBMODULE-UNDECLARED: vendor/thing") for f in failures
+    )
+    assert any(
+        "SUBMODULE-STALE-DECLARATION" in f and "somewhere/else" in f
+        for f in failures
+    )
+
+
+def test_the_stale_clause_is_a_pure_set_difference():
+    assert lint_stale_declarations(
+        ["a"], [Section("a", 1, "a"), Section("gone", 4, "b")]
+    ) == [
+        'SUBMODULE-STALE-DECLARATION: line 4: section [submodule "gone"] '
+        "declares `path = b`, but the index records no submodule gitlink "
+        "there, so this declaration binds nothing and its URL names a "
+        "repository this tree does not pull in. Remove the section, or "
+        "restore the gitlink"
+    ]
+
+
+def test_an_unreadable_index_does_not_report_every_section_as_stale(tmp_path):
+    """The fail-closed path must not turn into a wall of false findings.
+
+    With no gitlinks read, every section in the file would compare unequal
+    against an empty set. One true finding -- the index could not be read --
+    buried under a finding per section is a check that hides its own answer.
+    """
+    (tmp_path / ".gitmodules").write_text(
+        '[submodule "a"]\n\tpath = a\n\turl = https://github.com/dsp56300/JUCE\n'
+    )
+    failures, _notes = lint_repo_tree(tmp_path)
+    assert any(f.startswith("SUBMODULE-INDEX-UNREADABLE") for f in failures)
+    assert not any(
+        f.startswith("SUBMODULE-STALE-DECLARATION") for f in failures
+    )
+
+
+# ------------------------------------------------------- the section parser
+
+
+def test_a_path_line_outside_any_section_declares_nothing(tmp_path):
+    """It must not be able to silence SUBMODULE-UNDECLARED.
+
+    git reads `path` only inside a `[submodule "..."]` section. A line-based
+    scan treated a top-level `path =` as a declaration, so a line git ignores
+    could answer the clause -- coverage asserted by a line with no effect.
+    """
+    repo = _git_repo(tmp_path)
+    _add_gitlink(repo, "vendor/thing")
+    (repo / ".gitmodules").write_text("path = vendor/thing\n")
+    failures, _notes = lint_repo_tree(repo)
+    assert any(
+        f.startswith("SUBMODULE-UNDECLARED: vendor/thing") for f in failures
+    )
+
+
+def test_a_following_section_ends_the_submodule_section(tmp_path):
+    """Keys under another section are not the submodule's."""
+    text = (
+        '[submodule "a"]\n'
+        "\turl = https://github.com/dsp56300/JUCE\n"
+        "[core]\n"
+        "\tpath = not-a-declaration\n"
+    )
+    assert parse_sections(text) == [Section("a", 1, None)]
+    assert declared_paths(text) == set()
+
+
+def test_a_repeated_path_key_takes_the_last_value():
+    """git's config parser does; so does this, or the two disagree."""
+    text = '[submodule "a"]\n\tpath = first\n\tpath = second\n'
+    assert declared_paths(text) == {"second"}

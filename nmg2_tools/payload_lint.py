@@ -199,6 +199,34 @@ which repository it is looking at and it must not fall quiet when it does not:
 - a rostered repository no row is at home in -> ``PAYLOAD-REGISTER-NO-HOME-ROWS``.
   Without it the whole clause is vacuous in that repository and says so
   nowhere.
+
+What a row asserts, and what it does not
+----------------------------------------
+A row asserts the provenance of BYTES IN THIS REPOSITORY. Read it against a
+tree and exactly two conclusions are available:
+
+- YOU MAY CONCLUDE that every row at home here matches at least one committed
+  path WITH CONTENT, or carries an explicit ``pending=<reason>``. Clause 6
+  makes the alternative loud. Because the population it matches against is
+  :func:`_committed_files`, which excludes gitlinks, that holds for a
+  directory row over a submodule too: a row whose only would-be matches are
+  gitlinks matches nothing and is reported ``PAYLOAD-REGISTER-UNMATCHED``. An
+  operator who writes ``source/3rdparty/RmlUi/`` believing they have
+  registered the submodule is told they have registered nothing.
+- YOU MAY NOT CONCLUDE that a directory row enumerates everything under that
+  directory. Submodule gitlinks may sit beneath one, and they are NOT covered
+  by it in any sense this register can assert -- they have no bytes here.
+  ``gearmulator``'s ``source/3rdparty/`` row is the standing example: 66
+  committed files and three gitlinks. The three draw no finding here, on
+  purpose. ``submodule_lint`` owns them completely -- the URL authority table,
+  ``SUBMODULE-UNDECLARED`` for a gitlink no section declares, and
+  ``SUBMODULE-STALE-DECLARATION`` for a section with no gitlink -- so every
+  gitlink reaches a named check that goes red without this register's help.
+
+Reporting the coverage was considered and rejected. It would fire three times
+on ``gearmulator`` for a non-defect, and the only way to quiet it would be to
+narrow or not write the ``source/3rdparty/`` row -- a reason not to register a
+tree, which is the one thing this register must never give anyone.
 """
 
 from __future__ import annotations
