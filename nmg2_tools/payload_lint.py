@@ -26,6 +26,16 @@ independent conditions, each with its own failure name:
    directory markers, not payload, and a private repository uses one to make
    a registered but empty directory exist.
 
+   A SUBMODULE GITLINK IS NOT A COMMITTED FILE AND IS NOT READ BY THIS
+   CHECK. It is a mode-``160000`` index entry recording a commit sha in
+   another repository, with no bytes in this one, so there is no provenance
+   here for a register row to assert. The exclusion is decided by the mode
+   git reports and never by the path: a real file committed at a
+   submodule-looking name is a file and this clause answers for it.
+   ``submodule_lint`` is what checks gitlinks, including the case -- a
+   gitlink no ``.gitmodules`` section declares -- that this clause used to
+   catch by accident and that nothing else was checking.
+
    Two CLASSES are described by RULE rather than by enumeration, so that
    making this clause fail does not turn the register into a roster of every
    file in the tree:
@@ -194,9 +204,10 @@ which repository it is looking at and it must not fall quiet when it does not:
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
+
+from nmg2_tools.gitindex import blob_paths
 
 SIZE_CEILING = 65_536
 
@@ -583,13 +594,24 @@ def _find_register_entry(
 
 
 def _committed_files(repo_path: Path) -> list[str]:
-    result = subprocess.run(
-        ["git", "-C", str(repo_path), "ls-files"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return [line for line in result.stdout.splitlines() if line]
+    """Return the tracked paths that HAVE CONTENT in this repository.
+
+    A submodule gitlink is a mode-``160000`` index entry recording a commit
+    sha in ANOTHER repository. There are no bytes here to have a provenance,
+    so clause 2 demanding a register row asserting the provenance of one was
+    a false positive by construction, and every submodule in the set arrived
+    as one.
+
+    THE TEST IS THE MODE GIT REPORTS, NOT THE PATH. A skip list of names that
+    look submodule-like would be a roster where a predicate belongs, and a
+    real file committed at such a name would walk straight through it.
+
+    Gitlinks are not dropped into nothing. ``submodule_lint`` holds each one
+    against a ``.gitmodules`` declaration and its URL authority table, and it
+    reports a gitlink no section declares -- which is the case this clause
+    used to catch by accident, and which nothing else was checking.
+    """
+    return blob_paths(repo_path)
 
 
 def lint_committed_files(

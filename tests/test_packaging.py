@@ -149,6 +149,9 @@ def test_the_superseded_plan_lint_module_is_absent():
         "extract_demo_corpus.py",
         # TOOL-5. The CS2 flash image builder.
         "flashimage.py",
+        # The git index reader both repository lints share, and the one place
+        # that knows a gitlink from a file.
+        "gitindex.py",
         # TOOL-1. The LZO1X decompressor.
         "lzo1x.py",
         # TOOL-8. The module map generator.

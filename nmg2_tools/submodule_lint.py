@@ -32,14 +32,32 @@ This module implements the PROHIBITION reading, which is the task gate:
 
 The contradiction is a plan defect and it is recorded here rather than
 resolved silently.
+
+A SECOND CLAUSE READS THE INDEX, NOT THE TEXT.
+
+Everything above walks ``.gitmodules`` and asks the authority table about the
+URLs it finds. That direction cannot see a submodule that has no section:
+the gitlink is in the tree, git will clone it, and no ``url =`` line exists
+for the table to be asked about. Reading the text alone, such a submodule is
+indistinguishable from no submodule at all.
+
+Until now the payload lint caught that case by accident -- a gitlink reached
+it as a path with no register row, and it reported PAYLOAD-UNREGISTERED for
+it. That was a false positive for every DECLARED submodule in the set, and it
+has been removed there, so the case it covered by accident is covered here on
+purpose. SUBMODULE-UNDECLARED walks the mode-160000 index entries and reports
+any the text does not declare.
 """
 
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
+
+from nmg2_tools.gitindex import gitlink_paths
 
 PUBLIC = {
     "axiomantic/mcf5307",
@@ -65,6 +83,11 @@ _URL_RE = re.compile(
     r"^\s*url\s*=\s*(?:https://github\.com/|git@github\.com:)"
     r"(?P<owner>[^/]+)/(?P<repo>[^/\s]+?)(?:\.git)?\s*$"
 )
+
+# The `path = ` line of a `[submodule]` section. This is the field git itself
+# matches a gitlink against -- NOT the section name, which is only a label and
+# is free to differ from the path.
+_PATH_RE = re.compile(r"^\s*path\s*=\s*(?P<path>\S.*?)\s*$")
 
 
 def _repo_name(url_line: str) -> str | None:
@@ -105,12 +128,64 @@ def lint_gitmodules_text(text: str) -> tuple[list[str], list[str]]:
     return failures, notes
 
 
+def declared_paths(text: str) -> set[str]:
+    """Return the ``path = `` values declared in a ``.gitmodules`` text."""
+    paths: set[str] = set()
+    for line in text.splitlines():
+        m = _PATH_RE.match(line)
+        if m:
+            paths.add(m.group("path").rstrip("/"))
+    return paths
+
+
+def lint_undeclared_gitlinks(
+    gitlinks: list[str], declared: set[str]
+) -> list[str]:
+    """Report each gitlink that no ``.gitmodules`` section declares.
+
+    An undeclared gitlink is not a cosmetic defect. git clones a submodule
+    from the URL in ``.gitmodules``; with no section there is no URL for the
+    authority table to be asked about, so the whole of this module's first
+    clause runs over a tree it cannot see. This is the one shape in which a
+    submodule reaches a public repository with NOTHING having decided whose
+    repository it is.
+    """
+    return [
+        f"SUBMODULE-UNDECLARED: {path}: the index records a submodule "
+        "gitlink here, but no `.gitmodules` section declares this path, so "
+        "no URL reached the authority table"
+        for path in gitlinks
+        if path.rstrip("/") not in declared
+    ]
+
+
 def lint_repo_tree(repo_path: Path) -> tuple[list[str], list[str]]:
-    """Lint the ``.gitmodules`` file at the root of ``repo_path``, if any."""
+    """Lint the ``.gitmodules`` text AND the gitlinks the index actually holds.
+
+    The two are read together on purpose. A missing ``.gitmodules`` used to
+    return a clean pass, which is the same answer this function gives for a
+    repository that genuinely has no submodules -- and one of those two is a
+    tree with undeclared gitlinks in it.
+    """
     gitmodules = repo_path / ".gitmodules"
-    if not gitmodules.is_file():
-        return [], []
-    return lint_gitmodules_text(gitmodules.read_text())
+    text = gitmodules.read_text() if gitmodules.is_file() else ""
+    failures, notes = lint_gitmodules_text(text)
+
+    try:
+        gitlinks = gitlink_paths(repo_path)
+    except (OSError, subprocess.CalledProcessError) as error:
+        # FAIL CLOSED. A directory git cannot list is a directory in which
+        # this clause checked nothing, and a clean pass would say the
+        # opposite of that. It gets a named finding for the same reason
+        # payload_lint's register clause refuses an unrostered `--repo`.
+        failures.append(
+            f"SUBMODULE-INDEX-UNREADABLE: {repo_path}: git could not list "
+            f"the index here ({error}), so no gitlink was checked"
+        )
+        return failures, notes
+
+    failures.extend(lint_undeclared_gitlinks(gitlinks, declared_paths(text)))
+    return failures, notes
 
 
 def main(argv: list[str]) -> int:

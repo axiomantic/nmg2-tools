@@ -16,9 +16,11 @@ from nmg2_tools.payload_lint import (
     lint_committed_files,
     REPO_SCOPED_VISIBILITIES,
     _committed_files,
+    lint_repo_tree,
     load_register,
     main,
 )
+from nmg2_tools.gitindex import GITLINK_MODE, index_entries
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -1193,3 +1195,96 @@ def test_no_tree_row_in_the_shipped_register_is_allow_listed():
     assert [e.path for e in trees if e.allow_listed] == []
     assert [e.path for e in trees if e.is_private] == []
     assert [e.path for e in trees if e.path.startswith("source/nord/g2")] == []
+
+
+# --- Gitlinks are not files, and the test is the mode ------------------------
+
+
+def _gitlink_fixture(tmp_path):
+    """A repository holding one gitlink, one file, and one decoy.
+
+    The decoy is the control this pair of tests turns on: `SynthLib` is the
+    real submodule name from the G2-Edit fork, and `vendor/SynthLib` is a
+    REAL FILE sitting at a name that looks exactly like one. A skip list keyed
+    on the name would swallow both.
+    """
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    _write(tmp_path / "README.md", 10)
+    _write(tmp_path / "vendor" / "SynthLib", 10)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "add", "README.md", "vendor/SynthLib"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git", "-C", str(tmp_path), "update-index", "--add", "--cacheinfo",
+            "160000," + "0" * 39 + "1,SynthLib",
+        ],
+        check=True,
+    )
+    return tmp_path
+
+
+def test_committed_files_excludes_the_gitlink_and_keeps_the_files(tmp_path):
+    """The instrument, held against a gitlink and a file from ONE repository.
+
+    `git ls-files` alone lists all three of these identically. `-s` exposes
+    the index mode, and mode 160000 is the whole of the test.
+    """
+    root = _gitlink_fixture(tmp_path)
+    listed = subprocess.run(
+        ["git", "-C", str(root), "ls-files"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    assert sorted(listed) == ["README.md", "SynthLib", "vendor/SynthLib"]
+    assert sorted(_committed_files(root)) == ["README.md", "vendor/SynthLib"]
+
+
+def test_a_gitlink_gets_no_unregistered_finding(tmp_path):
+    root = _gitlink_fixture(tmp_path)
+    failures = lint_repo_tree(
+        root, SHIPPED_REGISTER, repo="axiomantic/nmg2-tools"
+    )
+    assert [f for f in failures if "SynthLib" in f and ": SynthLib:" in f] == []
+
+
+def test_a_real_file_at_a_submodule_looking_name_still_goes_red(tmp_path):
+    """THE PLANTED CONTROL.
+
+    `vendor/SynthLib` is a file, committed at the exact name of a real
+    submodule in this set. It has no register row and no by-rule class, so
+    clause 2 must still answer for it. If this goes green the filter has
+    started keying on names, and the guard has a hole shaped like a naming
+    convention.
+    """
+    root = _gitlink_fixture(tmp_path)
+    failures = lint_repo_tree(
+        root, SHIPPED_REGISTER, repo="axiomantic/nmg2-tools"
+    )
+    assert (
+        "PAYLOAD-UNREGISTERED: vendor/SynthLib: committed file with no "
+        "register row and no by-rule classification"
+    ) in failures
+
+
+def test_index_entries_reports_the_mode_git_reports(tmp_path):
+    root = _gitlink_fixture(tmp_path)
+    modes = {path: mode for mode, path in index_entries(root)}
+    assert modes["SynthLib"] == GITLINK_MODE
+    assert modes["vendor/SynthLib"] != GITLINK_MODE
+    assert modes["README.md"] != GITLINK_MODE
+
+
+def test_a_path_holding_a_tab_survives_the_listing(tmp_path):
+    """Why the listing asks for `-z`.
+
+    Without it git quotes such a path and the tab-split below would read the
+    quoting as data -- a path silently renamed on its way into the guard.
+    """
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    awkward = "odd\tname.bin"
+    _write(tmp_path / awkward, 10)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "add", "--", awkward], check=True
+    )
+    assert _committed_files(tmp_path) == [awkward]
