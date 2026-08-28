@@ -1,9 +1,50 @@
 nmg2_tools/testdata/pch2_synth/	public
-g2Lib/test/fixtures/synthetic_block_program.asm	public
-g2Lib/test/fixtures/frame_sync_spin.asm	public
-g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public
-g2Lib/test/fixtures/golden/manifest.txt	public
-g2Lib/test/fixtures/module_map.coverage	public
+# `gearmulator` test fixtures. THE PREFIX ON THESE FIVE ROWS WAS WRONG AND THE
+# ROWS GRANTED NOTHING. `g2Lib/` is where the library sits inside its own
+# subtree; the repository-relative path -- the only thing `git ls-files` emits
+# and the only thing this register matches -- is `source/nord/g2/g2Lib/`. All
+# five rows were exact-path rows, so each compared unequal against every
+# committed file and no `PAYLOAD-UNREGISTERED` finding was ever answered by
+# one. `git ls-files | grep -Fxc <row>` returns 0 for each of the five.
+#
+# Nothing reported this, because a row that matches no path is indistinguishable
+# from a row that matches a path which is absent. The rows were written in
+# a91909d and the guard had never run on a pull request in `gearmulator` until
+# the `pull_request` trigger landed, so the first run to read them was also the
+# first run that could have contradicted them.
+#
+# The correction is the prefix, applied to the class and not case by case: one
+# root was wrong for all five, which is a predicate and not a roster.
+#
+# `esai_sync_spin.asm` REPLACES the row that read `frame_sync_spin.asm`. No file
+# of that name exists in `gearmulator`, on any branch, at any point in its
+# history -- `git ls-files` and `git log --all -S frame_sync_spin` both return
+# nothing, against a known positive of 1 for `esai_sync_spin` from the same
+# command. The row named a file that never landed; the file that did land came
+# in f0854094 for task SCH-34.
+#
+# PROVENANCE, established per file from the introducing commit and the file's
+# own content, not assumed -- a `public` row asserts a provenance, so guessing
+# one would be worse than the red it quiets. The three `.asm` files are
+# hand-authored DSP56300 spins of two, four and twenty-five instructions,
+# built from `nop`, `bra`, `brclr` and `move`, each majority prose comment
+# describing what the check that reads it asserts. Nothing here is disassembled
+# output. `synth_editor_sequence.txt` holds no payload bytes: it is one row per
+# frame carrying an index, a type code, a length and a CRC-16 over the payload,
+# and the corpus it describes is `nmg2_tools/testdata/pch2_synth/` above, whose
+# generator states that every byte of it is authored by this project.
+source/nord/g2/g2Lib/test/fixtures/synthetic_block_program.asm	public
+source/nord/g2/g2Lib/test/fixtures/esai_sync_spin.asm	public
+source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public
+# `bit_test_spin.asm` was never registered under any prefix. It arrived in
+# e6c6257b for task DSP-19 and is the same shape as the two above.
+source/nord/g2/g2Lib/test/fixtures/bit_test_spin.asm	public
+# These two name no committed file in `gearmulator` today, under either prefix.
+# They are carried forward with the root corrected rather than dropped, because
+# the prefix defect was uniform; they remain UNVERIFIED against a real file and
+# assert nothing until one lands at the path.
+source/nord/g2/g2Lib/test/fixtures/golden/manifest.txt	public
+source/nord/g2/g2Lib/test/fixtures/module_map.coverage	public
 module_map.coverage	public
 unclaimed_compute.count	public
 artifacts.sha256	public
