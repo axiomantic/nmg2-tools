@@ -143,6 +143,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "checksum.py",
         # TOOL-3. The container header and section table.
         "container.py",
+        # TOOL-15. The firmware-CRC cross-check.
+        "crc_crosscheck.py",
         "credential_lint.py",
         # TOOL-7. The DSP56300 disassembler.
         "dsp56k_dis.py",
@@ -165,6 +167,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "submodule_lint.py",
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "synth_pch2.py",
+        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        "wire_compose.py",
     ]
 
 
@@ -176,6 +180,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_checksum.py",
         # TOOL-3. The container header and section table.
         "test_container.py",
+        # TOOL-15. The firmware-CRC cross-check.
+        "test_crc_crosscheck.py",
         "test_credential_lint.py",
         # TOOL-7. The DSP56300 disassembler.
         "test_dsp56k_dis.py",
@@ -199,6 +205,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_submodule_lint.py",
         # TOOL-12. The synthesized `.pch2` corpus generator.
         "test_synth_pch2.py",
+        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        "test_wire_compose.py",
     ]
 
 
