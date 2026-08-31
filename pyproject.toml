@@ -16,17 +16,12 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 
-[project.scripts]
-# `planlint` is the installed entry point. The three wrapper scripts the plan
-# names are the same command with a different `--only` set, so the console
-# script is the one form that a fresh clone gets from `pip install .`.
-planlint = "planlint.cli:main"
-
 [tool.setuptools]
-# The layout is fixed. There are two packages. `nmg2_tools/` holds the
-# repository lints, and `planlint/` holds the plan lints. A package that this
-# list does not name is a package `pip install .` does not install.
-packages = ["nmg2_tools", "planlint"]
+# One package. `nmg2_tools/` holds the Nord Modular G2 tooling: the firmware
+# container and extractors, the `.pch2` reader, the DSP disassembler and the
+# wire composer. A package this list does not name is a package
+# `pip install .` does not install.
+packages = ["nmg2_tools"]
 
 [tool.pytest.ini_options]
 # The layout is fixed. Every test lives at `tests/` in the repository root, and
@@ -34,3 +29,72 @@ packages = ["nmg2_tools", "planlint"]
 # path so that a test imports `nmg2_tools` without an install step.
 testpaths = ["tests"]
 pythonpath = ["."]
+# `artifacts` is the declaration a gated test makes of the files its body
+# opens; the `<family>_dir` fixtures in `tests/conftest.py` build section 18.5's
+# gate from them. The paths are relative to the root of the FAMILY whose fixture
+# the test requests, so the fixture parameter and the marker are the two halves
+# of one declaration: which root, and which files under it. Registering the mark
+# turns an unknown mark into an error rather than a warning, so a typo in a
+# declaration cannot silently gate on nothing.
+markers = [
+    "artifacts(*paths): paths, relative to the requested family's root, that this test's body opens",
+]
+filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]
+
+[tool.ruff]
+# `ruff clean` was asserted in two commit messages (fbbff97, 8adb54d) and no
+# mechanism read it. This section and the `lint` job in `.github/workflows/ci.yml`
+# are that mechanism.
+#
+# THE VERSION IS PART OF THE CONFIGURATION. The same unmodified tree reports 1
+# finding under ruff 0.6.9 and 0.12.0, and 275 under 0.16.5, because 0.16 turned
+# on a much wider default rule set. A claim about "ruff" that does not name a
+# version is therefore not a claim about anything. `select` below is written out
+# in full for the same reason: it pins the rule set to this file instead of to
+# whichever defaults the installed ruff happens to ship. CI installs the pinned
+# version; see `RUFF_VERSION` in the workflow.
+target-version = "py311"
+
+[tool.ruff.lint]
+# Chosen on merit, not to reach a number. This set reports 162 findings on the
+# tree that introduced it, against 51 non-ISC004 findings from ruff 0.16.5's own
+# defaults: it is stricter than the defaults on real code, not weaker.
+select = [
+    "E4", "E7", "E9",  # pycodestyle errors. E1/E2/E3 and E501 are formatter
+                       # territory and this repository runs no formatter.
+    "W",               # pycodestyle warnings
+    "F",               # pyflakes
+    "I",               # import sorting
+    "N",               # pep8-naming
+    "B",               # bugbear
+    "BLE",             # blind except
+    "S110", "S112",    # try-except-pass, try-except-continue
+    "PLE", "PLW", "PLC",
+    "SIM", "UP", "C4", "PERF", "PIE", "FURB", "RUF", "FLY", "RET", "PGH",
+    "ISC", "YTT", "EXE", "INT", "LOG", "G", "ASYNC", "TRY",
+]
+
+# Every exclusion below is a rule that disagrees with a DELIBERATE choice in this
+# repository. None was dropped because of how many findings it produced.
+ignore = [
+    # Flags multi-line implicit string concatenation inside a collection. The
+    # long explanatory messages this codebase writes are built that way on
+    # purpose, and ruff 0.16 is the first release to report it: 224 of the 275
+    # findings under 0.16 defaults are this one rule against unchanged code.
+    "ISC004",
+    # Flags a long message passed straight to `raise`. Long, specific messages
+    # are the house style throughout this repository.
+    "TRY003",
+]
+
+# Rule groups deliberately NOT selected, and why:
+#   PT   - pytest style. The suite is `unittest`-based by choice, and PT009
+#          alone would report 801 findings demanding a rewrite of every
+#          assertion.
+#   PTH  - `pathlib` migration. A large mechanical diff with no defect behind it.
+#   T20  - `print`. It is how the console scripts emit their reports.
+#   TC   - moving imports into `TYPE_CHECKING` blocks. Cosmetic here.
+#   DTZ  - naive `datetime`. Naive datetimes are used by design.
+#   PYI  - stub-file rules. This repository ships no stubs.
+#   S    - the rest of flake8-bandit. `subprocess` use is the point of several
+#          of these tools; only the two silent-swallow rules are wanted.

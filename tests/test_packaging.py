@@ -1,129 +1,167 @@
-"""The packaging contract for the two packages this repository ships.
+"""The packaging contract for the package this repository ships.
 
 `pyproject.toml` pins the layout. A package that the `packages` list does not
 name is a package that `pip install .` does not install, and a fresh clone
 therefore cannot import it. The list is asserted here so that adding a package
 directory without declaring it fails.
 
-The `plan_lint` module that this repository once carried is asserted ABSENT.
-It recovered 4 task blocks where `planlint` recovers 210, its `--` rule
-polarity was inverted against the behaviour of `ctest`, and it exited 0 when it
-parsed nothing. None of its rules survive.
+The module and test rosters below are EXACT equalities, not membership checks.
+A file added to `nmg2_tools/` or to `tests/` without a row here is a file no
+one decided to ship.
 """
 
 import pathlib
-import sys
+import shutil
+import subprocess
 import tomllib
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
-def test_pyproject_declares_both_packages():
-    """Exact equality, not membership. A third package added without a row
+def test_pyproject_declares_the_one_package():
+    """Exact equality, not membership. A second package added without a row
     here is a package no one decided to ship."""
-    assert PYPROJECT["tool"]["setuptools"]["packages"] == ["nmg2_tools", "planlint"]
+    assert PYPROJECT["tool"]["setuptools"]["packages"] == ["nmg2_tools"]
 
 
-def test_pyproject_declares_the_planlint_console_script():
-    assert PYPROJECT["project"]["scripts"] == {"planlint": "planlint.cli:main"}
-
-
-def test_planlint_package_directory_holds_every_module_the_cli_imports():
-    """The nine lint modules plus the four support modules. A module that the
-    migration dropped makes `planlint.cli` fail to import; this names which."""
-    committed = sorted(p.name for p in (ROOT / "planlint").glob("*.py"))
-
-    assert committed == [
-        "__init__.py",
-        "checks.py",
-        "cli.py",
-        "closure.py",
-        "counts.py",
-        "document.py",
-        "finding.py",
-        "graph.py",
-        "implicit.py",
-        "payload.py",
-        "registrar.py",
-        "tiers.py",
-        "waves.py",
-    ]
-
-
-def test_planlint_cli_exposes_the_nine_lints():
-    from planlint import cli
-
-    assert list(cli.DOCUMENT_LINTS) == [
-        "graph",
-        "waves",
-        "tiers",
-        "checks",
-        "counts",
-        "implicit",
-        "registrar",
-        "closure",
-    ]
-    assert cli.REPOSITORY_LINTS == ("payload",)
-    assert cli.ALL_LINTS == [
-        "graph",
-        "waves",
-        "tiers",
-        "checks",
-        "counts",
-        "implicit",
-        "registrar",
-        "closure",
-        "payload",
-    ]
-
-
-def test_planlint_never_exits_zero_with_no_input():
-    """The founding defect of this project was a check that passed because it
-    ran nothing. `--plan` naming a file that does not exist is exit 2, and the
-    message names the missing path rather than reporting a clean run."""
-    import io
-
-    from planlint import cli
-
-    stream = io.StringIO()
-    code = cli.main(["--plan", str(ROOT / "no_such_plan.md")], stream=stream)
-
-    assert code == 2
-    assert stream.getvalue() == f"no such plan document: {ROOT / 'no_such_plan.md'}\n"
-
-
-def test_the_superseded_plan_lint_module_is_absent():
-    """Its rules are not preserved anywhere. `planlint` replaces it whole."""
+def test_the_package_holds_exactly_the_declared_modules():
+    """One row per shipped module, with the task that owns it."""
     assert sorted(
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [
         "__init__.py",
         # REPO-5. The Python half of the ArtifactResolver.
         "artifacts.py",
-        "credential_lint.py",
+        # TOOL-2. The container checksum.
+        "checksum.py",
+        # TOOL-3. The container header and section table.
+        "container.py",
+        # TOOL-15. The firmware-CRC cross-check.
+        "crc_crosscheck.py",
+        # TOOL-7. The DSP56300 disassembler.
+        "dsp56k_dis.py",
         "extract_demo_corpus.py",
-        "payload_lint.py",
-        "submodule_lint.py",
+        # TOOL-5. The CS2 flash image builder.
+        "flashimage.py",
+        # TOOL-1. The LZO1X decompressor.
+        "lzo1x.py",
+        # TOOL-8. The module map generator.
+        "modulemap.py",
+        # TOOL-10. The `.pch2` parser.
+        "pch2.py",
+        # TOOL-4. The Windows PE resource reader.
+        "pe.py",
+        # TOOL-4. The Macintosh resource-fork reader.
+        "rsrc.py",
+        # TOOL-6. The descriptor signature scanner.
+        "sigscan.py",
+        # TOOL-12. The synthesized `.pch2` corpus generator.
+        "synth_pch2.py",
+        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        "wire_compose.py",
     ]
 
 
-def test_the_superseded_plan_lint_test_module_is_absent():
+def test_the_suite_holds_exactly_the_declared_test_modules():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
         # REPO-5. The Python half of the ArtifactResolver.
         "test_artifacts.py",
-        "test_credential_lint.py",
+        # TOOL-2. The container checksum.
+        "test_checksum.py",
+        # TOOL-3. The container header and section table.
+        "test_container.py",
+        # TOOL-15. The firmware-CRC cross-check.
+        "test_crc_crosscheck.py",
+        # TOOL-7. The DSP56300 disassembler.
+        "test_dsp56k_dis.py",
+        # TOOL-4. The updater resource extraction tests.
+        "test_extract.py",
         "test_extract_demo_corpus.py",
+        # TOOL-5. The CS2 flash image builder.
+        "test_flashimage.py",
+        # TOOL-1. The LZO1X decompressor.
+        "test_lzo1x.py",
+        # TOOL-8. The module map generator.
+        "test_modulemap.py",
         "test_packaging.py",
-        "test_payload_lint.py",
-        "test_submodule_lint.py",
+        # TOOL-10. The `.pch2` parser against the synthesized corpus (T0).
+        "test_pch2.py",
+        # TOOL-10. The `.pch2` parser against the G2 Demo corpus (T1).
+        "test_pch2_real_corpus.py",
+        # TOOL-6. The descriptor signature scanner.
+        "test_sigscan.py",
+        # TOOL-12. The synthesized `.pch2` corpus generator.
+        "test_synth_pch2.py",
+        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        "test_wire_compose.py",
     ]
 
 
-def test_planlint_is_imported_from_this_repository_and_not_elsewhere():
-    """A stale copy on `sys.path` would let every assertion above pass while
-    the committed tree stayed broken."""
-    import planlint
+def tracked_paths():
+    """Every path this repository tracks, or a stated reason there is no answer.
 
-    assert pathlib.Path(planlint.__file__).resolve().parent == ROOT / "planlint"
-    assert sys.modules["planlint"].__name__ == "planlint"
+    A missing `git` and a repository that tracks nothing produce the same empty
+    list, which is this project's signature failure mode. Each absence skips
+    with its own reason instead.
+    """
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH, so the tracked file set cannot be read")
+    if not (ROOT / ".git").exists():
+        pytest.skip(f"{ROOT} is not a git checkout, so it tracks nothing to read")
+    listing = subprocess.run(
+        [git, "ls-files", "-z"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [path for path in listing.split("\0") if path]
+
+
+def test_no_generated_metadata_tree_is_tracked():
+    """`setuptools` writes `*.egg-info/` and rewrites it on every build. Under
+    version control it disagrees with the tree between builds and nothing
+    notices, because a `grep -r` over this repository finds no reader for any
+    file in it.
+    """
+    tracked = tracked_paths()
+    assert "pyproject.toml" in tracked  # an empty listing makes the next line pass
+    assert [path for path in tracked if ".egg-info/" in path] == []
+
+
+def test_the_lint_gate_is_wired_end_to_end():
+    """The four pieces of the ruff gate reference each other, or it is not a gate.
+
+    `pyproject.toml` holds the rules, `.ruff-version` holds the tool version,
+    `scripts/ruff-baseline.sh` produces the reading and `.ruff-baseline.txt`
+    holds the reading it is compared against. Delete any one and the CI job
+    either stops running or starts passing for the wrong reason. This asserts
+    the wiring only: whether the tree still MATCHES the baseline is the CI job's
+    question, and asking it here would need ruff installed, which would make the
+    check skip on a machine without it and read exactly like a pass.
+    """
+    lint = PYPROJECT["tool"]["ruff"]["lint"]
+    assert lint["select"], "no rules selected: the gate would report nothing"
+
+    version = (ROOT / ".ruff-version").read_text(encoding="utf-8").strip()
+    assert version, ".ruff-version is empty"
+
+    script = ROOT / "scripts" / "ruff-baseline.sh"
+    assert script.is_file()
+    assert script.stat().st_mode & 0o111, "the script is not executable"
+    assert ".ruff-version" in script.read_text(encoding="utf-8"), (
+        "the script does not read the pin, so it can use a different ruff than CI"
+    )
+
+    baseline = (ROOT / ".ruff-baseline.txt").read_text(encoding="utf-8")
+    rows = [line for line in baseline.splitlines() if not line.startswith("#")]
+    assert rows, "an empty baseline makes any diff against it meaningless"
+
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "scripts/ruff-baseline.sh" in workflow
+    assert ".ruff-baseline.txt" in workflow
+    assert ".ruff-version" in workflow
