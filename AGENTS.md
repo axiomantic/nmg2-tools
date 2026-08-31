@@ -179,6 +179,26 @@ provided it asserts no exclusivity and no sequence. What goes is ONLY, FIRST,
 NEXT, and "does not name": those are the falsifiable forms, and that difference
 is the whole of the rule.
 
+**A measured fact earns its place only while it stays measured.** A comment
+about a FORMAT — a stride, a byte offset in the wire protocol, a field width —
+is safe, because the format cannot change under it. A comment about OUR OWN
+implementation choice rots the moment the implementation changes. The docstring
+in `nmg2_tools/wire_compose.py` said the tenth variation was a zero byte and
+that nothing more was claimed about it; the code was then changed to append a
+full tenth variation, and the docstring went on describing deleted behaviour
+with a docstring's authority. **When you change behaviour, the comment above it
+is part of the change.**
+
+**A mixed block is split, not judged whole.** One block often holds a
+restatement of the code AND a real why. Edit inside the block: cut the
+restatement, keep the why. Do not delete a whole block because part of it is
+noise, and do not keep a whole block because part of it is real.
+
+**Prove a prose pass changed no code, mechanically.** For Python: parse the file
+before and after, strip docstrings from both trees, and compare `ast.dump`. That
+also proves no string literal and no constant moved, because those live in the
+AST. Do not assert "comments only" by eye.
+
 ### Scope: code we authored
 
 This repository is original work, so the rule applies throughout. Do not delete
