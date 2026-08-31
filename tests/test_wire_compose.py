@@ -435,3 +435,283 @@ def test_every_real_patch_composes_to_a_table_with_present_crcs(
         for line in lines:
             assert "crc=0x" in line
             assert "crc=----" not in line
+
+
+# ---------------------------------------------------------------------------
+# Case 6. The patch-load message level (plan W3-457). The framing is the one
+# the capture corpus and the runtime instrument agree on; the cases pin the
+# header prefix, the CRC placement, and the total field against it.
+# ---------------------------------------------------------------------------
+
+
+def _arithmetic_crc_of(data: bytes) -> int:
+    """The arithmetic CRC-16/CCITT-XMODEM, restated beside its user."""
+    crc = 0
+    for byte in data:
+        crc ^= byte << 8
+        for _bit in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return crc
+
+
+def test_patch_load_header_prefixes_match_the_measured_wire_form(table):
+    """The body opens with the capture-008 prefix: M_CMD, S_SLOT_REQ+slot,
+    V_NEW_PATCH, O_CREATE, three zeros -- then the entry name. The prefix
+    bytes are measured, not invented: capture-008's host-to-device frame
+    carries 01 28 53 37 00 00 00 before the 16-character name."""
+    messages_data = _corpus("min.pch2")
+    message = wire_compose.compose_patch_load_body(messages_data, "test")
+
+    assert message[:7] == b"\x01\x28\x53\x37\x00\x00\x00"
+    assert message[7:12] == b"test\x00"
+
+
+def test_patch_load_frame_places_crc_directly_after_the_body(table):
+    """The frame's last two bytes are the fixture-table walk over the body,
+    and the body ends the byte before them: no pad sits between, the
+    instrument artifact W3-457 supersedes."""
+    body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+    framed = wire_compose.frame(body, table)
+
+    assert int.from_bytes(framed[-2:], "big") == crc_crosscheck.table_walk(body, table)
+    assert framed[2:-2] == body
+
+
+def test_patch_load_total_field_equals_the_whole_frame_length(table):
+    """total counts the WHOLE frame including its own 2 prefix bytes -- the
+    measured rule (865 on capture-008), not body-plus-4 and not a
+    64-multiple."""
+    body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+    framed = wire_compose.frame(body, table)
+
+    assert int.from_bytes(framed[:2], "big") == len(framed)
+    assert int.from_bytes(framed[:2], "big") == len(body) + 4
+
+
+def test_patch_load_message_crc_agrees_with_the_arithmetic_oracle(table):
+    """The message-level CRC through the fixture table is the same
+    polynomial the arithmetic oracle computes, over the body the frame
+    carries."""
+    body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+    framed = wire_compose.frame(body, table)
+
+    walked = int.from_bytes(framed[-2:], "big")
+    assert walked == _arithmetic_crc_of(framed[2:-2])
+    assert walked == crc_crosscheck.table_walk(framed[2:-2], table)
+
+
+def test_entry_name_field_is_terminated_when_short_and_exact_at_16():
+    """The EntryName StringField(16, lengthWithTerm) rule, measured on the
+    capture corpus: a short name carries one 0x00 terminator (capture-002's
+    13-character perf name), a full name carries NO terminator
+    (capture-008's 16-character patch name), and a too-long name is
+    refused rather than silently truncated."""
+    assert wire_compose.entry_name_field("g2fx-perf-002") == b"g2fx-perf-002\x00"
+    assert len(wire_compose.entry_name_field("g2fx-perf-002")) == 14
+
+    full = "g2fx-uprate-4mod"
+    assert wire_compose.entry_name_field(full) == full.encode("ascii")
+    assert b"\x00" not in wire_compose.entry_name_field(full)
+
+    with pytest.raises(ValueError):
+        wire_compose.entry_name_field("0123456789abcdef7")
+
+
+def test_patch_load_omits_the_2d_00_trailer_on_the_host_to_device_form(table):
+    """Difference 2 does not fire here: the capture-008 O_CREATE chain
+    carries no 0x2D 0x00 pair anywhere in its body (measured: no such pair
+    in 861 bytes), so the message-level composer appends none after the
+    0x21 chunk even though the per-object composer does."""
+    message = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+
+    assert b"\x2d\x00" not in message[7:]
+
+
+def test_patch_load_chain_carries_the_variation_count_rise(table):
+    """The chain reuses the per-object difference-1 transformation: a 0x4D
+    object from the corpus's variation-count fixture reads 10 on the wire
+    form, one appended tenth-variation byte included."""
+    message = wire_compose.compose_patch_load_body(
+        _corpus("wire_variation_count.pch2"), "test"
+    )
+
+    # Header (7) + name field (5) = 12; the chain's objects follow.
+    chain = message[12:]
+    assert chain[0] == 0x4D
+    payload_len = int.from_bytes(chain[1:3], "big")
+    payload = chain[3 : 3 + payload_len]
+    assert payload[0] == 10
+    assert len(payload) == 11
+
+
+def test_compose_patch_load_returns_the_framed_message_end_to_end(
+    table, tmp_path
+):
+    """The path-taking entry point composes header, name and chain into one
+    frame whose total, CRC and prefix all hold -- and whose body is exactly
+    the body-level composer's output, so the two layers cannot drift."""
+    path = tmp_path / "min.pch2"
+    path.write_bytes(_corpus("min.pch2"))
+
+    message = wire_compose.compose_patch_load(path, "test")
+    body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+
+    assert message == wire_compose.frame(body, table)
+    assert message[2:9] == b"\x01\x28\x53\x37\x00\x00\x00"
+
+
+def test_whole_transfer_form_wraps_the_message_frame_once_more(table, tmp_path):
+    """The transfer envelope adds a second [total][body][CRC] layer around
+    the message frame: the outer total counts the whole transfer, the outer
+    CRC covers the message frame as its body, and the message frame rides
+    inside intact."""
+    path = tmp_path / "min.pch2"
+    path.write_bytes(_corpus("min.pch2"))
+
+    message = wire_compose.compose_patch_load(path, "test")
+    transfer = wire_compose.compose_patch_load_transfer(path, "test")
+
+    assert transfer[2:-2] == message
+    assert int.from_bytes(transfer[:2], "big") == len(transfer)
+    assert int.from_bytes(transfer[:2], "big") == len(message) + 4
+    assert int.from_bytes(transfer[-2:], "big") == crc_crosscheck.table_walk(
+        message, table
+    )
+
+
+def test_required_red_a_pad_before_the_crc_turns_the_placement_case_red(table):
+    """Plant: a frame that pads the body to a 64-multiple before the CRC --
+    the W3-456 artifact. Observe: the CRC-placement case fails (the covered
+    range no longer equals the body). Restore: the module's own frame keeps
+    the CRC directly after the body."""
+    body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
+    good = wire_compose.frame(body, table)
+
+    pad_len = (-len(body)) % 64
+    padded = (
+        (2 + len(body) + pad_len + 2).to_bytes(2, "big")
+        + body
+        + b"\x00" * pad_len
+        + crc_crosscheck.table_walk(body, table).to_bytes(2, "big")
+    )
+
+    # The plant's covered range is body-plus-pad, so the placement assertion
+    # `framed[2:-2] == body` fails against it.
+    with pytest.raises(AssertionError):
+        assert padded[2:-2] == body
+
+    # The module's own output restores the rule.
+    assert good[2:-2] == body
+
+
+# ---------------------------------------------------------------------------
+# The 0x65 tenth-variation transform (message-layer verdict, 2026-08-30).
+# ---------------------------------------------------------------------------
+
+
+def _morph_bit_layout_wire(payload: bytes) -> int:
+    """The bytes the firmware's 0x65 reader (FUN_3002dc84) consumes.
+
+    The reader walks a continuous bit stream: the variation count (8 bits),
+    the morph count (4), that many 2-bit locations, then per variation an
+    8-bit index, the morph count x 7 bits, an 8-bit parameter count and that
+    many 29-bit parameters. The count is the WHOLE-PAYLOAD byte consumption
+    the chain walk advances, computed against the same arithmetic the
+    firmware runs.
+    """
+    pos = 0
+
+    def get(width: int) -> int:
+        nonlocal pos
+        value = 0
+        for _ in range(width):
+            value = (value << 1) | ((payload[pos >> 3] >> (7 - (pos & 7))) & 1)
+            pos += 1
+        return value
+
+    variation_count = get(8)
+    morph_count = get(4)
+    for _ in range(morph_count):
+        get(2)
+    for _ in range(variation_count):
+        get(8)
+        for _ in range(morph_count):
+            get(7)
+        params = get(8)
+        for _ in range(params):
+            get(2)
+            get(8)
+            get(7)
+            get(4)
+            get(8)
+    return pos // 8 + (1 if pos % 8 else 0)
+
+
+def test_difference_1_065_wire_carries_a_full_tenth_variation(table):
+    """A real nine-variation 0x65 payload gains a FULL tenth variation, not a
+    filler byte: the wire payload's length grows by one variation's span and
+    the firmware reader's own walk consumes exactly the wire payload's bytes,
+    so the chain walk lands on the next chunk boundary (the 2026-08-30 run's
+    37-byte overshoot came from a filler byte, which let the reader's tenth
+    pass read the NEXT chunk's bytes as a seventh parameter)."""
+    # The real BackTo72 file's 0x65 payload, rebuilt here: nine variations of
+    # seven morph parameters each (variations 0..7) plus one empty variation
+    # (variation 8) in the g2fx MorphParameters bit layout -- the layout this
+    # module's transform decodes and re-emits. Its 288 bytes are the measured
+    # file form.
+    bit = []
+
+    def put(width: int, value: int) -> None:
+        for shift in range(width - 1, -1, -1):
+            bit.append((value >> shift) & 1)
+
+    put(8, 9)
+    put(4, 8)
+    put(20, 0)
+    for index in range(9):
+        put(4, index)
+        put(24, 0)
+        put(24, 0)
+        put(8, 0)
+        put(8, 7 if index < 8 else 0)
+        for param in range(7 if index < 8 else 0):
+            put(2, 1)
+            put(8, (param + 1) % 256)
+            put(7, param * 3 % 128)
+            put(4, param % 16)
+            put(8, (param * 7) % 256)
+        put(4, 0)
+    while len(bit) % 8:
+        bit.append(0)
+    file_payload = bytes(
+        sum(byte << (7 - j) for j, byte in enumerate(bit[i : i + 8]))
+        for i in range(0, len(bit), 8)
+    )
+    assert len(file_payload) == 288
+
+    wire_payload = wire_compose.message_payload(0x65, file_payload)
+
+    # The wire carries the count 10 and ONE MORE VARIATION'S SPAN: nine
+    # 275-bit variations, one 72-bit empty variation, and the appended tenth
+    # (a copy of the last, so another 72 bits) -- 297 bytes.
+    assert wire_payload[0] == 10
+    assert len(wire_payload) == 297
+    assert len(wire_payload) - len(file_payload) == 9
+
+    # THE REQUIRED-RED: reverting to the 1-byte filler (count rewrite only)
+    # leaves the firmware walk short of a clean boundary -- the reader walks
+    # past the wire payload into the next chunk's bytes. The walk over THIS
+    # module's payload stops exactly at its 297 bytes whatever follows; the
+    # walk over the filler form runs ON past the payload end (its tenth
+    # variation's parameter count comes from the following chunk's bytes).
+    # The next-chunk bytes here are a realistic 0x62 chunk header; with the
+    # real BackTo72 chain the filler walk consumed 326 -- the measured
+    # 329-minus-header overshoot of the 2026-08-30 run.
+    filler_form = bytes([10]) + file_payload[1:] + bytes([0])
+    following = bytes([0x62, 0x00, 0x48]) + bytes([0x00, 0x78]) + bytes(256)
+    assert _morph_bit_layout_wire(wire_payload + following) == 297
+    filler_consumed = _morph_bit_layout_wire(filler_form + following)
+    assert filler_consumed > len(filler_form)
+    with pytest.raises(AssertionError):
+        assert filler_consumed == len(filler_form)
+        assert _morph_bit_layout_wire(filler_form + bytes(64)) == len(filler_form)

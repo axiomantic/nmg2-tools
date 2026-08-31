@@ -85,14 +85,173 @@ VARIATION_COUNT_TYPES = (0x4D, 0x65)
 FILE_VARIATION_COUNT = 9
 WIRE_VARIATION_COUNT = 10
 
-# The appended representation of the tenth variation. No authority in this
-# repository states what the tenth variation holds, so nothing is claimed for
-# this byte beyond its presence.
+# The appended representation of the tenth variation on a 0x4D object: one
+# zero byte. The 0x4D reader (FUN_3002d962) consumed the +1-byte form
+# normally in the 2026-08-30 run, so its appended byte stays minimal.
 TENTH_VARIATION_BYTE = 0x00
+
+# The 0x65 tenth-variation rule (decompile FUN_3002dc84 @ 0x3002dc84, the
+# chunk dispatcher's 0x65 case; measured against the BackTo72 file). The
+# firmware's reader walks a CONTINUOUS bit stream whose per-variation
+# footprint is ``8-bit index + MorphCount x 7 bits + 8-bit ParamCount +
+# ParamCount x 29 bits``, with the MorphCount reads covering the file form's
+# Reserved0/1/2 bytes and the ParamCount read landing on the file form's
+# per-variation MorphCount byte. A 0x65 whose file form opens with the 9
+# variation count therefore needs a FULL tenth variation appended -- the
+# copy of the LAST variation (the standard convention: a fresh patch has
+# all variations identical unless edited) -- not a filler byte. With nine
+# variations and a one-byte filler the reader's tenth pass reads the next
+# chunk's bytes as a seventh ParamCount and overshoots by 37 bytes
+# (measured: 329 consumed against a 292-byte frame, 2026-08-30 run).
+MORPH_VARIATION_COUNT_TYPES = (0x65,)
 
 # Difference 2: the raw two bytes that follow the 0x21 chunk on the wire. They
 # are the parser's USB_TRAILER pair; the wire side always carries them.
 TYPE_0X21 = pch2.TYPE_0X21
+
+# ---------------------------------------------------------------------------
+# The patch-load message level (plan W3-457). The framing below is the
+# message-level form the firmware's receive path reassembles, measured from
+# two agreeing sources: the real wire captures (sirlenselot/g2fx, capture-008
+# and capture-002, validated byte-for-byte against g2fx's own
+# Usb.prepareSendBuffer) and g2fx's Patch.writeMessage / Performance
+# .writeMessage. The rule of W3-456's pad-to-64 was an instrument artifact
+# and does NOT apply here: totals are not 64-multiples on the real wire.
+#
+#     [2-byte BE total][body][2-byte BE CRC-16/CCITT-XMODEM over body]
+#
+# total counts the WHOLE frame INCLUDING the 2 prefix bytes; the CRC sits
+# DIRECTLY after the body with no pad, big-endian, and the firmware's table
+# walk (crc_crosscheck) is its algorithm.
+#
+# The BODY of a patch load:
+#
+#     [0x01][S_SLOT_REQ+slot][V_NEW_PATCH][0x37][0x00 0x00 0x00]
+#     [entry name][object chain]
+#
+# 0x01 is M_CMD, 0x37 is O_CREATE (g2fx Codes.java), V_NEW_PATCH is 0x53,
+# S_SLOT_REQ is 0x28 (slot 0), and the three 0x00 bytes are unexplained in
+# g2fx too (its own source marks them `// ??`) but present in every capture.
+# The entry name is g2fx's Protocol.EntryName field: a StringField(16,
+# lengthWithTerm) whose wire form is the name's characters followed by a
+# single 0x00 terminator, or exactly 16 characters with NO terminator when
+# the name fills the field (measured: capture-002's 13-char perf name carries
+# the terminator, capture-008's 16-char patch name does not).
+#
+# DIFFERENCE 2 DOES NOT FIRE ON THIS MESSAGE. The design's `0x2D 0x00`
+# trailer was measured on the DEVICE-to-host dump family (capture-007's
+# inbound 0x21 chunk carries it); the HOST-to-device O_CREATE chain of
+# capture-008 carries no 2D 00 anywhere in its 861-byte body, and its CRC
+# validates over the bytes as they stand. The per-object
+# :func:`compose_message` keeps its insertion for the dump direction; the
+# message-level composer below appends none.
+
+M_CMD = 0x01
+O_CREATE = 0x37
+S_SLOT_REQ = 0x28
+S_PERF_REQ = 0x2C
+V_NEW_PATCH = 0x53
+V_NEW_PERF = 0x42
+
+ENTRY_NAME_LENGTH = 16
+
+
+def entry_name_field(name: str) -> bytes:
+    """The wire form of g2fx's Protocol.EntryName field for ``name``.
+
+    The field is a StringField(16, lengthWithTerm) (g2fx Protocol.java:584):
+    the name's characters, then a single 0x00 terminator, or exactly 16
+    characters with NO terminator when the name fills the field. A name
+    longer than 16 characters raises ValueError: g2fx truncates with a log
+    warning, and a silently short field would misalign the chain behind it.
+    """
+    if len(name) > ENTRY_NAME_LENGTH:
+        raise ValueError(
+            f"entry name {name!r} exceeds the 16-character field length"
+        )
+    if len(name) == ENTRY_NAME_LENGTH:
+        return name.encode("ascii")
+    return name.encode("ascii") + b"\x00"
+
+
+def compose_patch_load_body(
+    file_data: bytes, name: str, slot: int = 0
+) -> bytes:
+    """The BODY of a patch-load message: header, entry name, object chain.
+
+    The header is ``01 28+slot 53 37 00 00 00`` (M_CMD, S_SLOT_REQ+slot,
+    V_NEW_PATCH, O_CREATE, three zeros). The chain is the `.pch2` file's
+    object chain with the file-to-wire transformations of
+    :func:`message_payload` applied (difference 1; difference 2 does not
+    fire on the host-to-device form, see the module note).
+
+    The chain carries NO per-object CRC: the message-level CRC below covers
+    the whole body, so the object-level checksums the per-object composer
+    appends would be bytes the firmware's chain walk reads as payload.
+    """
+    parsed = pch2.parse(file_data)
+    chain = bytearray()
+    for obj in parsed.objects:
+        payload = message_payload(obj.type, obj.payload)
+        chain += bytes([obj.type]) + len(payload).to_bytes(2, "big") + payload
+    return (
+        bytes([M_CMD, S_SLOT_REQ + slot, V_NEW_PATCH, O_CREATE, 0x00, 0x00, 0x00])
+        + entry_name_field(name)
+        + bytes(chain)
+    )
+
+
+def frame(body: bytes, table: tuple[int, ...]) -> bytes:
+    """Frame a body at the message level: total prefix, body, trailing CRC.
+
+    Returns ``[2-byte BE total][body][2-byte BE CRC]`` where total counts the
+    WHOLE frame including the prefix (measured 865 and 14,664 on the real
+    wire) and the CRC is the firmware's table walk over the body, big-endian,
+    DIRECTLY after the body with no pad.
+    """
+    total = 2 + len(body) + 2
+    return (
+        total.to_bytes(2, "big")
+        + body
+        + crc_crosscheck.table_walk(body, table).to_bytes(2, "big")
+    )
+
+
+def compose_patch_load(
+    pch2_path: str | pathlib.Path, name: str, slot: int = 0
+) -> bytes:
+    """The full patch-load message for the `.pch2` file at ``pch2_path``.
+
+    One wire frame per plan W3-457: the 0x01/0x37 body of
+    :func:`compose_patch_load_body` inside the
+    :func:`frame` envelope. NOT padded to 64; termination on the wire is the
+    short last USB packet, which is the transport's business, not this
+    function's.
+    """
+    body = compose_patch_load_body(pathlib.Path(pch2_path).read_bytes(), name, slot)
+    return frame(body, fixture_table())
+
+
+def compose_patch_load_transfer(
+    pch2_path: str | pathlib.Path, name: str, slot: int = 0
+) -> bytes:
+    """The WHOLE-transfer form used by the runtime instrument.
+
+    The transfer envelope wraps the message frame of
+    :func:`compose_patch_load` once more:
+    ``[2-byte BE total][body][2-byte BE CRC]`` where body is the
+    0x01/0x37 message itself and total counts the whole transfer. This is
+    the `[total][body][CRC]` shape at the transfer level, with the message
+    level's own total and CRC carried INSIDE the body.
+    """
+    message = compose_patch_load(pch2_path, name, slot)
+    body = message
+    total = 2 + len(body) + 2
+    return (
+        total.to_bytes(2, "big")
+        + body
+        + crc_crosscheck.table_walk(body, fixture_table()).to_bytes(2, "big")
+    )
 
 
 def fixture_table() -> tuple[int, ...]:
@@ -106,24 +265,160 @@ def fixture_table() -> tuple[int, ...]:
         return crc_crosscheck.table_from_bytes(handle.read())
 
 
+class _BitReader:
+    """An MSB-first bit reader over ``bytes`` -- the g2fx/protocol bit order."""
+
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+        self._pos = 0
+
+    def get(self, count: int) -> int:
+        value = 0
+        for _ in range(count):
+            value = (
+                (value << 1)
+                | ((self._data[self._pos >> 3] >> (7 - (self._pos & 7))) & 1)
+            )
+            self._pos += 1
+        return value
+
+    def get_position(self) -> int:
+        """The bit position the next :meth:`get` reads from."""
+        return self._pos
+
+
+class _BitWriter:
+    """An MSB-first bit writer; the counterpart of :class:`_BitReader`."""
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+        self._pos = 0
+
+    def put(self, count: int, value: int) -> None:
+        for shift in range(count - 1, -1, -1):
+            if self._pos % 8 == 0:
+                self._buf.append(0)
+            if (value >> shift) & 1:
+                self._buf[self._pos // 8] |= 0x80 >> (self._pos % 8)
+            self._pos += 1
+
+    def pad_to_byte(self) -> None:
+        while self._pos % 8:
+            self._pos += 1
+
+    def bytes(self) -> bytes:
+        return bytes(self._buf)
+
+
+def _morph_payload_tenth_variation(payload: bytes) -> bytes:
+    """The wire payload for a 0x65 object whose file form carries 9 variations.
+
+    The file form is the g2fx ``MorphParameters`` layout: the variation count
+    (8 bits), the morph count (4), twenty reserved bits, then per variation
+    the variation index (4 bits), three reserved fields (24, 24, 8), the
+    variation's morph count (8), that many 29-bit morph parameters (2+8+7+4+8)
+    and a 4-bit reserved tail, with the whole section padded to a byte at the
+    end. The transform decodes the nine variations, re-emits them with the
+    count rewritten to 10, and appends the LAST variation again as the tenth
+    with its variation index renumbered.
+
+    A payload that does not decode exactly through that layout -- the
+    committed synthetic corpus (`wire_variation_count.pch2`) opens a 0x65
+    with the count byte plus nine one-byte indices, and some real corpus
+    files carry fewer than nine fully-encoded variations -- raises
+    ``ValueError``, and the caller falls back to the filler form: expanding
+    a payload the layout does not fully describe would corrupt fields the
+    transform does not name.
+    """
+    if len(payload) * 8 < 32 + 8 * 275 + 72:
+        raise ValueError(
+            "0x65 payload is too short to hold the nine-variation file layout"
+        )
+    reader = _BitReader(payload)
+    reader.get(8)
+    morph_count = reader.get(4)
+    reserved = reader.get(20)
+    variations = []
+    for _ in range(9):
+        if reader.get_position() + 72 > len(payload) * 8:
+            raise ValueError(
+                "0x65 payload ends inside the nine-variation layout"
+            )
+        index = reader.get(4)
+        reserved0 = reader.get(24)
+        reserved1 = reader.get(24)
+        reserved2 = reader.get(8)
+        var_morph_count = reader.get(8)
+        if reader.get_position() + var_morph_count * 29 + 4 > len(payload) * 8:
+            raise ValueError(
+                "0x65 payload ends inside a variation's parameter list"
+            )
+        params = []
+        for _ in range(var_morph_count):
+            location = reader.get(2)
+            module = reader.get(8)
+            param = reader.get(7)
+            morph = reader.get(4)
+            rng = reader.get(8)
+            params.append((location, module, param, morph, rng))
+        tail = reader.get(4)
+        variations.append((index, reserved0, reserved1, reserved2,
+                           var_morph_count, params, tail))
+    if reader.get_position() != len(payload) * 8:
+        raise ValueError(
+            "0x65 payload holds bytes beyond the nine-variation layout"
+        )
+    writer = _BitWriter()
+    writer.put(8, WIRE_VARIATION_COUNT)
+    writer.put(4, morph_count)
+    writer.put(20, reserved)
+    for index, reserved0, reserved1, reserved2, count, params, tail in (
+        variations + [variations[-1]]
+    ):
+        writer.put(4, index)
+        writer.put(24, reserved0)
+        writer.put(24, reserved1)
+        writer.put(8, reserved2)
+        writer.put(8, count)
+        for location, module, param, morph, rng in params:
+            writer.put(2, location)
+            writer.put(8, module)
+            writer.put(7, param)
+            writer.put(4, morph)
+            writer.put(8, rng)
+        writer.put(4, tail)
+    writer.pad_to_byte()
+    return writer.bytes()
+
+
 def message_payload(object_type: int, payload: bytes) -> bytes:
     """Return the payload the WIRE message carries for one file object.
 
-    The only payload transformation is difference 1: for a 0x4D or 0x65 object
-    whose payload opens with the FILE variation count, the count is rewritten
-    to the wire's 10 and one appended byte represents the added variation.
+    Two payload transformations exist, both difference 1:
+
+    - a 0x65 object whose payload opens with the FILE variation count gets
+      the full tenth-variation transform of
+      :func:`_morph_payload_tenth_variation`;
+    - a 0x4D object whose payload opens with the FILE variation count gets
+      the count rewritten to the wire's 10 and one appended byte.
     The predicate is the count byte itself, because the payloads stay opaque:
     a 0x65 whose first byte is NOT the file count is not demonstrating the
     variation-count form (the committed `wire_morph_names.pch2` opens a 0x65
     with a morph count of 8), and raising it would corrupt a field the
     difference does not name. Every other byte passes through unchanged.
     """
-    if (
-        object_type in VARIATION_COUNT_TYPES
-        and payload
-        and payload[0] == FILE_VARIATION_COUNT
-    ):
-        return bytes([WIRE_VARIATION_COUNT]) + payload[1:] + bytes([TENTH_VARIATION_BYTE])
+    if payload and payload[0] == FILE_VARIATION_COUNT:
+        if object_type in MORPH_VARIATION_COUNT_TYPES:
+            try:
+                return _morph_payload_tenth_variation(payload)
+            except ValueError:
+                pass
+        if object_type in VARIATION_COUNT_TYPES:
+            return (
+                bytes([WIRE_VARIATION_COUNT])
+                + payload[1:]
+                + bytes([TENTH_VARIATION_BYTE])
+            )
     return payload
 
 
