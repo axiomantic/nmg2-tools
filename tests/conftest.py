@@ -1,4 +1,4 @@
-"""Task REPO-7, the skip discipline, Python side. Design section 18.5.
+"""The skip discipline, Python side.
 
 A firmware-gated test that cannot run must skip WITH A REASON. It must never
 pass silently.
@@ -21,9 +21,9 @@ from nmg2_tools.artifacts import (
 )
 
 # `pytester` lets tests/test_artifacts.py drive the fixture below in a real
-# pytest run rather than assert about it from the outside. Plan section 18.7:
-# a test that passes when the code is broken is worse than no test, and an
-# untested fixture is exactly that.
+# pytest run rather than assert about it from the outside. A test that passes
+# when the code is broken is worse than no test, and an untested fixture is
+# exactly that.
 pytest_plugins = ["pytester"]
 
 
@@ -40,11 +40,10 @@ def _family_fixture(family: str):
     cannot join a relative path without a root, so it already had to name one.
     What changed is that naming it now selects the root as well as receiving it.
 
-    The skip reason is section 18.5's line WORD FOR WORD, prefix included. The
+    The skip reason is the gate's line WORD FOR WORD, prefix included. The
     prefix is carried inside the reason on purpose: pytest's own report line
     reads ``SKIPPED [1] file:line: <reason>``, so without it the required
-    literal would never appear in the job output, and design section 18.5 step 2
-    asks for the literal.
+    literal would never appear in the job output.
 
     The marker declaration lives on the test and not in this fixture because the
     fixture cannot know what any one body reads -- it is the one caller of
@@ -118,7 +117,7 @@ def _skip_reason(report) -> str:
 
     pytest gives `(path, lineno, "Skipped: <reason>")` for a `pytest.skip` and
     a bare string for some other skip routes. The prefix is stripped because
-    the reason is section 18.5's line, which already carries its own `SKIPPED:`
+    the reason is the gate's line, which already carries its own `SKIPPED:`
     prefix, and two prefixes on one line read as two different messages.
     """
     longrepr = report.longrepr

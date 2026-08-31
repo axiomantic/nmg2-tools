@@ -33,69 +33,69 @@ def test_the_package_holds_exactly_the_declared_modules():
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [
         "__init__.py",
-        # REPO-5. The Python half of the ArtifactResolver.
+        # The Python half of the ArtifactResolver.
         "artifacts.py",
-        # TOOL-2. The container checksum.
+        # The container checksum.
         "checksum.py",
-        # TOOL-3. The container header and section table.
+        # The container header and section table.
         "container.py",
-        # TOOL-15. The firmware-CRC cross-check.
+        # The firmware-CRC cross-check.
         "crc_crosscheck.py",
-        # TOOL-7. The DSP56300 disassembler.
+        # The DSP56300 disassembler.
         "dsp56k_dis.py",
         "extract_demo_corpus.py",
-        # TOOL-5. The CS2 flash image builder.
+        # The CS2 flash image builder.
         "flashimage.py",
-        # TOOL-1. The LZO1X decompressor.
+        # The LZO1X decompressor.
         "lzo1x.py",
-        # TOOL-8. The module map generator.
+        # The module map generator.
         "modulemap.py",
-        # TOOL-10. The `.pch2` parser.
+        # The `.pch2` parser.
         "pch2.py",
-        # TOOL-4. The Windows PE resource reader.
+        # The Windows PE resource reader.
         "pe.py",
-        # TOOL-4. The Macintosh resource-fork reader.
+        # The Macintosh resource-fork reader.
         "rsrc.py",
-        # TOOL-6. The descriptor signature scanner.
+        # The descriptor signature scanner.
         "sigscan.py",
-        # TOOL-12. The synthesized `.pch2` corpus generator.
+        # The synthesized `.pch2` corpus generator.
         "synth_pch2.py",
-        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        # The `.pch2`-to-wire reassembler oracle.
         "wire_compose.py",
     ]
 
 
 def test_the_suite_holds_exactly_the_declared_test_modules():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
-        # REPO-5. The Python half of the ArtifactResolver.
+        # The Python half of the ArtifactResolver.
         "test_artifacts.py",
-        # TOOL-2. The container checksum.
+        # The container checksum.
         "test_checksum.py",
-        # TOOL-3. The container header and section table.
+        # The container header and section table.
         "test_container.py",
-        # TOOL-15. The firmware-CRC cross-check.
+        # The firmware-CRC cross-check.
         "test_crc_crosscheck.py",
-        # TOOL-7. The DSP56300 disassembler.
+        # The DSP56300 disassembler.
         "test_dsp56k_dis.py",
-        # TOOL-4. The updater resource extraction tests.
+        # The updater resource extraction tests.
         "test_extract.py",
         "test_extract_demo_corpus.py",
-        # TOOL-5. The CS2 flash image builder.
+        # The CS2 flash image builder.
         "test_flashimage.py",
-        # TOOL-1. The LZO1X decompressor.
+        # The LZO1X decompressor.
         "test_lzo1x.py",
-        # TOOL-8. The module map generator.
+        # The module map generator.
         "test_modulemap.py",
         "test_packaging.py",
-        # TOOL-10. The `.pch2` parser against the synthesized corpus (T0).
+        # The `.pch2` parser against the synthesized corpus (T0).
         "test_pch2.py",
-        # TOOL-10. The `.pch2` parser against the G2 Demo corpus (T1).
+        # The `.pch2` parser against the G2 Demo corpus (T1).
         "test_pch2_real_corpus.py",
-        # TOOL-6. The descriptor signature scanner.
+        # The descriptor signature scanner.
         "test_sigscan.py",
-        # TOOL-12. The synthesized `.pch2` corpus generator.
+        # The synthesized `.pch2` corpus generator.
         "test_synth_pch2.py",
-        # TOOL-17. The `.pch2`-to-wire reassembler oracle.
+        # The `.pch2`-to-wire reassembler oracle.
         "test_wire_compose.py",
     ]
 

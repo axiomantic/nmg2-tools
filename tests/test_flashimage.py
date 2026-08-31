@@ -1,12 +1,12 @@
-"""The CS2 flash image builder. Task TOOL-5, design sections 7.4, 7.5, 23.1.1.
+"""The CS2 flash image builder.
 
 Every byte this file reads is authored here. The test needs no artifact and it
 reads no Clavia byte, which is what makes it T0.
 
 THE EXPECTED CHECKSUMS ARE LITERALS AND THE ARITHMETIC IS WRITTEN OUT. A test
 that obtains its expected value from the code under test cannot fail, because a
-mutation moves the expectation with it. Design section 7.3 step 4 gives the
-rule: ``cksum = (~sum(data)) & 0xFFFFFFFF``.
+mutation moves the expectation with it. The rule is
+``cksum = (~sum(data)) & 0xFFFFFFFF``.
 """
 
 import inspect
@@ -21,7 +21,7 @@ from nmg2_tools.flashimage import (
     FlashImageError,
 )
 
-# Release 1.62. Design section 7.3 reads the word in hexadecimal: 0x00A2 is 162.
+# Release 1.62. The word is read in hexadecimal: 0x00A2 is 162.
 VERSION_1_62 = 0x00A2
 
 # sum(b"\x01\x02\x03\x04") = 1 + 2 + 3 + 4 = 10 = 0x0A.
@@ -41,8 +41,8 @@ SRAM_CHECKSUM = 0xFFFFFE01
 # 0x14 header bytes plus one 0x2C entry.
 ONE_ENTRY_DATA_OFFSET = 0x40
 
-# The first entry starts where the header ends. Design section 7.3 places the
-# plain checksum at +0x10 of an entry, the compressed length at +0x14, the
+# The first entry starts where the header ends. The
+# plain checksum sits at +0x10 of an entry, the compressed length at +0x14, the
 # compressed checksum at +0x18 and the trailing zero word at +0x1C. The four
 # numbers are written out here, not derived from the module, because an offset
 # taken from the code under test moves with a mutation of it.
@@ -54,8 +54,8 @@ RESERVED_OFFSET = FIRST_ENTRY_OFFSET + 0x1C
 
 
 def test_the_builder_interface_declares_exactly_one_method():
-    """Plan TOOL-5: "one method, ``build(sections) -> bytes``". The seam for
-    spike criterion (g) is the interface, so its width is the contract. A second
+    """One method, ``build(sections) -> bytes``. The seam for the
+    undecided CS2 layout is the interface, so its width is the contract. A second
     method added here is a second thing an L2 implementation must supply."""
     public = sorted(
         name
@@ -85,9 +85,8 @@ def test_the_builder_interface_cannot_be_instantiated():
 
 
 def test_container_layout_is_the_one_implementation_today():
-    """Plan TOOL-5: "one implementation today, ``ContainerLayout``, which is
-    L1". A second implementation before spike criterion (g) reports would be a
-    guessed L2 header, which section 7.5 forbids.
+    """One implementation today, ``ContainerLayout``, which is L1. A second
+    implementation would be a guessed L2 header, which is forbidden.
 
     THE WALK IS RECURSIVE. ``__subclasses__`` returns DIRECT subclasses only, so
     a class that derived from ``ContainerLayout`` rather than from the interface
@@ -140,7 +139,7 @@ def test_one_section_builds_these_exact_bytes():
 
 
 def test_the_built_image_parses_to_the_declared_header_and_table():
-    """TOOL-3 is the reader and this is the writer. The two must agree on every
+    """``container`` is the reader and this is the writer. The two must agree on every
     field, so the whole parsed object is compared and not one field of it."""
     image = ContainerLayout(version=VERSION_1_62).build(
         [Cs2Section(tag="CODE", load_address=0x30000400, data=CODE_BYTES)]
@@ -166,8 +165,7 @@ def test_the_built_image_parses_to_the_declared_header_and_table():
 
 
 def test_two_sections_load_in_table_order_and_the_plain_checksum_verifies():
-    """Plan TOOL-5: "asserts its checksums verify". ``load_sections`` performs
-    that verification, so a wrong checksum raises rather than returning.
+    """``load_sections`` performs the checksum verification, so a wrong checksum raises rather than returning.
 
     THE NAME SAYS ONE CHECKSUM AND NOT BOTH, BECAUSE ONLY ONE RUNS. Every
     section this builder writes is stored, so ``load_section`` takes the
@@ -339,7 +337,7 @@ def test_a_tag_that_is_not_four_ascii_characters_is_refused():
 
 
 def test_a_tag_outside_ascii_is_refused():
-    """Four characters is not four bytes. TOOL-3 decodes the tag as ASCII and
+    """Four characters is not four bytes. The reader decodes the tag as ASCII and
     names the entry when it cannot."""
     with pytest.raises(FlashImageError) as caught:
         ContainerLayout(version=VERSION_1_62).build(
@@ -353,7 +351,7 @@ def test_a_tag_outside_ascii_is_refused():
 
 
 def test_an_image_with_no_section_is_refused():
-    """Design section 7.5 quotes the loader's own `No OS detected`. An image
+    """The loader's own message is `No OS detected`. An image
     with no section is that state, and building one silently would produce a
     flash the board cannot boot from."""
     with pytest.raises(FlashImageError) as caught:
@@ -416,8 +414,8 @@ def test_a_load_address_that_does_not_fit_the_longword_is_refused():
 
 
 def test_every_section_is_stored_because_this_repository_has_no_compressor():
-    """TOOL-1 decompresses and nothing in this repository compresses, so
-    ``ContainerLayout`` writes the stored form that TOOL-3 already reads: a
+    """``lzo1x`` decompresses and nothing in this repository compresses, so
+    ``ContainerLayout`` writes the stored form the reader already accepts: a
     compressed length of zero means the bytes at the file offset are plain.
     This assertion is here so that a later compressing builder cannot land
     without a decision, because L1 pays one LZO1X decompression on every boot

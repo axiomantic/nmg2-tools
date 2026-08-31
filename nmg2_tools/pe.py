@@ -1,14 +1,8 @@
 """Read the G2 firmware images from a Windows PE resource section.
 
-Task TOOL-4. Design section 7.2 (the ``Setup.exe`` input) and 7.3 step 1 (the
-same custom type names). The macOS and Windows updaters carry byte-identical
-firmware, and :func:`firmware` extracts the same two images the
-:mod:`nmg2_tools.rsrc` path does.
-
-WHAT THIS FILE IS, because the licence makes it matter. ``nmg2-tools`` is MIT.
-The PE layout below is a FACT about the Microsoft PE/COFF data format, which is
-publicly specified. No line of any third-party implementation is copied or
-paraphrased here.
+The macOS and Windows updaters carry byte-identical firmware, and
+:func:`firmware` extracts the same two images the :mod:`nmg2_tools.rsrc` path
+does.
 
 THE LAYOUT. The subset of PE this module reads is the resource section.
 
@@ -248,7 +242,7 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
 def extract_images(data: bytes | bytearray | memoryview) -> tuple[bytes, bytes]:
     """Return the ``(os_image, loader)`` pair a PE file carries.
 
-    Design section 7.3 step 1 applies to the PE page the same way it applies
+    The same resource lookup applies to the PE page the same way it applies
     to the resource fork: the OS sits under type ``NMG2`` and the loader under
     type ``BOOT``. Raise :class:`PeError` when either image is missing.
     """

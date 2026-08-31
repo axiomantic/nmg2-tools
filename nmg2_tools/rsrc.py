@@ -1,15 +1,7 @@
 """Parse a Macintosh resource fork and extract the G2 firmware images.
 
-Task TOOL-4. Design section 7.2 (accepted inputs) and 7.3 step 1 (find the
-resources: type ``NMG2``, identifier 128, is the OS; type ``BOOT``, identifier
-128, is the loader).
-
-WHAT THIS FILE IS, because the licence makes it matter. ``nmg2-tools`` is MIT.
-The resource-fork layout below is a FACT about a data format: which field sits
-at which offset, how wide it is and in which byte order it is written. Facts
-are not copyrightable. No line of any implementation is copied or paraphrased
-here. The workspace reference ``tools/rsrcparse.py`` was read only as a
-statement of the layout.
+Type ``NMG2``, identifier 128, is the OS; type ``BOOT``, identifier 128, is the
+loader.
 
 THE LAYOUT. A resource fork opens with a 16-byte header of four big-endian
 longs:
@@ -51,8 +43,8 @@ The data area holds the payload of every resource. At the data offset recorded
 in the reference list the first big-endian u32 is the payload length and the
 payload follows it.
 
-Design section 7.1: the project ships no Clavia bytes. This module parses a
-fork the user supplies; it never embeds one.
+The project ships no Clavia bytes. This module parses a fork the user
+supplies; it never embeds one.
 """
 
 from __future__ import annotations
@@ -97,7 +89,7 @@ class Resource:
 class Firmware:
     """The two firmware images an updater carries.
 
-    ``os_image`` is the raw container image that design section 7.3 steps 2
+    ``os_image`` is the raw container image that the container reader's steps 2
     and 3 parse (``nmg2_tools.container.parse_header`` /
     ``load_sections``); it hashes to the ``NMG2_128_OS.bin`` line of
     ``artifacts.sha256``. ``loader`` is the boot loader and hashes to the
@@ -208,7 +200,7 @@ def extract_images(
 ) -> tuple[bytes, bytes]:
     """Return the ``(os_image, loader)`` pair from a resource fork.
 
-    Design section 7.3 step 1: type ``NMG2`` identifier 128 is the OS, type
+    Type ``NMG2`` identifier 128 is the OS, type
     ``BOOT`` identifier 128 is the loader. Raise :class:`RsrcError` when
     either image is missing.
     """

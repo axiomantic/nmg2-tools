@@ -113,7 +113,21 @@ Comments are sparse. Write one only where a reader must otherwise reconstruct a
 DECISION. The code says what it does. The comment says why you chose it instead
 of the alternative.
 
+**The test is time. Keep a comment when losing it would cost a reader real
+time** — a byte offset, a magic value, a field width, a stride, an endianness, a
+property measured from firmware, or why you chose this over the obvious
+alternative. Keep the fact and its unit; cut the derivation and the narrative
+around it. Everything that survives no reader's day goes.
+
 Never write these in a comment or a docstring:
+
+- **A plan-task ID or a design-section pointer** — `TOOL-nn`, `REPO-nn`,
+  "design section 7.3 step 4", a ledger row. They point into process that lives
+  outside this repository and rot the day it moves. State the fact; drop the
+  pointer to where it was written down.
+- **Provenance or licence prose.** No clean-room account, no "no line is copied,
+  transliterated or paraphrased", no per-file restatement of what the licence
+  permits. `LICENSE` and the clean-room rule above stand on their own.
 
 - **A count** — rules, mutations, tests, cases, files, or lines. The next change
   makes it wrong, and nothing catches it.

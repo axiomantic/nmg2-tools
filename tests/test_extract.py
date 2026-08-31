@@ -1,7 +1,4 @@
-"""Task TOOL-4, resource extraction from the updaters.
-
-Design sections 7.2 (accepted inputs) and 7.3 step 1. Logbook ``AGENTS.md``
-section 6.
+"""Resource extraction from the updaters.
 
 WHAT RUNS WHERE. The two parsers themselves (``nmg2_tools.rsrc`` and
 ``nmg2_tools.pe``) are binary-format readers and are exercised here with
@@ -12,14 +9,11 @@ and their decompressed sections hash to the four values ``artifacts.sha256``
 lists -- DO touch real Clavia bytes, and are gated on their family roots via
 two family fixtures -- ``installers_dir`` for the vendor updater images and
 ``artifacts_dir`` for the already-extracted ``.bin`` files. With no artifact
-they skip with section 18.5's reason instead of failing or passing silently.
+they skip with the gate's reason instead of failing or passing silently.
 
-WHY THE NON-GATED HALF MATTERS, in this task's own words (plan section 18.7):
-a test that passes when the code is broken is worse than no test. The gated
-half cannot run in most environments, so the parsers need their own, ungated
-proof here.
-
-The design-section-18.6 digests, exact.
+WHY THE NON-GATED HALF MATTERS: a test that passes when the code is broken is
+worse than no test. The gated half cannot run in most environments, so the
+parsers need their own, ungated proof here.
 """
 
 import hashlib
@@ -33,7 +27,7 @@ from nmg2_tools.container import load_sections, parse_header
 from nmg2_tools.pe import PeError
 from nmg2_tools.rsrc import RsrcError
 
-# The SHA-256 digests design section 18.6 fixes, written out in full as
+# The SHA-256 digests, written out in full as
 # `artifacts.sha256` writes them, so a digest that drifts cannot pass.
 HASH_NMG2_OS = "b3a76b7db724d88e3f603e1f500cf873fd525d8015e35d4f985866a842751c3a"
 HASH_BOOT_LOADER = "d1b8e30804edbccae853b647e06ac20ae902fd6da05ade7b5d2090ce17c24d88"
@@ -356,7 +350,7 @@ def test_advanced_path_accepts_the_bin_files(artifacts_dir):
     """The advanced path: the operator supplies the two images directly. The
     two files are DECLARED rather than asserted to exist inside the body -- an
     existence assertion in a body is a gate in the wrong place, and it reports
-    an absent artifact as a FAILURE where section 18.5 requires a skip."""
+    an absent artifact as a FAILURE where a skip is required."""
     os_image = _read(artifacts_dir, OS_IMAGE_REL)
     loader = _read(artifacts_dir, LOADER_IMAGE_REL)
     assert hashlib.sha256(os_image).hexdigest() == HASH_NMG2_OS

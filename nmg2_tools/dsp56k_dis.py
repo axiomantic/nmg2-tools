@@ -1,36 +1,12 @@
-"""A DSP56300 disassembler over a stated subset. Task TOOL-7.
-
-Design sections 11.3 and 20.2.
-
-WHAT THIS FILE IS, because the licence makes it matter.
-
-`nmg2-tools` is MIT. Instruction encodings, field layouts and mnemonics are
-FACTS about a processor, and facts are not copyrightable. No line of any other
-implementation is copied, transliterated or paraphrased here.
-
-Two references were used and each is named with its licence:
-
-    `dsp56300`, at `source/dsp56kEmu/disasm.cpp` and
-    `source/disassemble/`. **GPL-3.0, which is copyleft.** It was built and RUN
-    as an ORACLE: the words below were fed to `dsp56kDisassemble` and its
-    ANSWERS were read. Its SOURCE WAS NOT READ. The facts it reported are
-    recorded here; its expression is not.
-
-    `tools/dsphunt/dsp56k.py` in this project's own workspace. It is this
-    project's own partial disassembler and the plan names it as the source for
-    this port. **Its `MOVEP` decode is the one trap 7.10 records as WRONG** --
-    it prints the operand byte as the peripheral address -- so its statement of
-    that instruction was rejected rather than ported.
+"""A DSP56300 disassembler over a stated subset.
 
 THE COVERED SET IS SMALL ON PURPOSE.
 
-This project's recorded failure mode is a plausible-looking wrong decode. Trap
-7.10 is one, and the correction log holds others. A disassembler that guessed at
-an encoding nobody had verified would manufacture exactly that failure, and it
-would do it silently, because a wrong mnemonic reads as well as a right one.
-
-So this module decodes ONLY the instructions below, each of which was answered
-by the oracle, and it reports every other word as `undecoded`:
+A disassembler that guessed at an encoding nobody had verified would produce a
+plausible-looking wrong decode silently, because a wrong mnemonic reads as well
+as a right one. So this module decodes ONLY the instructions below, each of
+which was verified against a reference disassembler, and it reports every other
+word as `undecoded`:
 
     nop                  0x000000
     rti                  0x000004
@@ -41,33 +17,24 @@ by the oracle, and it reports every other word as `undecoded`:
     movep #xxxxxx,X:pp   0x08F4 plus an operand byte, plus one immediate word
     movep #xxxxxx,Y:pp   0x09F4 plus an operand byte, plus one immediate word
 
-`undecoded` MEANS "THIS PROJECT HAS NOT DECODED THIS WORD". It does not mean the
-word is data. `0xFFFFFF` is a real instruction, and the oracle answers `macr`
-for it. Naming it `dc` would state something false about the machine, so this
-module does not.
+`undecoded` MEANS "THIS PROJECT HAS NOT DECODED THIS WORD". It does not mean
+the word is data. `0xFFFFFF` is a real instruction and decodes to `macr`.
+Naming it `dc` would state something false about the machine.
 
-`MOVEP`, MEASURED, AND WHERE THE PLAN IS IMPRECISE.
+`MOVEP`, MEASURED over all 256 operand values. The byte after `08 F4` is NOT
+the field `1Spppppp` it is often described as:
 
-Plan task TOOL-7 says the byte after `08 F4` is the field `1Spppppp`. Two halves
-of that were measured against the oracle over all 256 operand values:
-
-    CONFIRMED. The peripheral address is the operand's low SIX bits added to
-    $FFFFC0, so the window is the 64 words $FFFFC0 to $FFFFFF. This is the half
-    trap 7.10 is about, and it is the half that matters: reading the whole byte
-    as the address gives $FFFFA6, $FFFFA5 and $FFFF9D, which is the recorded
+    The peripheral address is the operand's low SIX bits added to $FFFFC0, so
+    the window is the 64 words $FFFFC0 to $FFFFFF. Reading the WHOLE byte as
+    the address gives $FFFFA6, $FFFFA5 and $FFFF9D, which is the common
     mistake.
 
-    IMPRECISE. `S` is NOT in the operand byte. `08 F4 A6` and `08 F4 E6` both
-    answer `x:$FFFFE6`. The memory space comes from the FIRST word: `08` is the
-    X space and `09` is the Y space. Bits 7 and 6 of the operand do not reach
-    the address at all.
+    `S` is NOT in the operand byte. `08 F4 A6` and `08 F4 E6` both answer
+    `x:$FFFFE6`. The memory space comes from the FIRST word: `08` is the X
+    space and `09` is the Y space. Bits 7 and 6 do not reach the address.
 
-    ALSO IMPRECISE. Bit 7 is not required. The oracle decodes operand bytes
-    0x40 to 0xFF and refuses 0x00 to 0x3F, so the rule is that at least one of
-    the top two bits is set.
-
-Both corrections are recorded here rather than fixed in the plan, because the
-plan is not this task's to edit.
+    Bit 7 is not required. Operand bytes 0x40 to 0xFF decode and 0x00 to 0x3F
+    are refused, so the rule is that at least one of the top two bits is set.
 """
 
 from __future__ import annotations
@@ -82,8 +49,8 @@ WORD_MASK = 0xFFFFFF
 PERIPHERAL_BASE = 0xFFFFC0
 PERIPHERAL_MASK = 0x3F
 
-# The operand byte must set at least one of its top two bits. MEASURED: the
-# oracle refuses 0x00 to 0x3F and decodes 0x40 to 0xFF.
+# The operand byte must set at least one of its top two bits. MEASURED:
+# 0x00 to 0x3F are refused, 0x40 to 0xFF decode.
 PERIPHERAL_OPERAND_FLOOR = 0x40
 
 # `MOVEP` immediate to peripheral. Bits 23..8 of the first word, one value for

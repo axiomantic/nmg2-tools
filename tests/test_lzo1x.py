@@ -1,14 +1,11 @@
-"""Task TOOL-1. Design sections 7.3 and 20.2.
+"""The LZO1X decompressor.
 
 WHERE THE VECTORS COME FROM, and why that matters.
 
 Every compressed byte string below was produced by, or confirmed against, the
 reference LZO implementation `liblzo2` 2.10 driven through `python-lzo` 1.15.
 That run happened OUTSIDE this repository, in a throwaway environment. The
-byte strings are opaque test data. `liblzo2` is GPL-2.0, this repository is
-MIT, and no line of `liblzo2` — or of any other LZO implementation — is copied
-into `nmg2_tools/lzo1x.py`. The decompressor was written from the format
-description alone.
+byte strings are opaque test data.
 
 The point of using the reference implementation is that the expected outputs
 are NOT this project's own reading of the format. A decoder tested only
@@ -19,8 +16,9 @@ WHAT THESE VECTORS DO NOT COVER: no Clavia byte appears here. The G2 firmware
 lives in the PRIVATE `axiomantic/nmg2-artifacts` repository and must never
 enter a public tree in any form. A green run therefore proves that this
 decompressor agrees with `liblzo2` on synthetic input. It does not prove that
-the G2 loader's m68k port agrees with `liblzo2` on the shipped OS image. Task
-TOOL-4 reads the real firmware and is gated on the artifacts.
+the G2 loader's m68k port agrees with `liblzo2` on the shipped OS image; the
+updater-extraction tests read the real firmware and are gated on the
+artifacts.
 """
 
 import pytest
@@ -341,7 +339,7 @@ def test_every_truncation_of_every_vector_is_a_named_failure(name):
 
 
 def test_the_named_failure_is_a_value_error_and_carries_a_named_code():
-    """Callers in TOOL-3 stop the load and name the section. They need an
+    """Callers stop the load and name the section. They need an
     exception type they can catch and a message they can print."""
     assert issubclass(Lzo1xError, ValueError)
 

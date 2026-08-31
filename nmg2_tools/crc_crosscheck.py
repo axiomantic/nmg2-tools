@@ -1,4 +1,4 @@
-"""The firmware-CRC cross-check. Task TOOL-15, plan section 12.
+"""The firmware-CRC cross-check.
 
 The firmware's USB message worker at ``0x3004C10C`` validates every
 reassembled protocol message through the routine decompiled at
@@ -24,21 +24,13 @@ EOF are absent, and a table extracted "from the image" there would be an
 empty read presented as a measurement. The same derivation, simulated from
 that disassembly, is what this module writes.
 
-WHY THE DERIVATION IS STILL A CROSS-CHECK AND NOT A THIRD IMPLEMENTATION.
-The fixture commits the DERIVED table once, and every test then reads the
-committed bytes — never this function — so the tests exercise a FIXED
-table, and a later change to this derivation would fail against its own
-fixture instead of silently agreeing with itself. What a green run proves
-is that ``nmg2_tools``' arithmetic CRC and the firmware's table mechanics
-agree, entry for entry and input for input. What it does NOT prove is that
-the emulator composes the byte sequences the firmware checksums; that is
-TOOL-17's subject.
-
-LICENCE. ``nmg2-tools`` is MIT and clean-room with respect to GPL and LGPL
-code. The table is a FACT about the polynomial: the eight-step MSB-first
-fold of ``0x1021`` over the byte, read from this project's own design
-section 15.3 and from the disassembly above. No third-party table or
-implementation was consulted.
+WHY THE DERIVATION IS STILL A CROSS-CHECK. The fixture commits the DERIVED
+table once and every test then reads the committed bytes — never this
+function — so a later change to this derivation fails against its own fixture
+instead of silently agreeing with itself. A green run proves that
+``nmg2_tools``' arithmetic CRC and the firmware's table mechanics agree, entry
+for entry. It does NOT prove that the emulator composes the byte sequences the
+firmware checksums.
 
 SCOPE. This module is CRC only. It decodes no payload, reads no ``.pch2``
 semantics, and imports nothing from the container or patch paths.

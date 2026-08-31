@@ -1,40 +1,27 @@
-"""The CS2 flash image builder. Task TOOL-5.
-
-Design sections 7.4, 7.5 and 23.1.1.
-
-WHAT THIS FILE IS, because the licence makes it matter.
-
-`nmg2-tools` is MIT. The container layout this builder writes is a FACT about a
-data format, and facts are not copyrightable. The layout is read from design
-section 7.3 and from `nmg2_tools.container`, which is this project's own reader
-for the same format. No line of any other implementation is copied,
-transliterated or paraphrased here.
+"""The CS2 flash image builder.
 
 WHY THERE IS AN INTERFACE FOR ONE IMPLEMENTATION.
 
-Design section 7.5 records that the on-flash layout of CS2 is NOT KNOWN. Two
-candidates exist:
+The on-flash layout of CS2 is NOT KNOWN. Two candidates exist:
 
     L1  CS2 holds the update container verbatim. The loader verifies and
         decompresses on every boot.
     L2  CS2 holds the already-decompressed image plus a small header. The
         loader verifies a checksum and copies.
 
-The evidence leans to L1 and a lean is not a proof. Spike exit criterion (g)
-decides it. Design section 23.1.1 states the rule this file obeys: BUILD THE
-SEAM, DO NOT BUILD THE OPTION. So `Cs2ImageBuilder` declares one method,
-`build(sections) -> bytes`, and `ContainerLayout` is the one implementation
-today. L2 adds a second implementation and one enumerator, and nothing in
-`g2Lib` changes, because the board consumes a byte image and does not care how
-the image was built.
+The evidence leans to L1 and a lean is not a proof. So `Cs2ImageBuilder`
+declares one method, `build(sections) -> bytes`, and `ContainerLayout` is the
+one implementation today. L2 adds a second implementation and one enumerator,
+and nothing in `g2Lib` changes, because the board consumes a byte image and
+does not care how the image was built.
 
-**L2's header format cannot be written until criterion (g) reports it.** Design
-section 7.5 says so in its own words. Do not guess it.
+**L2's header format is not known. Do not guess it.**
 
 WHAT `ContainerLayout` WRITES, AND THE ONE THING IT DOES NOT.
 
-The image is the container of design section 7.3: a 0x14-byte header, a section
-table of 0x2C bytes for each entry, then the section data in table order.
+The image is the container `nmg2_tools.container` reads: a 0x14-byte header, a
+section table of 0x2C bytes for each entry, then the section data in table
+order.
 
 Every section is written in the STORED form, which is a compressed length of
 zero. `nmg2_tools.container` already reads that form: a compressed length of
@@ -44,10 +31,8 @@ so a builder that wrote LZO1X streams would need a compressor this project does
 not have and `pyproject.toml` declares no dependency that could supply one.
 
 **A stored image is a valid container and it is not a compressed one.** The
-difference is a boot cost, not a format: design section 7.5 records that L1 pays
-one LZO1X decompression of 530 KB on every boot. An image this builder produces
-does not pay it. A later builder that compresses is a decision for whoever needs
-the real boot cost.
+difference is a boot cost, not a format: L1 pays one LZO1X decompression of
+530 KB on every boot, and an image this builder produces does not pay it.
 """
 
 from __future__ import annotations
@@ -63,7 +48,7 @@ from nmg2_tools.container import ENTRY_STRIDE, HEADER_SIZE, SECOND_WORD
 MASK16 = 0xFFFF
 MASK32 = 0xFFFFFFFF
 
-# The eight bytes at +0x08 have no known meaning and TOOL-3 does not read them.
+# The eight bytes at +0x08 have no known meaning and the reader skips them.
 _UNKNOWN_HEADER_BYTES = 8
 
 # The last twelve bytes of an entry carry no meaning this project knows.
@@ -110,12 +95,12 @@ class Cs2ImageBuilder(abc.ABC):
 
 
 class ContainerLayout(Cs2ImageBuilder):
-    """L1. The image is the update container of design section 7.3."""
+    """L1. The image is the update container verbatim."""
 
     def __init__(self, version: int) -> None:
         """Hold the version word the header carries at `+0x00`.
 
-        Design section 15.5 item 5 saves the word in plugin state, so it is
+        The word is saved in plugin state, so it is
         carried as it was given and never as text.
         """
         if not 0 <= version <= MASK16:
@@ -168,8 +153,8 @@ class ContainerLayout(Cs2ImageBuilder):
             offset += len(section.data)
 
         header = bytearray()
-        # The longword at +0x04 is not resolved. Design section 7.3 records it
-        # as most probably the begin checksum, and TOOL-3 never verifies it.
+        # The longword at +0x04 is not resolved. It is most probably the begin
+        # checksum, and the reader never verifies it.
         # Writing zero states that this builder computed nothing there.
         header += _HEADER.pack(self.version, SECOND_WORD, 0)
         header += bytes(_UNKNOWN_HEADER_BYTES)

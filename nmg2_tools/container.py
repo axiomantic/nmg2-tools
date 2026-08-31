@@ -1,16 +1,4 @@
-"""The firmware container header and section table. Task TOOL-3.
-
-Design section 7.3 steps 2, 3, 5 and 6.
-
-WHAT THIS FILE IS, because the licence makes it matter.
-
-`nmg2-tools` is MIT. The container layout below is a FACT about a data
-format: which field sits at which offset, how wide it is, and in which byte
-order it is written. Facts are not copyrightable. No line of any other
-implementation of this format is copied, transliterated or paraphrased here.
-The one file in the workspace that decodes the same container describes itself
-as a byte-exact port of a GPL-2.0 decompressor; only its statement of the
-layout was used, never its code.
+"""The firmware container header and section table.
 
 THE LAYOUT.
 
@@ -48,8 +36,7 @@ The loader's own error strings confirm the order of the first five fields:
 
 LOADING A SECTION.
 
-Design section 7.3 step 3 gives the order, and **both checksum verifications
-are mandatory**:
+**Both checksum verifications are mandatory**, in this order:
 
 1. Verify the compressed checksum over exactly `compressed_length` bytes.
 2. Decompress with LZO1X.
@@ -151,7 +138,7 @@ class Section:
 class Container:
     """The parsed header and section table.
 
-    `version` is the raw 16-bit word. Design section 15.5 item 5 saves it in
+    `version` is the raw 16-bit word. It is saved in
     plugin state, so the value is kept as it was read and not as text.
     """
 

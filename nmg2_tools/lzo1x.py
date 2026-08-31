@@ -1,18 +1,7 @@
-"""An LZO1X decompressor. Task TOOL-1, design sections 7.3 and 20.2.
+"""An LZO1X decompressor.
 
 The G2 loader holds an m68k port of LZO1X. Each section of the firmware
-container is an LZO1X stream, and design section 7.3 step 3 decompresses it
-between two checksum verifications.
-
-HOW THIS FILE WAS WRITTEN, because the licence makes it matter.
-
-`nmg2-tools` is MIT. The reference LZO implementations, `liblzo2` and
-`minilzo`, are GPL-2.0. No line of either is copied, transliterated or
-paraphrased here. This file is a clean-room implementation from the
-description of the wire format: the instruction encoding, the rules for the
-length of a literal run and of a match, and the three distance encodings.
-Those are facts about the data. The reference code is a different expression
-of them and is not used.
+container is an LZO1X stream, decompressed between two checksum verifications.
 
 THE FORMAT.
 

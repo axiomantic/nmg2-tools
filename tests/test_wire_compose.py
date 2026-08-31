@@ -1,18 +1,18 @@
-"""The `.pch2`-to-wire reassembler oracle. Task TOOL-17, plan section 12.
+"""The `.pch2`-to-wire reassembler oracle.
 
 The firmware's USB message worker reassembles protocol messages from the
 objects a `.pch2` file holds and validates each through the table-driven CRC
-(TOOL-15) before it switches on the message's first byte. This test holds
-`nmg2_tools.wire_compose` against that shape: the file-to-wire differences of
-design section 15.7, the CRC through the committed fixture table, and the
-first-byte family classification.
+before it switches on the message's first byte. This test holds
+`nmg2_tools.wire_compose` against that shape: the file-to-wire differences,
+the CRC through the committed fixture table, and the first-byte family
+classification.
 
 WHAT A GREEN RUN PROVES, AND WHAT IT DOES NOT. It proves that the composed
 messages carry the wire-side form of the three file-against-wire differences
 and a CRC the firmware's own table mechanics produce. It does NOT prove that a
 composed payload is well-formed for the firmware: "the worker accepts the
-family" is a static fact from plan section 24.6 row W3-454 about the dispatch
-table, and no payload semantics are decoded anywhere in this path.
+family" is a static fact about the dispatch table, and no payload semantics are
+decoded anywhere in this path.
 """
 
 import hashlib
@@ -48,7 +48,7 @@ def _corpus(name: str) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Case 1. The CRC comes from the TOOL-15 fixture table (fixture-integrity).
+# Case 1. The CRC comes from the committed fixture table.
 # ---------------------------------------------------------------------------
 
 
@@ -80,7 +80,7 @@ def test_every_composed_message_carries_the_fixture_tables_crc(table):
 def test_a_message_crc_agrees_with_the_arithmetic_oracle(table):
     """The fixture-table walk and the arithmetic CRC-16/CCITT-XMODEM agree on
     every composed payload: the committed table is the firmware's form of the
-    polynomial design section 15.3 fixes."""
+    polynomial the format fixes."""
     messages = wire_compose.compose(_corpus("min.pch2"), table)
 
     for message in messages:
@@ -220,8 +220,8 @@ def test_every_corpus_object_type_composes_to_a_classified_line(table):
     included, printed and never hidden, because the container's object types
     are distinct codes from the worker's first-byte families. CAVEAT, stated
     here and in the report: "the firmware accepts the family" for the
-    family-named bytes is a static fact from plan section 24.6 row W3-454
-    about the dispatch table -- it is NOT proof the composed payload is
+    family-named bytes is a static fact about the dispatch
+    table -- it is NOT proof the composed payload is
     well-formed, because no payload semantics are decoded."""
     parsed = pch2.parse(_corpus("object_types.pch2"))
     messages = wire_compose.compose(_corpus("object_types.pch2"), table)
@@ -242,8 +242,8 @@ def test_the_0x21_chunk_classifies_into_an_accepted_family(table):
     (0x80/0x81/0x82/0x83/0x84/0x88/0x01), so a 0x21-derived message composes to
     the printed UNKNOWN family, never silently renamed into an accepted one.
 
-    CAVEAT (plan section 24.6, row W3-454): "the firmware accepts the family"
-    for the family-named first bytes is a static fact about the dispatch
+    CAVEAT: "the firmware accepts the family" for the family-named first
+    bytes is a static fact about the dispatch
     table; it is NOT proof the payload is well-formed, which no payload
     semantics here could establish. The classification of a 0x21 chunk as
     UNKNOWN is itself the honest print: the worker's accepted set does not
@@ -438,7 +438,7 @@ def test_every_real_patch_composes_to_a_table_with_present_crcs(
 
 
 # ---------------------------------------------------------------------------
-# Case 6. The patch-load message level (plan W3-457). The framing is the one
+# Case 6. The patch-load message level. The framing is the one
 # the capture corpus and the runtime instrument agree on; the cases pin the
 # header prefix, the CRC placement, and the total field against it.
 # ---------------------------------------------------------------------------
@@ -468,8 +468,7 @@ def test_patch_load_header_prefixes_match_the_measured_wire_form(table):
 
 def test_patch_load_frame_places_crc_directly_after_the_body(table):
     """The frame's last two bytes are the fixture-table walk over the body,
-    and the body ends the byte before them: no pad sits between, the
-    instrument artifact W3-457 supersedes."""
+    and the body ends the byte before them: no pad sits between."""
     body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")
     framed = wire_compose.frame(body, table)
 
@@ -580,8 +579,8 @@ def test_whole_transfer_form_wraps_the_message_frame_once_more(table, tmp_path):
 
 
 def test_required_red_a_pad_before_the_crc_turns_the_placement_case_red(table):
-    """Plant: a frame that pads the body to a 64-multiple before the CRC --
-    the W3-456 artifact. Observe: the CRC-placement case fails (the covered
+    """Plant: a frame that pads the body to a 64-multiple before the CRC.
+    Observe: the CRC-placement case fails (the covered
     range no longer equals the body). Restore: the module's own frame keeps
     the CRC directly after the body."""
     body = wire_compose.compose_patch_load_body(_corpus("min.pch2"), "test")

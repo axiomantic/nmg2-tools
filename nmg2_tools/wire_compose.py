@@ -1,4 +1,4 @@
-"""The `.pch2`-to-wire reassembler oracle. Task TOOL-17, plan section 12.
+"""The `.pch2`-to-wire reassembler oracle.
 
 This module reads a parsed `.pch2` file through :mod:`nmg2_tools.pch2` -- which
 FRAMES objects and decodes NO payload semantics -- and re-emits each object in
@@ -11,14 +11,11 @@ bytes and stored big-endian.
 THE CRC COMES FROM THE FIRMWARE'S TABLE, NOT FROM THE ORACLE ARITHMETIC.
 The checksum is computed through :func:`nmg2_tools.crc_crosscheck.table_walk`
 over the committed fixture table at ``nmg2_tools/testdata/crc_table_firmware.bin``
--- the table the firmware's boot builder fills at ``0x3012C080`` (TOOL-15). A
-CRC this module emits is therefore the arithmetic the firmware's own worker
-applies, entry for entry. The fixture is DERIVED (the firmware builds the table
-at boot; it is not stored in the image), and the test pins it by its recorded
-sha256 digest.
+-- the table the firmware's boot builder fills at ``0x3012C080``. The fixture is
+DERIVED (the firmware builds the table at boot; it is not stored in the image),
+and the test pins it by its recorded sha256 digest.
 
-THE THREE FILE-AGAINST-WIRE DIFFERENCES (design section 15.7), and what this
-module does about each:
+THE THREE FILE-AGAINST-WIRE DIFFERENCES, and what this module does about each:
 
 1. The variation count is 9 in a file and 10 on the wire, and it affects the
    0x4D and 0x65 objects. This module composes the record for the wire and
@@ -79,7 +76,7 @@ FIRST_BYTE_FAMILIES: dict[int, str] = {
 }
 
 # The object types whose variation count the wire carries one higher than the
-# file does (design section 15.7, difference 1).
+# file does (difference 1).
 VARIATION_COUNT_TYPES = (0x4D, 0x65)
 
 FILE_VARIATION_COUNT = 9
@@ -110,13 +107,13 @@ MORPH_VARIATION_COUNT_TYPES = (0x65,)
 TYPE_0X21 = pch2.TYPE_0X21
 
 # ---------------------------------------------------------------------------
-# The patch-load message level (plan W3-457). The framing below is the
-# message-level form the firmware's receive path reassembles, measured from
-# two agreeing sources: the real wire captures (sirlenselot/g2fx, capture-008
+# The patch-load message level. The framing below is the message-level form
+# the firmware's receive path reassembles, measured from two agreeing
+# sources: the real wire captures (sirlenselot/g2fx, capture-008
 # and capture-002, validated byte-for-byte against g2fx's own
 # Usb.prepareSendBuffer) and g2fx's Patch.writeMessage / Performance
-# .writeMessage. The rule of W3-456's pad-to-64 was an instrument artifact
-# and does NOT apply here: totals are not 64-multiples on the real wire.
+# .writeMessage. Pad-to-64 was an instrument artifact and does NOT apply here:
+# totals are not 64-multiples on the real wire.
 #
 #     [2-byte BE total][body][2-byte BE CRC-16/CCITT-XMODEM over body]
 #
@@ -222,9 +219,8 @@ def compose_patch_load(
 ) -> bytes:
     """The full patch-load message for the `.pch2` file at ``pch2_path``.
 
-    One wire frame per plan W3-457: the 0x01/0x37 body of
-    :func:`compose_patch_load_body` inside the
-    :func:`frame` envelope. NOT padded to 64; termination on the wire is the
+    One wire frame: the 0x01/0x37 body of :func:`compose_patch_load_body`
+    inside the :func:`frame` envelope. NOT padded to 64; termination on the wire is the
     short last USB packet, which is the transport's business, not this
     function's.
     """
@@ -257,9 +253,9 @@ def compose_patch_load_transfer(
 def fixture_table() -> tuple[int, ...]:
     """The committed fixture table, read as 256 big-endian entries.
 
-    The fixture is the one TOOL-15 committed; the test pins its bytes by
-    sha256, so a truncated, padded or hand-edited fixture fails there and
-    never silently checksums through a reshaped table.
+    The test pins the fixture's bytes by sha256, so a truncated, padded or
+    hand-edited fixture fails there rather than silently checksumming through
+    a reshaped table.
     """
     with open(crc_crosscheck.fixture_path(), "rb") as handle:
         return crc_crosscheck.table_from_bytes(handle.read())

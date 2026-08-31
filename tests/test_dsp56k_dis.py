@@ -1,23 +1,14 @@
-"""The DSP56300 disassembler. Task TOOL-7, design sections 11.3 and 20.2.
+"""The DSP56300 disassembler.
 
-Every word here is HAND-ASSEMBLED and every expected string is a LITERAL. The
-test needs no artifact and reads no firmware byte, which is what makes it T0.
+Every word here is HAND-ASSEMBLED and every expected string is a LITERAL,
+checked once against a reference disassembler and pinned here. The test needs
+no artifact and reads no firmware byte, which is what makes it T0.
 
-HOW THE EXPECTED DECODES WERE OBTAINED. Each one was checked against the
-in-tree C++ disassembler, `dsp56kDisassemble`, built from the `dsp56300` clone.
-That tool is GPL-3.0, so it was used as an ORACLE and never as a source: it was
-run over these words and its ANSWERS were read. No line of it was read, copied
-or paraphrased. The oracle is not a dependency of this test, and it cannot be:
-this repository declares no runtime dependency and this check must run in a
-public repository with no build step. The oracle therefore fixed the facts once,
-and the facts are pinned here as literals.
-
-TRAP 7.10 IS THE REASON THIS FILE EXISTS IN THIS SHAPE. `AGENTS.md` section 8
-records that reading the `MOVEP` operand byte as the peripheral address produced
-`X:$FFFFA6`, `X:$FFFFA5` and `X:$FFFF9D`, which are plausible-looking and wrong.
-The real registers are DDR2 at `X:$FFFFE6`, DCO2 at `X:$FFFFE5` and DCO4 at
-`X:$FFFFDD`. Each real address is the operand byte's low SIX bits added to
-`$FFFFC0`, and the oracle confirms all three.
+THE `MOVEP` CASE IS WHY THIS FILE EXISTS IN THIS SHAPE. Reading the operand
+byte as the peripheral address produces `X:$FFFFA6`, `X:$FFFFA5` and
+`X:$FFFF9D`, which are plausible-looking and wrong. The real registers are DDR2
+at `X:$FFFFE6`, DCO2 at `X:$FFFFE5` and DCO4 at `X:$FFFFDD`. Each real address
+is the operand byte's low SIX bits added to `$FFFFC0`.
 """
 
 import pytest

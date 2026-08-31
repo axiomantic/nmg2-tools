@@ -1,13 +1,11 @@
-"""The module map generator. Task TOOL-8, design sections 18.9.1-18.9.3,
-plan section 7.8.
+"""The module map generator.
 
 WHAT THE MAP IS FOR.
 
 Oracle Tier 1 diffs the emulated output of module ``N`` against the
 ``Compute()`` routine of module ``N``. Before that is possible, something must
 say which ``Compute()`` belongs to which descriptor. This module builds that
-binding: one row per module descriptor, carrying the columns that design
-section 18.9.2 names.
+binding: one row per module descriptor.
 
 THE JOIN IS A CHAIN, AND THE ORDER IS LOAD-BEARING.
 
@@ -23,8 +21,7 @@ patch-file and wire module type identifier. ``g2ools_name`` is ``msg/g2ools``
 
 The ``PANL`` ``FileName`` is carried as a column so a human can read the table,
 and it is used for exactly one thing: to RAISE a row's confidence. Many names
-do not match exactly (``AGENTS.md`` trap 7.5), and this design's own worked
-example is one of the mismatches -- ``LevCLevAdd`` is the file name and
+do not match exactly, and one worked example is a mismatch -- ``LevCLevAdd`` is the file name and
 ``LvlAdd`` is the engine class. A row whose chain produced a ``Compute()``
 routine AND whose ``panl_filename`` equals a ``Compute()`` class name on its own
 is ``exact`` (two agreeing routes). A row where only the chain agreed is
@@ -37,16 +34,16 @@ A demotion removes a module from Tier 1 and leaves it to Tier 2. A false
 worse, passes. So both corroboration checks below only ever DEMOTE; they never
 promote, and when either disagrees the row is recorded with the disagreement.
 
-THE WORD-COUNT CHECK (design 18.9.3 check 1).
+THE WORD-COUNT CHECK.
 
 A module's ``Compute()`` code size correlates with its P word count. The G1
 precedent is recorded: a Pearson correlation of 0.779 over 86 modules, with the
-measured block always larger than the cost table's figure (``AGENTS.md``
-section 3.3). When the two sizes disagree beyond the tolerance the G1 precedent
-allows, an ``exact`` row is demoted to ``derived`` and the disagreement is
+measured block always larger than the cost table's figure. When the two sizes
+disagree beyond the tolerance that precedent allows, an ``exact`` row is
+demoted to ``derived`` and the disagreement is
 recorded in the evidence.
 
-THE PORT-SHAPE CHECK (design 18.9.3 check 2).
+THE PORT-SHAPE CHECK.
 
 A ``Compute()`` routine's argument shape must be consistent with its
 descriptor's ports and signal types (``extracted/g2demo/g2_modules.json``). A
@@ -58,9 +55,9 @@ WHAT THIS GENERATOR AUTHORS AND WHAT IT LIFTS.
 This module contains NO Clavia byte. It is a pure function of its input tables,
 and it is written so that a test can drive every decision it makes with
 synthetic data. The one link that is not yet proved by any committed artifact --
-``descriptor_index -> patch_type_id`` (design 18.9.3 says the counts agree on
-each side, but a count is not a correspondence) -- is supplied as an input
-table, not derived or guessed here. Where that table is absent for a row, the
+``descriptor_index -> patch_type_id`` (the counts agree on each side, but a
+count is not a correspondence) -- is supplied as an input table, not derived or
+guessed here. Where that table is absent for a row, the
 row is ``unmapped`` with the reason in its evidence.
 """
 
@@ -71,13 +68,13 @@ import dataclasses
 import io
 from collections.abc import Mapping, Sequence
 
-# The confidence values, in the order the design names them.
+# The confidence values, ordered.
 CONFIDENCE_EXACT = "exact"
 CONFIDENCE_DERIVED = "derived"
 CONFIDENCE_UNMAPPED = "unmapped"
 
-# The CSV column order. Design section 18.9.2's table names every column;
-# ``evidence`` is the last one so it never breaks a fixed-width read.
+# The CSV column order. ``evidence`` is last so it never breaks a fixed-width
+# read.
 COLUMNS = (
     "descriptor_index",
     "p_ptr",
@@ -262,7 +259,7 @@ def build_module_map(
     word_count_check: bool = True,
     port_shape_check: bool = True,
 ) -> list[ModuleRow]:
-    """Build the module map. Task TOOL-8.
+    """Build the module map.
 
     Every argument is index-aligned over the descriptor set:
 

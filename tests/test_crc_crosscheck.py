@@ -1,4 +1,4 @@
-"""The firmware-CRC cross-check. Task TOOL-15, plan section 12.
+"""The firmware-CRC cross-check.
 
 The firmware's USB message worker validates every reassembled protocol
 message through a table-driven CRC whose update step is the decompiled one
@@ -10,7 +10,7 @@ These tests hold the committed fixture table (``crc_table_firmware.bin``)
 against that step and against the arithmetic CRC ``nmg2_tools`` uses, so
 that a checksum-mismatch hypothesis between emulator and firmware dies here
 or is named. WHAT A GREEN RUN DOES NOT PROVE: that the emulator composes
-the byte sequences the firmware checksums. That is TOOL-17.
+the byte sequences the firmware checksums.
 
 WHY THE TABLE IS THE FIRMWARE'S AND NOT THE ORACLE'S. The table address
 ``0x3012C080`` lies above the loaded image; the firmware's own builder at
@@ -149,8 +149,7 @@ def _corpus_inputs() -> list[tuple[str, bytes]]:
 def _largest_corpus_payload(corpus: pathlib.Path) -> tuple[str, bytes]:
     """The largest object payload in the corpus, with the file that holds it.
 
-    The parse is framing only: object payloads stay opaque bytes, per the
-    boundary TOOL-15 states."""
+    The parse is framing only: object payloads stay opaque bytes."""
     best_name, best_payload = "", b""
     for path in sorted(corpus.glob("*.pch2")):
         for obj in pch2.parse(path.read_bytes()).objects:
@@ -207,7 +206,7 @@ def test_the_arithmetic_oracle_agrees_with_the_decompiled_walk(
     container sum and is NOT the CRC; the module the plan names for the
     CRC-16/CCITT-XMODEM parameters is the ``synth_pch2`` oracle, and this
     case keeps the pair-comparison honest about which file was measured."""
-    # `checksum` is a different algorithm by design (TOOL-2). The case that
+    # `checksum` is a different algorithm by design. The case that
     # matters is documented at the call site, not silently substituted:
     # the CRC oracle is `crc16_ccitt`, and the container sum is asserted to
     # be DIFFERENT so nobody reads a green run here as an identity between

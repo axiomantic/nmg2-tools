@@ -1,9 +1,7 @@
-"""Task REPO-5, the Python half of the ArtifactResolver.
+"""The Python half of the ArtifactResolver.
 
 Tier T0: every case here runs with ``NMG2_ARTIFACTS`` unset and needs no
 firmware artifact of any kind.
-
-Plan section 9.2, REPO-5. Design sections 4.2 and 18.5.
 
 The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
 ``gearmulator`` fork and ``source/nord/g2/g2Lib/test/t0_artifact_resolver.cpp``
@@ -39,7 +37,7 @@ def test_unset_returns_empty_and_the_exact_message(monkeypatch):
 
 
 def test_missing_directory_returns_message_two(monkeypatch):
-    """Design section 4.2 gives the unset case and the missing-directory case
+    """The unset case and the missing-directory case carry
     DISTINCT messages, so the two results must NOT be equal."""
     monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory/REPO-5")
 
@@ -108,7 +106,7 @@ def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
 
 
 def test_never_raises(monkeypatch, tmp_path):
-    """Design section 4.2: the resolver never throws. The cases below are the
+    """The resolver never throws. The cases below are the
     inputs most likely to make a naive implementation raise."""
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
     # hold one, so no caller can present that input and a case for it would test
@@ -136,7 +134,7 @@ def test_never_raises(monkeypatch, tmp_path):
 
 
 def test_an_existing_directory_resolves(tmp_path, monkeypatch):
-    """The negative case. Section 5.2 rule 6: every counter a test asserts to be
+    """The negative case. Every counter a test asserts to be
     zero needs a companion case that drives it above zero. Without this, all of
     the assertions above would hold for a resolver that always fails."""
     monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
@@ -148,16 +146,9 @@ def test_an_existing_directory_resolves(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task REPO-7, the Python half of the skip discipline.
-#
-# REPO-7 depends on REPO-5 and both are repo-track tasks, so extending this
-# module and tests/conftest.py is a track-internal order and not a race. Plan
-# section 7.4.2 gives that shape for every file with one owner and a later
-# writer inside the same track.
-#
-# The plan gives REPO-7 only a ctest check. tests/conftest.py would
-# otherwise ship with no check of its own, so the cases below drive it: the pure
-# function directly, and the fixture through pytest's own `pytester`.
+# The Python half of the skip discipline. tests/conftest.py would otherwise
+# ship with no check of its own, so the cases below drive it: the pure function
+# directly, and the fixture through pytest's own `pytester`.
 # ---------------------------------------------------------------------------
 
 EXPECTED_SKIP_LINE = "SKIPPED: firmware artifact not available (NMG2_ARTIFACTS unset)"
@@ -191,8 +182,8 @@ def test_gated_skip_reason_is_none_when_the_artifact_resolves(tmp_path, monkeypa
 
 
 def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
-    """The C++ half builds section 18.5's line by concatenating section 4.2's
-    message onto the prefix, so that the message has one text. This asserts the
+    """The C++ half builds the line by concatenating the message onto the
+    prefix, so that the message has one text. This asserts the
     Python half does the same rather than spelling the whole line out twice."""
     from nmg2_tools.artifacts import (
         ARTIFACT_UNSET_MESSAGE,
@@ -206,7 +197,7 @@ def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
 
 def test_the_conftest_fixture_skips_with_the_exact_line(pytester, monkeypatch):
     """Drives tests/conftest.py itself. A gated test that cannot run must skip
-    WITH A REASON, and the reason must be section 18.5's line word for word."""
+    WITH A REASON, and the reason must be the gate's line word for word."""
     monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
 
     pytester.makeconftest(_GENERATED_CONFTEST)
@@ -247,11 +238,11 @@ def test_the_conftest_fixture_runs_the_body_when_the_artifact_resolves(pytester,
 # ---------------------------------------------------------------------------
 # The gate opens on the FILES the gated body reads, not on the directory alone.
 #
-# Section 24.6 row W3-427(c): `gated_skip_reason()` returned RUN as soon as a
-# directory resolved, so a gated body raised `FileNotFoundError` where section
-# 18.5 requires a skip WITH A REASON. The reason is REPO-5's message 3, which
-# already exists and already names the missing artifact -- a fourth message
-# would be a second text for one meaning.
+# A regression guard: `gated_skip_reason()` once returned RUN as soon as a
+# directory resolved, so a gated body raised `FileNotFoundError` where a skip
+# WITH A REASON is required. The reason is message 3, which already exists and
+# already names the missing artifact -- a fourth message would be a second text
+# for one meaning.
 #
 # The distinction these cases hold apart, and it is the whole point of them:
 #   artifact ABSENT           -> SKIP, naming the path.
@@ -314,7 +305,7 @@ def test_gated_skip_reason_runs_when_a_required_artifact_is_present_but_malforme
 
 def test_gated_skip_reason_reports_the_unset_line_before_it_looks_for_files(monkeypatch):
     """With the variable unset there is no directory to look in, so the reason
-    is section 18.5's line word for word and NOT a message naming a path under
+    is the gate's line word for word and NOT a message naming a path under
     an empty root."""
     from nmg2_tools.artifacts import gated_skip_reason
 
@@ -592,8 +583,8 @@ def test_the_family_fixture_skips_when_a_declared_path_is_absent_from_the_family
 # ---------------------------------------------------------------------------
 # The SUITE announces its skips, the way `planlint` announces skipped lints.
 #
-# Section 18.5 makes ONE gated test skip with a reason. It says nothing about
-# the RUN, and the run is what a reader looks at: a suite reporting
+# The gate makes ONE test skip with a reason. It says nothing about the RUN,
+# and the run is what a reader looks at: a suite reporting
 # `929 passed, 12 skipped` shows a green summary over deliverables that were
 # never exercised, and a skip whose silence is indistinguishable from success
 # is the shape `planlint` already refuses for lints. `planlint/cli.py` states

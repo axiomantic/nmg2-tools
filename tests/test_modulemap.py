@@ -1,4 +1,4 @@
-"""The module map generator. Task TOOL-8, design sections 18.9.1-18.9.3.
+"""The module map generator.
 
 WHAT RUNS WHERE.
 

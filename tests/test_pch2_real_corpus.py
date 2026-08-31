@@ -1,12 +1,10 @@
-"""The `.pch2` parser against the G2 Demo corpus. Task TOOL-10, T1 half.
-
-Plan section 3.5, design section 15.7.
+"""The `.pch2` parser against the G2 Demo corpus, the T1 half.
 
 THIS TEST RUNS ON EVERY `.pch2` FILE OF THE G2 DEMO CORPUS, which lives at
 `corpus/pch2/` in `axiomantic/nmg2-artifacts` and is reached through
 `NMG2_ARTIFACTS`. It is INFORMATIONAL by tier: it skips with the standard
 reason where the artifact is unreachable, and a regression here does NOT block
-a merge (plan section 3.5, "T1, informational").
+a merge.
 
 THE COUNT IS ASSERTED AGAINST `corpus/pch2/MANIFEST.txt`, NEVER AGAINST A
 NUMBER WRITTEN HERE. A test that carried the count itself could not detect a
@@ -16,7 +14,7 @@ count.
 
 WHAT A GREEN RUN HERE PROVES, AND WHAT IT DOES NOT. It proves the parser reads
 every real patch in the corpus byte for byte. That is the coverage the T0 half
-cannot claim. A construct a real patch uses that design section 15.7 does not
+cannot claim. A construct a real patch uses that the specification does not
 describe passes T0 and FAILS HERE, and because this tier is informational the
 failure is a signal to extend the parser rather than a block on a merge.
 """
@@ -31,8 +29,7 @@ from nmg2_tools.artifacts import (
     resolve_artifacts,
 )
 
-# The corpus path is a constant of REPO-15's layout: `corpus/pch2/` under the
-# artifacts root. This is not a count, and it is not the thing the test must
+# The corpus path: `corpus/pch2/` under the artifacts root. This is not a count, and it is not the thing the test must
 # not hardcode.
 CORPUS_REL = pathlib.Path("corpus") / "pch2"
 MANIFEST_REL = CORPUS_REL / "MANIFEST.txt"
@@ -42,8 +39,8 @@ MANIFEST_REL = CORPUS_REL / "MANIFEST.txt"
 def demo_corpus_dir() -> pathlib.Path:
     """The resolved corpus directory, or a skip.
 
-    The skip discipline is design section 18.5's: an artifact-gated test that
-    cannot run must skip WITH A REASON and must never pass silently. The
+    An artifact-gated test that cannot run must skip WITH A REASON and must
+    never pass silently. The
     standard reason comes from `gated_skip_reason()` and applies whenever the
     artifacts root is unreachable. A root that exists but does not hold the
     corpus is skipped with a second, distinct reason rather than failing, so
@@ -53,7 +50,7 @@ def demo_corpus_dir() -> pathlib.Path:
     Both reasons come from `gated_skip_reason()`, which gates on the files the
     body opens, so the manifest is stated as a required path rather than
     checked here with a message of this module's own. A hand-built message here
-    would be REPO-5's message 3 spelled a second time, and a message with two
+    would be message 3 spelled a second time, and a message with two
     texts is a message with two meanings."""
     reason = gated_skip_reason(str(MANIFEST_REL))
     if reason is not None:
@@ -70,7 +67,7 @@ def _patches(corpus: pathlib.Path) -> list[pathlib.Path]:
 
 
 def _manifest(corpus: pathlib.Path) -> tuple[int, list[str]]:
-    """The REPO-15 manifest: first line is the count, then one row per file."""
+    """The manifest: first line is the count, then one row per file."""
     lines = (corpus / "MANIFEST.txt").read_text().splitlines()
     return int(lines[0]), lines[1:]
 
@@ -119,7 +116,7 @@ def test_the_patch_count_matches_the_manifest(demo_corpus_dir):
 
 
 def test_every_manifest_row_names_an_existing_patch(demo_corpus_dir):
-    """REPO-15's manifest rows are `<path inside the installer><tab><size><tab>
+    """Manifest rows are `<path inside the installer><tab><size><tab>
     <digest>`, and the extractor writes every file FLAT into `corpus/pch2/`.
 
     So the row's path and the tree's path differ by design, in the one component
@@ -129,9 +126,9 @@ def test_every_manifest_row_names_an_existing_patch(demo_corpus_dir):
     directions -- a row naming a patch the tree does not hold, and a patch in
     the tree that no row names.
 
-    The installer directory is NOT asserted here. It is a measurement REPO-15
-    made, and a test that spelled it would be the hardcoded-figure defect this
-    module's header refuses for the count, wearing a path's clothes."""
+    The installer directory is NOT asserted here. A test that spelled it would
+    be the hardcoded-figure defect this module's header refuses for the count,
+    wearing a path's clothes."""
     corpus = demo_corpus_dir
     _count, rows = _manifest(corpus)
 
