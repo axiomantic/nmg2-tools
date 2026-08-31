@@ -23,16 +23,22 @@ THE THREE FILE-AGAINST-WIRE DIFFERENCES, and what this module does about each:
    located at the payload's first byte, which is where the committed corpus
    writes it (``synth_pch2.generate`` writes ``bytes([9]) + indices`` for the
    ``wire_variation_count.pch2`` fixture), and a wire record carries 10 there.
-   What the tenth variation holds is not stated by any authority in this
-   repository, so the appended representation is a zero byte and nothing more
-   is claimed about it.
+   A 0x65 payload that decodes through the nine-variation bit layout gets a
+   FULL tenth variation appended -- a copy of the last variation with its
+   index renumbered -- by :func:`_morph_payload_tenth_variation`. A single
+   filler byte does not work: the firmware's 0x65 reader (``FUN_3002DC84``)
+   walks the section as a continuous bit stream, so a short tenth variation
+   leaves it reading the FOLLOWING chunk's bytes as a parameter count and
+   overshooting the section. Its per-variation footprint is an 8-bit index,
+   MorphCount 7-bit fields, an 8-bit parameter count, then that many 29-bit
+   parameters. A 0x4D payload, and any 0x65 the layout does not fully
+   describe, still take the count rewrite plus one zero filler byte.
 2. Two extra raw bytes, 0x2D 0x00, follow the 0x21 chunk on the wire. The
    parser records whether the file carried them (:attr:`Pch2File.usb_trailer`);
    the wire side ALWAYS carries them, so this module appends them after a 0x21
    object's message when the file form lacked them.
 3. Morph parameter names are omitted on write in both paths. The file carries
-   no name, so there is nothing to strip: this module needs no branch for the
-   difference, and states that here rather than in dead code.
+   no name, so there is nothing to strip.
 
 FIRST-BYTE FAMILIES. The firmware's USB message worker switches on the first
 byte of each reassembled message; this module classifies each composed message

@@ -158,7 +158,12 @@ def extract_table_bytes(image_path: str) -> bytes:
 
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Derive or extract the firmware CRC table (TOOL-15)."
+        description=(
+            "Derive the CRC-16/CCITT-XMODEM table the firmware's boot builder "
+            "fills, or extract that table from a firmware image. Writes the "
+            "512 bytes to --output and prints their sha256, so the two forms "
+            "can be cross-checked against each other."
+        )
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
