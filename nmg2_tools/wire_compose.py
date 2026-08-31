@@ -427,9 +427,10 @@ def message_payload(object_type: int, payload: bytes) -> bytes:
 def compose_message(object_type: int, payload: bytes, table: tuple[int, ...]) -> bytes:
     """Return one wire message for one object: framing, payload, trailing CRC.
 
-    The CRC covers the message's payload bytes (type, length and payload per
-    the PROTO-1 framing the firmware reassembles) and is computed through the
-    firmware's table walk, then stored big-endian after the payload.
+    The CRC covers the transformed payload alone — not the type and length
+    framing bytes, unlike :func:`compose`, which walks the full body — and is
+    computed through the firmware's table walk, then stored big-endian after
+    the payload.
     """
     payload = message_payload(object_type, payload)
     body = bytes([object_type]) + len(payload).to_bytes(2, "big") + payload
