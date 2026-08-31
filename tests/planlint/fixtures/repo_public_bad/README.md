@@ -1,1 +1,0 @@
-A public repository fixture.

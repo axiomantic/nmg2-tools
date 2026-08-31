@@ -16,17 +16,12 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 
-[project.scripts]
-# `planlint` is the installed entry point. The three wrapper scripts the plan
-# names are the same command with a different `--only` set, so the console
-# script is the one form that a fresh clone gets from `pip install .`.
-planlint = "planlint.cli:main"
-
 [tool.setuptools]
-# The layout is fixed. There are two packages. `nmg2_tools/` holds the
-# repository lints, and `planlint/` holds the plan lints. A package that this
-# list does not name is a package `pip install .` does not install.
-packages = ["nmg2_tools", "planlint"]
+# One package. `nmg2_tools/` holds the Nord Modular G2 tooling: the firmware
+# container and extractors, the `.pch2` reader, the DSP disassembler and the
+# wire composer. A package this list does not name is a package
+# `pip install .` does not install.
+packages = ["nmg2_tools"]
 
 [tool.pytest.ini_options]
 # The layout is fixed. Every test lives at `tests/` in the repository root, and
