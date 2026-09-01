@@ -56,7 +56,7 @@ nmg2_tools/testdata/pch2_synth/	public	axiomantic/nmg2-tools
 # generator states that every byte of it is authored by this project.
 source/nord/g2/g2Lib/test/fixtures/synthetic_block_program.asm	public	axiomantic/gearmulator
 source/nord/g2/g2Lib/test/fixtures/esai_sync_spin.asm	public	axiomantic/gearmulator
-source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public	axiomantic/gearmulator
+source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt	public	axiomantic/gearmulator	pending=the file lands with the plugin and protocol work; it is not in the emulator core tree that this row is read against today
 # `bit_test_spin.asm` was never registered under any prefix. It arrived in
 # e6c6257b for task DSP-19 and is the same shape as the two above.
 source/nord/g2/g2Lib/test/fixtures/bit_test_spin.asm	public	axiomantic/gearmulator
