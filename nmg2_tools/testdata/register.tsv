@@ -213,6 +213,168 @@ int7-t1_boot-after.txt	private allow-listed	axiomantic/nmg2-artifacts
 # future generated artefact dropped into that directory, which is the reach this
 # register keeps refusing.
 docs/plans/2026-08-04-nmg2-emulator-impl.check-targets.txt	private	axiomantic/nmg2-artifacts
+# --- nmg2-artifacts: the G2 OS updater image and the hardware photographs ----
+# All 24 paths in this block arrived in ONE commit, ef92111 of 2026-08-31, whose
+# message states why each is here.
+#
+# TWENTY-FOUR EXACT-PATH ROWS AND NOT A `Nord Modular G2 Board Images/`
+# DIRECTORY ROW. The directory name says "board images"; its contents are not
+# one thing. Eighteen are photographs of Nord Modular G2 hardware, one is a page
+# image lifted from Clavia's own service documentation, one is a photograph of a
+# board from a DIFFERENT INSTRUMENT ENTIRELY, and one is a byte-identical second
+# copy of the Clavia schematic set this repository already registers under
+# `datasheets/`. A directory row would assert "board photographs" over all four
+# kinds at once -- a row that exempts instead of describing -- and it would
+# register every future image dropped into that directory unread. Each row below
+# is a decision about ONE file.
+#
+# EVERY ROW IS `private`, and that half carries the weight: in a public
+# repository clause 4 answers for every one of them. Four of the photographs
+# carry a visible `image by www.sequencer.de` watermark, one file is Clavia's
+# own document, one is Clavia's shipped software and one is Clavia's drawing
+# set. None of it is this project's to publish.
+#
+# PROVENANCE ESTABLISHED BY OPENING EACH FILE, not inferred from its name
+# [MEASURED 2026-09-01: all 22 JPEGs viewed; the PDF `shasum`-compared against
+# `datasheets/NMG2_Schematics.pdf`; the `.dmg` mounted read-only, listed and
+# detached]. Sizes MEASURED the same day by `stat -f%z` over the tracked tree.
+#
+# THE CEILING SPLITS THIS BLOCK 16 TO 8, and the split is what the measurement
+# says. The eight rows carrying a plain `private` visibility are all UNDER
+# 65,536 bytes and stay TIGHT ON PURPOSE: if one is ever replaced by a larger
+# image, clause 3 goes red and somebody decides again. The sixteen
+# `allow-listed` rows are over the ceiling, and each is a size on the record.
+#
+# REACH. These are exact-path rows, and a plain row is not scoped by its `home`
+# field, so each registers its exact path in whichever of the seven repositories
+# a file of that name turns up in. Every path here either sits under
+# `Nord Modular G2 Board Images/` or is `Nord Modular G2 OS v1.62 Update.dmg`;
+# no other repository in the set carries a path of either shape, and an exact
+# path is the narrowest thing this format can say.
+
+# Clavia's macOS distribution image for the G2 OS v1.62 update. 8,613,870 bytes,
+# SHA-256 e852e3591c38e50892d9fd842246845e35ff793be992a5d349f9d9cb6db12d3d.
+#
+# It is THE PROVENANCE of the four firmware images this register already
+# carries. `FINDINGS.md` section 3 names
+# `Nord Modular G2 OS Update.app/Contents/Resources/Nord Modular G2 Updater.rsrc`
+# as the container of the `NMG2` 128 and `BOOT` 128 resources; mounting the
+# image read-only shows that file present, at 640,070 bytes.
+#
+# THE IMAGE CARRIES MORE THAN THE UPDATER, and this row says so rather than
+# inheriting the shorter description its commit message gives. The volume holds
+# TWO applications -- `Nord Modular G2 OS Update.app` and
+# `Nord Modular G2 Editor.app`, the second with an 11,481,403-byte
+# `Nord Modular G2 Editor.rsrc` of its own. What is registered here is Clavia's
+# whole shipped disk image, editor application included.
+Nord Modular G2 OS v1.62 Update.dmg	private allow-listed	axiomantic/nmg2-artifacts
+
+# One teardown set of a G2 ENGINE, nine frames of the same unit on the same
+# bench. Serial-bearing Clavia assembly and QC labels are legible throughout --
+# `NM2E Main 1,04` / `AI10731`, `Engine Power ver.0.1` / `2R-J1498-031028K`, the
+# `G2 B0.28 T0.28` boot and OS revision label, and a handwritten `OK Magnus`
+# QC sticker. The eighth frame is a different unit again: two opened KEYBOARD
+# G2s side by side, `NM2 Main 0.9` / `AH10254` / `G2 B0.20 T0.12` and
+# `NM2E Main 1.04` / `AI10182` / `B0.26 T0.24`, with `OK Micke` and
+# `OK Nicklas` QC labels. These are the frames the OP-track board questions are
+# read off. The filenames are a content-delivery network's and say nothing; the
+# photographer is not established and this register does not guess at one.
+Nord Modular G2 Board Images/486992367_24042175232037740_2222483634903590690_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487070977_24042175058704424_6942444010226828897_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487074468_24042175012037762_2340722871073522110_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487088168_24042175038704426_3449993807391798228_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487109419_24042175052037758_344786478936632887_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487344997_24042175212037742_1110599831050023795_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/487487792_24042175228704407_8495700229255571887_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/514319697_10161602281091446_297488905301634064_n.jpg	private allow-listed	axiomantic/nmg2-artifacts
+
+# A REPAIR CLOSE-UP of a G2 main board, and the highest-resolution frame here:
+# the Elpida `D4516161AG5` DRAMs, the ColdFire in its QFP, the `G2 0.28` PLCC,
+# crystal `Y2` and a green bodge wire are all readable. The name is an Android
+# camera's and dates the shot to 2022-01-26.
+#
+# THE TWO ROWS ARE ONE PHOTOGRAPH COMMITTED TWICE. Both files are 4,406,526
+# bytes and hash to
+# e2a76a562e466a33d45bdf86dcc947b18c95499406bb7b022d9fb7331eb7e697. The
+# duplicate gets a row of its own because it IS a committed file and clause 2
+# answers for it either way; the row is not an endorsement of keeping both, and
+# deleting one is the artifacts repository's decision to make, not this
+# register's.
+Nord Modular G2 Board Images/IMG20220126135546.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/IMG20220126135546 (1).jpg	private allow-listed	axiomantic/nmg2-artifacts
+
+# Four frames carrying a burned-in `image by www.sequencer.de` watermark. The
+# watermark is an attribution claim by a third party who is neither Clavia nor
+# this project, which is a second reason -- additional to the Clavia hardware
+# they show -- that these must not travel to a public tree. The first three show
+# a G2 keyboard opened, with and without the voice expansion fitted; the fourth
+# is the expansion board itself, `Modular G2/expansion/v0.3`,
+# `2R-J1493-031008`, label `Expan NMG2 0,31` / `GA10050`.
+Nord Modular G2 Board Images/g2_opened_modular.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/g2_unexpanded.jpg	private allow-listed	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/g2_voice_expansion.jpg	private allow-listed	axiomantic/nmg2-artifacts
+# The fourth watermarked frame, and the only one of the four under the ceiling.
+Nord Modular G2 Board Images/images.jpeg	private	axiomantic/nmg2-artifacts
+
+# `Modular G2/expansion/v0.3`, board `2R-J1493-031008`, label
+# `Expansion NMG2 0,31` / `GA50406`, photographed in its antistatic bag with its
+# standoffs. Four Motorola DSP56303 and four Samsung SRAMs are legible.
+Nord Modular G2 Board Images/43d87b27daec4441e74b6f9ea6d6677c5964d37a.jpeg	private allow-listed	axiomantic/nmg2-artifacts
+
+# Three frames of a `Modular G2 / expansion / v1.0` board. Two of the three
+# carry an `ENCORE ELECTRONICS -- Warranty Void if Removed` sticker, so the unit
+# photographed passed through a third-party service house; that sticker is a
+# fact about the board and this register does not read a manufacturer into it.
+# `e99gmz1ib9bsb5qxpbnx.jpg` is the solder side of the board in
+# `amzwatbyqpwdeb3lw162.jpg`. `dsp1b.jpg` is a v1.0 board fitted in a unit, with
+# the four DSP56303 packages readable. All three are under the ceiling.
+Nord Modular G2 Board Images/amzwatbyqpwdeb3lw162.jpg	private	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/e99gmz1ib9bsb5qxpbnx.jpg	private	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/813d272b-c305-4260-b810-b32195c1e002.jpeg	private	axiomantic/nmg2-artifacts
+Nord Modular G2 Board Images/dsp1b.jpg	private	axiomantic/nmg2-artifacts
+
+# A G2 keyboard interior with the expansion fitted, no watermark and no legible
+# assembly label. It is the one photograph here whose ORIGIN is unestablished:
+# the filename is a search engine's placeholder, it carries no attribution mark,
+# and it is not a frame of either bench set above. It is registered for what it
+# demonstrably IS -- a photograph of G2 hardware -- and the row claims nothing
+# further.
+Nord Modular G2 Board Images/images (1).jpeg	private	axiomantic/nmg2-artifacts
+
+# NOT A PHOTOGRAPH. This is a page image out of CLAVIA'S OWN G2 DOCUMENTATION,
+# carrying the Clavia wordmark, under the headings "Hardware configuration" and
+# "Hardware versions". It states that the `R79`-`R80` zero-ohm straps in the
+# lower right corner of the panel board decide G2 from G2X, and it tabulates
+# main board ver. 0.9 against BootPROM v0.28. It is Clavia-authored text and
+# needs a row of its own for that reason: a "board photographs" row over the
+# directory would have swept a vendor document in under a description that does
+# not fit it.
+Nord Modular G2 Board Images/514332473_10222611172586371_2862337662186364531_n.jpg	private	axiomantic/nmg2-artifacts
+
+# NOT A NORD MODULAR G2 BOARD AT ALL, and the row says so rather than letting
+# the directory name speak for it. The silkscreen reads `Rhodes Chroma Dual
+# Voice Board`, `(C) 1982 CBS Inc.`, `Remade by Luca Sasdelli`, `Artwork
+# 02F-CEM-2023`. That is a modern reproduction board for a different
+# instrument, made by a third party. It is registered because it is committed
+# and clause 2 answers for it either way; WHY it sits in this directory is not
+# established, and whether it belongs in this repository at all is the artifacts
+# repository's question, not this register's.
+Nord Modular G2 Board Images/jvlfglov0aebm8qnzzzo.jpg	private	axiomantic/nmg2-artifacts
+
+# Clavia's G2 schematic drawing set, and A BYTE-IDENTICAL SECOND COPY OF A FILE
+# THIS REPOSITORY ALREADY CARRIES. Both this path and
+# `datasheets/NMG2_Schematics.pdf` are 450,061 bytes and hash to
+# a8c6d0b3a8957ca2922d3c59834004741fcc520e99b268a371024b639c8eb096.
+# `datasheets/README.md` is the register for that copy and records the merged
+# document's three embedded titles and creation dates; nothing here restates it.
+#
+# The `datasheets/` row does not reach this path -- it is a directory row and
+# this file is not beneath that directory -- so the second copy is a second
+# committed file and needs its own row. `private` for BOTH reasons
+# `datasheets/README.md` gives for the other copy: it is another publisher's
+# document, and the publisher is Clavia.
+Nord Modular G2 Board Images/nord modular G2 schematics_unlocked.pdf	private allow-listed	axiomantic/nmg2-artifacts
+
 # --- Trees this project did not author -----------------------------------------
 # Each row below names ONE tree, and is a decision on the record about that tree
 # and nothing else. Together they answer most of the PAYLOAD-UNREGISTERED
