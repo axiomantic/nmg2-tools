@@ -208,7 +208,7 @@ def test_the_length_boundaries_file_holds_a_zero_length_payload_and_reaches_the_
     assert len(image) == SIZE_CEILING == 65536
 
 
-def test_no_committed_file_exceeds_the_payload_lint_byte_ceiling():
+def test_no_committed_file_exceeds_the_size_ceiling_and_one_reaches_it():
     """A committed file under `testdata/` may not exceed 65,536 bytes, and this
     corpus lives under `testdata/`."""
     generated = generate()
@@ -489,7 +489,7 @@ def test_the_unknown_type_file_holds_a_type_the_specification_does_not_name():
     assert 0xFF not in OBJECT_TYPES
 
 
-def test_the_corpus_directory_is_the_one_the_payload_lint_permits():
+def test_the_corpus_directory_is_nmg2_tools_testdata_pch2_synth():
     """A `*.pch2` file is allowed in exactly one directory of a public
     repository."""
     root = pathlib.Path(__file__).resolve().parents[1]
