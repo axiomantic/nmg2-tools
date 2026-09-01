@@ -1,29 +1,19 @@
-"""The Python half of task REPO-5's ``ArtifactResolver``.
+"""The Python half of the ``ArtifactResolver``.
 
-Design section 4.2 is the definition site. The C++ half lives at
-``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the ``gearmulator`` fork.
-Both halves are written by ONE task so that the two messages cannot drift; plan
-section 7.4.2 records that as the reason this file has REPO-5 as its owner.
-
-Design section 4.2, on the Python half:
-
-    ``axiomantic/nmg2-tools`` carries the Python equivalent,
-    ``resolve_artifacts()``, with the same contract and the same message, so
-    that the Python extractor and the C++ extractor skip for the same reason in
-    the same words.
+The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
+``gearmulator`` fork.
+Both halves are written together so that the two messages cannot drift.
 """
 
 import os
 from typing import Optional
 
-# The message a failed resolve returns, WORD FOR WORD. Design section 4.2 fixes
-# the wording and section 18.5 builds the skip line on top of it.
+# The message a failed resolve returns, WORD FOR WORD.
 #
 # It reads "unset" for BOTH failure cases -- the variable unset, and the
-# variable naming a directory that is not there. That is the design's own
-# decision: section 4.2 gives the two cases one message, and REPO-5's check
-# requires "the result is the same". This constant is not the place to improve
-# on it.
+# variable naming a directory that is not there. That is deliberate: the two
+# cases give one message, and the check requires "the result is the same".
+# This constant is not the place to improve on it.
 ARTIFACT_UNAVAILABLE_MESSAGE = "firmware artifact not available (NMG2_ARTIFACTS unset)"
 
 ARTIFACT_ENVIRONMENT_VARIABLE = "NMG2_ARTIFACTS"
@@ -38,8 +28,8 @@ def resolve_artifacts() -> tuple[str, str]:
     On failure ``directory`` is empty and ``why`` is
     :data:`ARTIFACT_UNAVAILABLE_MESSAGE`.
 
-    Never raises. This mirrors the C++ half, where design section 4.2 states the
-    no-exception rule on ``ArtifactResolver::resolve`` directly.
+    Never raises. This mirrors the C++ half, which states the no-exception
+    rule on ``ArtifactResolver::resolve`` directly.
     """
     value = os.environ.get(ARTIFACT_ENVIRONMENT_VARIABLE)
 
@@ -52,8 +42,8 @@ def resolve_artifacts() -> tuple[str, str]:
 
     # A path that does not exist, a path the process cannot stat, and a path that
     # exists but is not a directory all land here, and all three give the SAME
-    # result the plan's check requires of the unset case. `os.path.isdir` reports
-    # False rather than raising for every one of them, so this function needs no
+    # result as the unset case. `os.path.isdir` reports False rather than
+    # raising for every one of them, so this function needs no
     # exception handler to satisfy the never-raises contract -- and a handler
     # that can never fire would be a branch no test could drive.
     if not os.path.isdir(value):
@@ -63,23 +53,21 @@ def resolve_artifacts() -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Task REPO-7, the Python half of the skip discipline. Design section 18.5,
-# plan section 5.2 rules 2 and 3.
+# The Python half of the skip discipline.
 #
-# REPO-7 depends on REPO-5 and both are repo-track tasks, so this section is a
-# track-internal order and not a race. The C++ half is
-# `source/nord/g2/g2Lib/test/gatedFixture.h` in the `gearmulator` fork.
+# The C++ half is `source/nord/g2/g2Lib/test/gatedFixture.h` in the
+# `gearmulator` fork.
 # ---------------------------------------------------------------------------
 
-# Section 18.5's skip line is section 4.2's message with this prefix. The line is
-# built by CONCATENATION and is not spelled out a second time: a message with two
+# The skip line is the message with this prefix. The line is built by
+# CONCATENATION and is not spelled out a second time: a message with two
 # texts is a message with two meanings, and the one an implementer copies is the
 # one that drifts. `gatedFixture.h` builds it the same way.
 GATED_SKIP_PREFIX = "SKIPPED: "
 
 
 def gated_skip_line() -> str:
-    """The line design section 18.5 step 2 requires a gated test to emit."""
+    """The line a gated test emits when it cannot run."""
     return GATED_SKIP_PREFIX + ARTIFACT_UNAVAILABLE_MESSAGE
 
 
@@ -87,9 +75,8 @@ def gated_skip_reason() -> Optional[str]:
     """Return the skip line when a gated test cannot run, or ``None`` when it can.
 
     ``None`` means the artifact resolved and the gated body must run. Any other
-    return is a reason, never a silent pass: design section 18.5 opens with "a
-    firmware-gated test that cannot run must skip WITH A REASON. It must never
-    pass silently."
+    return is a reason, never a silent pass: a firmware-gated test that cannot
+    run must skip WITH A REASON. It must never pass silently.
     """
     directory, _why = resolve_artifacts()
 

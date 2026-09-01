@@ -1,9 +1,7 @@
-"""Task REPO-5, the Python half of the ArtifactResolver.
+"""The Python half of the ArtifactResolver.
 
 Tier T0: every case here runs with ``NMG2_ARTIFACTS`` unset and needs no
 firmware artifact of any kind.
-
-Plan section 9.2, REPO-5. Design sections 4.2 and 18.5.
 
 The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
 ``gearmulator`` fork and ``source/nord/g2/g2Lib/test/t0_artifact_resolver.cpp``
@@ -37,8 +35,8 @@ def test_unset_returns_empty_and_the_exact_message(monkeypatch):
 
 
 def test_missing_directory_gives_the_same_result(monkeypatch):
-    """Design section 4.2 gives the unset case and the missing-directory case
-    ONE message, so the two results must be equal and not merely both falsey."""
+    """The unset case and the missing-directory case get ONE message, so the
+    two results must be equal and not merely both falsey."""
     monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
     unset_result = resolve_artifacts()
 
@@ -67,8 +65,8 @@ def test_a_path_that_is_a_file_and_not_a_directory_gives_the_same_result(tmp_pat
 
 
 def test_never_raises(monkeypatch):
-    """Design section 4.2: the resolver never throws. The cases below are the
-    inputs most likely to make a naive implementation raise."""
+    """The resolver never throws. The cases below are the inputs most likely to
+    make a naive implementation raise."""
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
     # hold one, so no caller can present that input and a case for it would test
     # the test harness rather than the module.
@@ -81,9 +79,9 @@ def test_never_raises(monkeypatch):
 
 
 def test_an_existing_directory_resolves(tmp_path, monkeypatch):
-    """The negative case. Section 5.2 rule 6: every counter a test asserts to be
-    zero needs a companion case that drives it above zero. Without this, all of
-    the assertions above would hold for a resolver that always fails."""
+    """The negative case. Every counter a test asserts to be zero needs a
+    companion case that drives it above zero. Without this, all of the
+    assertions above would hold for a resolver that always fails."""
     monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
 
     directory, why = resolve_artifacts()
@@ -93,16 +91,11 @@ def test_an_existing_directory_resolves(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task REPO-7, the Python half of the skip discipline.
+# The Python half of the skip discipline.
 #
-# REPO-7 depends on REPO-5 and both are repo-track tasks, so extending this
-# module and tests/conftest.py is a track-internal order and not a race. Plan
-# section 7.4.2 gives that shape for every file with one owner and a later
-# writer inside the same track.
-#
-# The plan gives REPO-7 ONE check and it is a ctest. tests/conftest.py would
-# otherwise ship with no check of its own, so the cases below drive it: the pure
-# function directly, and the fixture through pytest's own `pytester`.
+# tests/conftest.py would otherwise ship with no check of its own, so the cases
+# below drive it: the pure function directly, and the fixture through pytest's
+# own `pytester`.
 # ---------------------------------------------------------------------------
 
 EXPECTED_SKIP_LINE = "SKIPPED: firmware artifact not available (NMG2_ARTIFACTS unset)"
@@ -136,8 +129,8 @@ def test_gated_skip_reason_is_none_when_the_artifact_resolves(tmp_path, monkeypa
 
 
 def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
-    """The C++ half builds section 18.5's line by concatenating section 4.2's
-    message onto the prefix, so that the message has one text. This asserts the
+    """The C++ half builds the line by concatenating the message onto the
+    prefix, so that the message has one text. This asserts the
     Python half does the same rather than spelling the whole line out twice."""
     from nmg2_tools.artifacts import (
         ARTIFACT_UNAVAILABLE_MESSAGE,
@@ -151,7 +144,7 @@ def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
 
 def test_the_conftest_fixture_skips_with_the_exact_line(pytester, monkeypatch):
     """Drives tests/conftest.py itself. A gated test that cannot run must skip
-    WITH A REASON, and the reason must be section 18.5's line word for word."""
+    WITH A REASON, and the reason must be the skip line word for word."""
     monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
 
     pytester.makeconftest(_GENERATED_CONFTEST)
