@@ -351,16 +351,6 @@ Nord Modular G2 Board Images/images (1).jpeg	private	axiomantic/nmg2-artifacts
 # not fit it.
 Nord Modular G2 Board Images/514332473_10222611172586371_2862337662186364531_n.jpg	private	axiomantic/nmg2-artifacts
 
-# NOT A NORD MODULAR G2 BOARD AT ALL, and the row says so rather than letting
-# the directory name speak for it. The silkscreen reads `Rhodes Chroma Dual
-# Voice Board`, `(C) 1982 CBS Inc.`, `Remade by Luca Sasdelli`, `Artwork
-# 02F-CEM-2023`. That is a modern reproduction board for a different
-# instrument, made by a third party. It is registered because it is committed
-# and clause 2 answers for it either way; WHY it sits in this directory is not
-# established, and whether it belongs in this repository at all is the artifacts
-# repository's question, not this register's.
-Nord Modular G2 Board Images/jvlfglov0aebm8qnzzzo.jpg	private	axiomantic/nmg2-artifacts
-
 # Clavia's G2 schematic drawing set, and A BYTE-IDENTICAL SECOND COPY OF A FILE
 # THIS REPOSITORY ALREADY CARRIES. Both this path and
 # `datasheets/NMG2_Schematics.pdf` are 450,061 bytes and hash to
