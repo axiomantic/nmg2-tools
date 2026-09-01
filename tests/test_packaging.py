@@ -28,7 +28,7 @@ def test_pyproject_declares_the_one_package():
 
 
 def test_the_package_holds_exactly_the_declared_modules():
-    """One row per shipped module, with the task that owns it."""
+    """One row per shipped module."""
     assert sorted(
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [

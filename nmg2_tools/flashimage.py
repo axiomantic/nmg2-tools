@@ -83,10 +83,10 @@ class Cs2Section:
 
 
 class Cs2ImageBuilder(abc.ABC):
-    """The seam for spike exit criterion (g).
+    """The seam for the undecided CS2 layout.
 
     ONE METHOD. A caller holds this type and never a concrete one, so the day
-    criterion (g) reports L2 the call site does not move.
+    an L2 implementation arrives the call site does not move.
     """
 
     @abc.abstractmethod

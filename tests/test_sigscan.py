@@ -96,7 +96,7 @@ def test_scan_recovers_nonuniform_gaps_not_the_modal_stride():
 
 
 def test_scan_finds_a_record_at_2_mod_4():
-    """Trap 7.2: a sweep that tests only 4-byte alignment sees noise and misses
+    """A sweep that tests only 4-byte alignment sees noise and misses
     the 2-mod-4 records. The scanner must find a record whose base is 2 mod 4
     even when it is the only record in the image."""
     image = bytearray(0x200)
@@ -186,8 +186,7 @@ def test_scan_recovers_all_194_descriptors(artifacts_dir):
 @pytest.mark.artifacts(CODE_IMAGE_NAME)
 def test_validation_identity_holds_for_every_record_with_an_x_pointer(artifacts_dir):
     """X_ptr + 4*(X_words + Y_words) == P_ptr for every record that carries an
-    X pointer, with zero exceptions. Logbook 3.1 fixes the zero-exception
-    requirement."""
+    X pointer, with zero exceptions."""
     image = _load_code_image(artifacts_dir)
     recs = scan(image, BASE)
     with_x = [r for r in recs if r.carries_x]

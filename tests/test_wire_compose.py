@@ -8,7 +8,7 @@ the CRC through the committed fixture table, and the first-byte family
 classification.
 
 WHAT A GREEN RUN PROVES, AND WHAT IT DOES NOT. It proves that the composed
-messages carry the wire-side form of the three file-against-wire differences
+messages carry the wire-side form of the file-against-wire differences
 and a CRC the firmware's own table mechanics produce. It does NOT prove that a
 composed payload is well-formed for the firmware: "the worker accepts the
 family" is a static fact about the dispatch table, and no payload semantics are
@@ -101,7 +101,7 @@ def _arithmetic_crc(data: bytes) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Case 2. The three file-against-wire differences, EACH BOTH DIRECTIONS.
+# Case 2. The file-against-wire differences, EACH BOTH DIRECTIONS.
 # ---------------------------------------------------------------------------
 
 

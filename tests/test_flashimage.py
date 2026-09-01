@@ -1,7 +1,7 @@
 """The CS2 flash image builder.
 
-Every byte this file reads is authored here. The test needs no artifact and it
-reads no Clavia byte, which is what makes it T0.
+The test needs no artifact and reads no firmware byte, which is what makes it
+T0.
 
 THE EXPECTED CHECKSUMS ARE LITERALS AND THE ARITHMETIC IS WRITTEN OUT. A test
 that obtains its expected value from the code under test cannot fail, because a

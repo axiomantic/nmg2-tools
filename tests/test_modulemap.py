@@ -14,9 +14,9 @@ coverage counts.
 
 THE WORKED EXAMPLE IS ASSERTED, NOT THE WHOLE MAP.
 
-Design 18.9.5 names ``LevCLevAdd`` as a ``PANL`` ``FileName`` whose engine
-class is ``LvlAdd``. The two routes do NOT agree, so that row must be
-``derived``, never ``exact``. The first test below pins that.
+``LevCLevAdd`` is a ``PANL`` ``FileName`` whose engine class is ``LvlAdd``.
+The two routes do NOT agree, so that row must be ``derived``, never
+``exact``. The first test below pins that.
 """
 
 import pytest
@@ -72,9 +72,9 @@ def make_args(**kwargs):
 
 
 def test_levclevadd_is_derived_never_exact():
-    """Design 18.9.5 and trap 7.5: the PANL file name LevCLevAdd is not the
-    engine class LvlAdd. Only the chain resolves it, so it is a `derived` row
-    that a false `exact` would conflate with a wrong binding."""
+    """The PANL file name LevCLevAdd is not the engine class LvlAdd. Only the
+    chain resolves it, so it is a `derived` row that a false `exact` would
+    conflate with a wrong binding."""
     rows = build_module_map(
         [FakeDescriptor(p_words=6)],
         [112],
@@ -381,10 +381,10 @@ def test_write_csv_round_trips_through_to_csv_text(tmp_path, monkeypatch):
 # images both.
 #
 # The structural facts a generator can assert without a reverse-engineered
-# descriptor_index -> patch_type_id correspondence: the row count (design
-# 18.9.3 says the descriptor and editor sides agree), the schema, the
-# confidence vocabulary, determinism, and that the coverage counts are
-# internally consistent. Skip where NMG2_DESCRIPTORS is unset.
+# descriptor_index -> patch_type_id correspondence: the row count (the
+# descriptor and editor sides agree), the schema, the confidence vocabulary,
+# determinism, and that the coverage counts are internally consistent. Skip
+# where NMG2_DESCRIPTORS is unset.
 # ---------------------------------------------------------------------------
 
 
@@ -448,9 +448,9 @@ def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
     assert len(panl) == 194
 
     # Without a descriptor_index -> patch_type_id correspondence every chain
-    # breaks at link one, which is the honest answer the design demands: a
-    # count is not a correspondence. The important assertions are that the
-    # generator does not crash, produces one well-formed unmapped row per
+    # breaks at link one, which is the honest answer: a count is not a
+    # correspondence. The important assertions are that the generator does not
+    # crash, produces one well-formed unmapped row per
     # descriptor, and makes the coverage internally consistent.
     g2ools = {}
     compute_symbols = {}
@@ -473,11 +473,11 @@ def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
 #
 # The test above drives the generator and asserts on the value it RETURNS. That
 # is not the same claim as "the module map exists and is the real map": a green
-# run of it says nothing about `module_map.csv`, and the file sat as a 78-byte
-# placeholder line through every green run this suite ever reported. The test
-# below closes that hole. It opens the declared path and holds the bytes it
-# finds against the descriptor table recovered from the firmware image, so a
-# placeholder, a truncated map and a stale map each fail it.
+# run of it says nothing about `module_map.csv`, so a placeholder file at that
+# path survives it. The test below closes that hole. It opens the declared
+# path and holds the bytes it finds against the descriptor table recovered
+# from the firmware image, so a placeholder, a truncated map and a stale map
+# each fail it.
 #
 # The expectation is DERIVED, never written down here: the row count and every
 # descriptor-side column come from `sigscan.scan()` over the real image at run
@@ -485,7 +485,7 @@ def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
 # this test exists to find.
 #
 # It reads two roots' worth of nothing extra -- both files live under
-# NMG2_ARTIFACTS -- and it hardcodes no Clavia-derived value, so §22.4 holds.
+# NMG2_ARTIFACTS -- and it hardcodes no Clavia-derived value.
 # ---------------------------------------------------------------------------
 
 MODULE_MAP_NAME = "module_map.csv"

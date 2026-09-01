@@ -42,9 +42,6 @@ Each reference list holds one 12-byte entry per resource:
 The data area holds the payload of every resource. At the data offset recorded
 in the reference list the first big-endian u32 is the payload length and the
 payload follows it.
-
-The project ships no Clavia bytes. This module parses a fork the user
-supplies; it never embeds one.
 """
 
 from __future__ import annotations

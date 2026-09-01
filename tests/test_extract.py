@@ -38,7 +38,7 @@ HASH_SRAM = "01f5d9f38f82a771028bf88a7d1a623944a576119f6b38e57af6d5d78f2d4357"
 # ---------------------------------------------------------------------------
 # Synthetic builders. Each parser is proven against a fork or PE it builds
 # itself from stated field values, exactly as `tests/test_container.py` builds
-# its containers. See `artifacts.sha256`: no Clavia byte is ever embedded.
+# its containers.
 # ---------------------------------------------------------------------------
 
 def _u32(x):
@@ -124,8 +124,8 @@ def build_pe_file(os_image, loader):
 
 
 def build_resource_fork(resources):
-    """Build a synthetic Macintosh resource fork with the given ``(type,
-    id, name, payload)`` tuples, in the layout ``AGENTS.md`` section 6 names."""
+    """Build a synthetic Macintosh resource fork with the given ``(type, id,
+    name, payload)`` tuples, in the layout ``nmg2_tools.rsrc`` documents."""
     by_type = {}
     for type_code, rid, name, payload in resources:
         by_type.setdefault(type_code, []).append((rid, name, payload))
@@ -316,8 +316,8 @@ def test_recovered_image_reloads_its_sections():
 # Each body therefore requests the fixture of the family its inputs live under,
 # and declares the paths it opens with `@pytest.mark.artifacts`. A body that
 # WALKED the tree for a file matching a suffix could not be gated on that file
-# at all: the gate would answer RUN and the walk would then raise where section
-# 18.5 requires a skip WITH A REASON naming the path.
+# at all: the gate would answer RUN and the walk would then raise where a skip
+# WITH A REASON naming the path is required.
 # ---------------------------------------------------------------------------
 
 # The installer images, as paths relative to the installers root. One constant

@@ -1,8 +1,5 @@
 """The synthesized `.pch2` corpus.
 
-EVERY BYTE OF THIS CORPUS IS AUTHORED BY THIS PROJECT. No Clavia byte enters
-this repository in any form: not a file, not an inline array, not base64.
-
 WHAT A GREEN RUN HERE DOES NOT PROVE. A green run against the synthesized
 corpus proves that the corpus matches the format specification. **It proves
 nothing about real-world patch variety**, because nobody wrote this corpus from
@@ -101,8 +98,7 @@ MALFORMED = {
 
 def test_the_committed_corpus_holds_exactly_these_files():
     """Exact equality, not membership. A file added without a row here is a
-    file no one decided to publish, and this directory is the ONLY place in any
-    public repository where a `.pch2` file may live."""
+    file no one decided to publish."""
     committed = sorted(p.name for p in CORPUS_DIRECTORY.glob("*.pch2"))
 
     assert committed == CORPUS_FILES
@@ -285,10 +281,10 @@ def test_pack_bits_writes_the_most_significant_bit_first():
 
     # EVERY value above is a BIT-PALINDROME inside its own declared width: a
     # 1-bit field either way, 0x7F in 7 bits, 0xFFFFFFFF in 32. Each therefore
-    # reads the same with the bits of its field reversed, so the four
-    # assertions above cannot detect a field packed LEAST significant bit
-    # first, which is the one thing this test is named for. The three below
-    # can, because no value below equals its own reversal at its width.
+    # reads the same with the bits of its field reversed, so the assertions
+    # above cannot detect a field packed LEAST significant bit first, which is
+    # the one thing this test is named for. The assertions below can, because
+    # no value below equals its own reversal at its width.
     #
     # 1000 + 4 pad bits. Least significant bit first would write 0001 0000.
     assert pack_bits([(4, 0b1000)]) == b"\x80"
@@ -438,7 +434,7 @@ def test_morph_parameter_names_are_omitted_in_both_paths():
 
 def test_the_manifest_names_every_file_and_the_refusal_each_malformed_one_expects():
     assert generate()["MANIFEST.tsv"].decode("ascii") == (
-        "# Task TOOL-12. Every byte of this corpus is authored by this project.\n"
+        "# The synthesized .pch2 corpus. Regenerated, never hand-edited.\n"
         "# file\tkind\texpected_refusal\n"
         "bad_crc.pch2\tmalformed\tPCH2-BAD-CRC\n"
         "bad_length_past_end.pch2\tmalformed\tPCH2-LENGTH-PAST-END\n"

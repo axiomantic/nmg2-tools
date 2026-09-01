@@ -21,16 +21,9 @@ The fixture records that table's bytes once, and every case below reads the
 COMMITTED bytes, so a change to the derivation cannot make the tests agree
 with themselves.
 
-REQUIRED-RED, and where each is proven: a fixture with one perturbed entry
-turns the pair case red naming that offset (``test_the_pair_case_fails_
-naming_the_offset``); an all-zero table fails both comparisons with a named
-summary (``test_an_all_zero_table_fails_both_comparisons``); two adjacent
-swapped entries turn the pair case red at both offsets
-(``test_two_swapped_entries_turn_the_pair_case_red_at_both_offsets``); a
-reversed corpus walk turns the corpus case red
-(``test_a_reversed_corpus_walk_fails``); and removing the sha256 assertion
-turns the fixture-integrity case red
-(``test_the_committed_fixture_matches_the_recorded_digest``).
+Each comparison below has a required-red case beside it: a deliberately broken
+table is run through the SAME case function the green cases run, so the red is
+a property of the case and not of a separate weaker assertion.
 """
 
 import hashlib
@@ -173,9 +166,9 @@ def corpus_inputs() -> list[tuple[str, bytes]]:
     corpus = pathlib.Path(base) / "corpus" / "pch2"
     if not corpus.is_dir():
         # A root that resolves but does not hold the corpus is a second,
-        # distinct skip reason, per the T1 precedent in
-        # tests/test_pch2_real_corpus.py: the informational half stays green
-        # on machines without the private corpus rather than failing.
+        # distinct skip reason, as in tests/test_pch2_real_corpus.py: the
+        # informational half stays green on machines without the private
+        # corpus rather than failing.
         pytest.skip(
             "SKIPPED: the demo patch corpus is not present under "
             "NMG2_ARTIFACTS (corpus/pch2 missing)"
@@ -201,11 +194,10 @@ def test_the_arithmetic_oracle_agrees_with_the_decompiled_walk(
     fixture_table, corpus_inputs
 ):
     """The same agreement, through :mod:`nmg2_tools.checksum`'s exported
-    entry point rather than the ``synth_pch2`` wrapper, so the cross-check
-    covers the module the task block names. ``checksum`` is the additive
-    container sum and is NOT the CRC; the module the plan names for the
-    CRC-16/CCITT-XMODEM parameters is the ``synth_pch2`` oracle, and this
-    case keeps the pair-comparison honest about which file was measured."""
+    entry point rather than the ``synth_pch2`` wrapper. ``checksum`` is the
+    additive container sum and is NOT the CRC; the CRC-16/CCITT-XMODEM
+    parameters live in the ``synth_pch2`` oracle, and this case keeps the
+    pair-comparison honest about which file was measured."""
     # `checksum` is a different algorithm by design. The case that
     # matters is documented at the call site, not silently substituted:
     # the CRC oracle is `crc16_ccitt`, and the container sum is asserted to

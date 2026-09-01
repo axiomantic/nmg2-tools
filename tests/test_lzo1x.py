@@ -12,10 +12,8 @@ are NOT this project's own reading of the format. A decoder tested only
 against streams that the same author hand-encoded proves that the author is
 self-consistent, not that the author is right.
 
-WHAT THESE VECTORS DO NOT COVER: no Clavia byte appears here. The G2 firmware
-lives in the PRIVATE `axiomantic/nmg2-artifacts` repository and must never
-enter a public tree in any form. A green run therefore proves that this
-decompressor agrees with `liblzo2` on synthetic input. It does not prove that
+WHAT THESE VECTORS DO NOT COVER. A green run proves that this decompressor
+agrees with `liblzo2` on synthetic input. It does not prove that
 the G2 loader's m68k port agrees with `liblzo2` on the shipped OS image; the
 updater-extraction tests read the real firmware and are gated on the
 artifacts.

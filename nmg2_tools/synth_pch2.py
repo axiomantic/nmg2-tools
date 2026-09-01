@@ -1,10 +1,5 @@
 """The synthesized `.pch2` corpus generator.
 
-EVERY BYTE OF THIS CORPUS IS AUTHORED BY THIS PROJECT. No Clavia byte enters
-this repository in any form: not a committed file, not an inline array, not
-base64. `nmg2_tools/testdata/pch2_synth/` is the only directory where a
-`*.pch2` file may live.
-
 THE CORPUS IS REGENERATED, NEVER HAND-EDITED. A fresh run of the generator
 reproduces every committed byte, so an edit made by hand cannot survive.
 
@@ -173,8 +168,7 @@ def build_file(body: bytes, *, crc_error: int = 0) -> bytes:
     """Return a whole file: text header, binary header, `body`, trailing CRC.
 
     `crc_error` is exclusive-or'd into the stored CRC. A non-zero value writes a
-    file whose CRC is wrong on purpose, which is one of the malformed cases
-    section 15.7 requires.
+    file whose CRC is wrong on purpose, which is one of the malformed cases.
     """
     covered = BINARY_HEADER + body
     stored = crc16_ccitt(covered) ^ crc_error
@@ -244,8 +238,8 @@ def generate() -> dict[str, bytes]:
         build_object(0x65, bytes([8]) + bytes(range(8)))
     )
 
-    # The malformed set. Section 15.7: the parser must reject each with a NAMED
-    # error, and `MANIFEST.tsv` is where the corpus states which name.
+    # The malformed set. The parser must reject each with a NAMED error, and
+    # `MANIFEST.tsv` is where the corpus states which name.
     #
     # A truncated object. The header is complete and the payload stops early.
     files["bad_truncated_object.pch2"] = build_file(
@@ -304,7 +298,7 @@ def _manifest(files: Iterable[str]) -> bytes:
     shape could no longer disagree with it.
     """
     rows = [
-        "# Task TOOL-12. Every byte of this corpus is authored by this project.",
+        "# The synthesized .pch2 corpus. Regenerated, never hand-edited.",
         "# file\tkind\texpected_refusal",
     ]
     for name in sorted(files):

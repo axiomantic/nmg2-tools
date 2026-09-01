@@ -238,10 +238,10 @@ def test_the_conftest_fixture_runs_the_body_when_the_artifact_resolves(pytester,
 # ---------------------------------------------------------------------------
 # The gate opens on the FILES the gated body reads, not on the directory alone.
 #
-# A regression guard: `gated_skip_reason()` once returned RUN as soon as a
-# directory resolved, so a gated body raised `FileNotFoundError` where a skip
-# WITH A REASON is required. The reason is message 3, which already exists and
-# already names the missing artifact -- a fourth message would be a second text
+# A gate that answered RUN as soon as a directory resolved would let a gated
+# body raise `FileNotFoundError` where a skip WITH A REASON is required. The
+# reason is message 3, which already exists and already names the missing
+# artifact -- a fourth message would be a second text
 # for one meaning.
 #
 # The distinction these cases hold apart, and it is the whole point of them:
@@ -375,12 +375,12 @@ def test_the_conftest_fixture_lets_a_malformed_artifact_reach_the_body_and_fail(
 # ---------------------------------------------------------------------------
 # One root per fixture FAMILY.
 #
-# `NMG2_ARTIFACTS` named two unrelated fixture families at once -- the
-# descriptor and panel tables on one side, the vendor installer images on the
-# other -- and no single directory holds both, so one of the two families was
-# always looking in the wrong tree. A family is a ROOT, so each family gets its
-# own variable: `NMG2_<FAMILY>`, uppercased. The default family is `artifacts`,
-# which yields `NMG2_ARTIFACTS` unchanged.
+# One variable naming two unrelated fixture families at once -- the descriptor
+# and panel tables on one side, the vendor installer images on the other --
+# leaves one of them looking in the wrong tree, because no single directory
+# holds both. A family is a ROOT, so each family gets its own variable:
+# `NMG2_<FAMILY>`, uppercased. The default family is `artifacts`, which yields
+# `NMG2_ARTIFACTS` unchanged.
 #
 # The rule that makes this safe is that a family NEVER falls back to another
 # family's root. A resolver that searched a second root on a miss would answer

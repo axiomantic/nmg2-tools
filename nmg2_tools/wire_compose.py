@@ -15,7 +15,7 @@ over the committed fixture table at ``nmg2_tools/testdata/crc_table_firmware.bin
 DERIVED (the firmware builds the table at boot; it is not stored in the image),
 and the test pins it by its recorded sha256 digest.
 
-THE THREE FILE-AGAINST-WIRE DIFFERENCES, and what this module does about each:
+THE FILE-AGAINST-WIRE DIFFERENCES, and what this module does about each:
 
 1. The variation count is 9 in a file and 10 on the wire, and it affects the
    0x4D and 0x65 objects. This module composes the record for the wire and
@@ -141,7 +141,7 @@ TYPE_0X21 = pch2.TYPE_0X21
 # the name fills the field (measured: capture-002's 13-char perf name carries
 # the terminator, capture-008's 16-char patch name does not).
 #
-# DIFFERENCE 2 DOES NOT FIRE ON THIS MESSAGE. The design's `0x2D 0x00`
+# DIFFERENCE 2 DOES NOT FIRE ON THIS MESSAGE. The `0x2D 0x00`
 # trailer was measured on the DEVICE-to-host dump family (capture-007's
 # inbound 0x21 chunk carries it); the HOST-to-device O_CREATE chain of
 # capture-008 carries no 2D 00 anywhere in its 861-byte body, and its CRC

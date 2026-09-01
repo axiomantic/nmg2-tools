@@ -9,9 +9,9 @@ from typing import Optional
 
 # A FAMILY is a root, not a file. Each family reads its OWN variable,
 # `NMG2_<FAMILY>`, DERIVED from the family name rather than looked up in a
-# table. `NMG2_ARTIFACTS` once named two unrelated families at once -- the
-# descriptor and panel tables, and the vendor installer images -- and no single
-# directory holds both, so one was always resolved against the wrong tree.
+# table. One variable naming two families at once -- the descriptor and panel
+# tables, and the vendor installer images -- resolves one of them against the
+# wrong tree, because no single directory holds both.
 #
 # A family NEVER falls back to another family's root: a resolver that searched a
 # second root on a miss answers with a file whose origin no reader can

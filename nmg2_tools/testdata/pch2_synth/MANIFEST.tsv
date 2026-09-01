@@ -1,4 +1,4 @@
-# Task TOOL-12. Every byte of this corpus is authored by this project.
+# The synthesized .pch2 corpus. Regenerated, never hand-edited.
 # file	kind	expected_refusal
 bad_crc.pch2	malformed	PCH2-BAD-CRC
 bad_length_past_end.pch2	malformed	PCH2-LENGTH-PAST-END

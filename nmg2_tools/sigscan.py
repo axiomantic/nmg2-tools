@@ -49,8 +49,8 @@ an X pointer, with zero exceptions. This confirms the field meanings and that
 blobs are stored 4 bytes per 24-bit word. Records with no X blob have
 ``x_ptr = 0`` and ``x_words = 0`` together -- a correctly encoded absence.
 
-No byte of any Clavia image is embedded here. The scanner is a pure function
-of the image bytes and the image's load address.
+The scanner is a pure function of the image bytes and the image's load
+address.
 """
 
 import csv
@@ -175,8 +175,7 @@ def to_csv_text(records) -> str:
     """Render recovered records as ``dsp/g2_module_descriptors.csv`` text.
 
     ``index`` is the signature-scan order, which is the module map's
-    ``descriptor_index``. No byte of any Clavia image is embedded: every value
-    is computed from the scan.
+    ``descriptor_index``. Every value is computed from the scan.
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -199,7 +198,6 @@ def to_csv_text(records) -> str:
 
 
 def write_csv(path, records) -> None:
-    """Write the descriptor table to ``path``. The map is generated, never
-    hand-edited, so this is the only writer."""
+    """Write the descriptor table to ``path``."""
     with open(path, "w", encoding="utf-8", newline="") as fh:
         fh.write(to_csv_text(records))

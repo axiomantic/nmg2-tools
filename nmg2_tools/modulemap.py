@@ -50,11 +50,11 @@ descriptor's ports and signal types (``extracted/g2demo/g2_modules.json``). A
 contradiction demotes the row to ``unmapped`` rather than leaving a wrong
 binding in place.
 
-WHAT THIS GENERATOR AUTHORS AND WHAT IT LIFTS.
+THE ONE LINK THAT IS SUPPLIED RATHER THAN DERIVED.
 
-This module contains NO Clavia byte. It is a pure function of its input tables,
-and it is written so that a test can drive every decision it makes with
-synthetic data. The one link that is not yet proved by any committed artifact --
+This generator is a pure function of its input tables, and it is written so
+that a test can drive every decision it makes with synthetic data. The one
+link that is not yet proved by any committed artifact --
 ``descriptor_index -> patch_type_id`` (the counts agree on each side, but a
 count is not a correspondence) -- is supplied as an input table, not derived or
 guessed here. Where that table is absent for a row, the
@@ -181,7 +181,7 @@ def _signal_compatible(routine_signal: str, panl_signal: str) -> bool:
 
 
 def _port_shape_contradicts(compute_args: Sequence[Port], panl_ports: Sequence[Port]) -> bool:
-    """Design 18.9.3 check 2.
+    """The port-shape check.
 
     A ``Compute()`` routine with a known argument shape must agree with its
     descriptor's ports: the same number of inputs and outputs, and compatible
@@ -213,7 +213,7 @@ def _port_shape_contradicts(compute_args: Sequence[Port], panl_ports: Sequence[P
 
 def _word_count_disagrees(p_words: int | None, compute_size: int | None,
                           scale: float, tolerance: float) -> bool:
-    """Design 18.9.3 check 1.
+    """The word-count check.
 
     A module's ``Compute()`` code size correlates with its P word count. The G1
     precedent is a Pearson correlation of 0.779 over 86 modules with the
@@ -233,7 +233,7 @@ def _word_count_disagrees(p_words: int | None, compute_size: int | None,
 
 def _corroborated_by_name(panl_filename: str | None,
                           compute: Mapping[str, ComputeRoutine]) -> bool:
-    """Design 18.9.3: a row is ``exact`` only when TWO routes agree.
+    """A row is ``exact`` only when TWO routes agree.
 
     The chain produced the ``compute_symbol``. The independent route is the
     ``panl_filename``: when it equals a ``Compute()`` class name on its own, the

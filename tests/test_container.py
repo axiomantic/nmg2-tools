@@ -3,9 +3,7 @@
 WHERE THE CONTAINERS COME FROM.
 
 Every container below is BUILT HERE, by `build_container`, from stated field
-values. No Clavia byte appears in this file. The G2 firmware lives in the
-PRIVATE `axiomantic/nmg2-artifacts` repository and must never enter a public
-tree, as a fixture, as an inline array or as base64.
+values.
 
 A green run therefore proves that this parser agrees with the stated container
 layout. It does NOT prove that the layout matches the shipped

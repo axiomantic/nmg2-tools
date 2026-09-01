@@ -137,9 +137,9 @@ def fixture_path() -> str:
 def extract_table_bytes(image_path: str) -> bytes:
     """Read the table region out of a firmware image by VMA.
 
-    This is the extraction the task block asks for, kept so the claim behind
-    it is checkable: run it against the real image and it fails with a named
-    error, because the region lies past the image's end. The offset it reads
+    This extraction is kept so that the claim behind it is checkable: run it
+    against the real image and it fails with a named error, because the region
+    lies past the image's end. The offset it reads
     is ``TABLE_VMA - IMAGE_BASE``, never a second spelling of the number.
     """
     with open(image_path, "rb") as handle:

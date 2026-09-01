@@ -21,18 +21,16 @@ from nmg2_tools.dsp56k_dis import (
 )
 
 # ---------------------------------------------------------------------------
-# Trap 7.10. The three real DMA routing registers.
+# The real DMA routing registers.
 # ---------------------------------------------------------------------------
 
 
 # WHY EACH TEST BELOW CARRIES A SECOND OPERAND BYTE.
 #
-# The three operand bytes trap 7.10 records -- 0xA6, 0xA5 and 0x9D -- all have
+# The operand bytes of the real registers -- 0xA6, 0xA5 and 0x9D -- all have
 # BIT 6 CLEAR. A six-bit mask and a seven-bit mask therefore give the SAME
-# answer for every one of them, so the three registers the trap is about cannot
-# detect a decoder that masked seven bits. That is the mask-width variant of
-# trap 7.10 itself, and the tests that exist because of the trap were blind to
-# it.
+# answer for every one of them, so those registers alone cannot detect a
+# decoder that masked seven bits.
 #
 # Each test below adds the SAME low six bits with BIT 6 SET. This states no new
 # fact about the processor: `test_the_operand_window_...` already pins, from the
@@ -90,9 +88,9 @@ def test_movep_decodes_the_dco4_register_at_x_ffffdd():
 
 
 def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
-    """The negative half of trap 7.10, stated as a test rather than as a
-    comment. Each wrong address is the operand byte read as an address, so a
-    decoder that repeated the mistake would print it."""
+    """The negative half of the operand-byte reading, stated as a test rather
+    than as a comment. Each wrong address is the operand byte read as an
+    address, so a decoder that repeated the mistake would print it."""
     texts = [
         decode([0x08F4A6, 0]).text,
         decode([0x08F4A5, 0]).text,
@@ -109,7 +107,7 @@ def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
 
     # The same three registers reached through an operand whose bit 6 is SET.
     # Bit 6 is clear in all three bytes above, so without these the mask width
-    # is unpinned and a seven-bit mask passes the whole trap 7.10 group.
+    # is unpinned and a seven-bit mask passes the whole group above.
     bit_six_set = [
         decode([0x08F466, 0]).text,
         decode([0x08F465, 0]).text,
@@ -120,10 +118,10 @@ def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
 
 
 def test_the_memory_space_comes_from_the_first_word_and_not_from_the_operand():
-    """MEASURED AGAINST THE ORACLE, AND IT CONTRADICTS A PLAIN READING OF THE
-    PLAN. The plan describes the operand byte as `1Spppppp`, which places the
-    space bit in the operand. It is not there: `08 F4 A6` and `08 F4 E6` both
-    answer `x:$FFFFE6`, and the Y space comes from `09` in the FIRST word."""
+    """MEASURED AGAINST THE ORACLE, AND IT CONTRADICTS THE COMMON READING. The
+    operand byte is often described as `1Spppppp`, which places the space bit
+    in the operand. It is not there: `08 F4 A6` and `08 F4 E6` both answer
+    `x:$FFFFE6`, and the Y space comes from `09` in the FIRST word."""
     assert decode([0x08F4A6, 0x000001]).text == "movep #$000001,X:$FFFFE6"
     assert decode([0x08F4E6, 0x000001]).text == "movep #$000001,X:$FFFFE6"
     assert decode([0x09F4A6, 0x000001]).text == "movep #$000001,Y:$FFFFE6"
