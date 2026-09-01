@@ -56,6 +56,11 @@ filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]
 target-version = "py311"
 
 [tool.ruff.lint]
+# `explicit-preview-rules` holds `preview` to the preview rules `select` names by
+# exact code, so no other preview rule arrives with them.
+preview = true
+explicit-preview-rules = true
+
 # Chosen on merit, not to reach a number. This set reports 162 findings on the
 # tree that introduced it, against 51 non-ISC004 findings from ruff 0.16.5's own
 # defaults: it is stricter than the defaults on real code, not weaker.
@@ -72,6 +77,9 @@ select = [
     "PLE", "PLW", "PLC",
     "SIM", "UP", "C4", "PERF", "PIE", "FURB", "RUF", "FLY", "RET", "PGH",
     "ISC", "YTT", "EXE", "INT", "LOG", "G", "ASYNC", "TRY",
+    # Preview, so the `RUF` group above does not reach it and the exact code is
+    # required. A missing `f` prefix is silent at runtime and under the tests.
+    "RUF027",
 ]
 
 # Every exclusion below is a rule that disagrees with a DELIBERATE choice in this
