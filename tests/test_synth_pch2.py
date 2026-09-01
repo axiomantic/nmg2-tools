@@ -196,8 +196,9 @@ def test_the_corpus_covers_every_object_type_the_specification_names():
 
 def test_the_length_boundaries_file_holds_a_zero_length_payload_and_reaches_the_ceiling():
     """The boundary object lengths, including a
-    zero-length payload. The upper committed boundary is the payload lint's
-    byte ceiling, not the field's own maximum; the next test covers that."""
+    zero-length payload. The upper committed boundary is `SIZE_CEILING` in
+    `nmg2_tools/synth_pch2.py`, which the generator builds this file against,
+    not the field's own maximum; the next test covers that."""
     image = generate()["length_boundaries.pch2"]
     body = image[image.index(b"\x00") + 1 + 2 : -2]
 
@@ -490,8 +491,10 @@ def test_the_unknown_type_file_holds_a_type_the_specification_does_not_name():
 
 
 def test_the_corpus_directory_is_nmg2_tools_testdata_pch2_synth():
-    """A `*.pch2` file is allowed in exactly one directory of a public
-    repository."""
+    """`CORPUS_DIRECTORY` resolves to `nmg2_tools/testdata/pch2_synth` under
+    the repository root. It is the generator's default write target and the
+    path every corpus test reads through, so this pins the one location they
+    share."""
     root = pathlib.Path(__file__).resolve().parents[1]
 
     assert CORPUS_DIRECTORY == root / "nmg2_tools" / "testdata" / "pch2_synth"
