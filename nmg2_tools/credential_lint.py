@@ -14,6 +14,18 @@ stored as an organisation or repository secret), are allowed. Any other
 In a PRIVATE repository (``--visibility private``) this check passes
 unconditionally: private repositories, such as ``nmg2-artifacts``, may
 legitimately hold secrets that a public repository must not.
+
+THIS IS AN ABSENCE TEST, SO IT CARRIES CONTROLS. "No disallowed secret was
+found" and "no file was read" both used to print nothing and exit 0, which
+made a scan that never ran indistinguishable from a clean tree. Two named
+findings separate them, in the same shape ``payload_lint`` uses for a
+register it cannot read:
+
+  ``CRED-SCOPE-ABSENT``  there is no ``.github/workflows/`` directory
+  ``CRED-SCOPE-EMPTY``   the directory holds no ``.yml`` or ``.yaml`` file
+
+Neither is a credential finding. Both say the check did not run, which is
+the one thing a clean exit must never be allowed to mean.
 """
 
 from __future__ import annotations
@@ -51,16 +63,31 @@ def lint_workflow_text(text: str, path: str = "<text>") -> list[str]:
 
 
 def lint_repo_tree(repo_path: Path) -> list[str]:
-    """Lint every workflow file under ``.github/workflows/`` of a repository."""
+    """Lint every workflow file under ``.github/workflows/`` of a repository.
+
+    FAIL CLOSED ON A DEGENERATE POPULATION. An absent directory and a
+    directory with no workflow file in it are both refused by name rather
+    than reported clean, because this function cannot tell a repository with
+    nothing to check from a checkout that did not land.
+    """
     workflows_dir = repo_path / ".github" / "workflows"
     if not workflows_dir.is_dir():
-        return []
+        return [
+            f"CRED-SCOPE-ABSENT: {workflows_dir}: not a directory, so no "
+            f"workflow file was read and this check proved nothing"
+        ]
+    workflow_files = [
+        candidate
+        for candidate in sorted(workflows_dir.rglob("*"))
+        if candidate.is_file() and candidate.suffix in (".yml", ".yaml")
+    ]
+    if not workflow_files:
+        return [
+            f"CRED-SCOPE-EMPTY: {workflows_dir}: holds no .yml or .yaml file, "
+            f"so the scan examined nothing and a clean result says nothing"
+        ]
     failures: list[str] = []
-    for workflow_file in sorted(workflows_dir.rglob("*")):
-        if not workflow_file.is_file():
-            continue
-        if workflow_file.suffix not in (".yml", ".yaml"):
-            continue
+    for workflow_file in workflow_files:
         rel = workflow_file.relative_to(repo_path)
         failures.extend(lint_workflow_text(workflow_file.read_text(), str(rel)))
     return failures

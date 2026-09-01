@@ -47,6 +47,19 @@ jobs:
     name: repo-lints
     runs-on: ubuntu-latest
     steps:
+    # EVERY GUARD REPORTS INDEPENDENTLY. Actions skips the remaining steps of a
+    # job once one has failed, so with a plain sequential list guard N failing
+    # made guards N+1..end report `skipped` -- a word that is not `success` and
+    # is not `failure`, and that reads to a human as "not applicable here".
+    # These guards close FOUR DIFFERENT holes and none substitutes for another,
+    # so one of them firing is the WORST moment to stop asking the others: the
+    # tree is already known to be wrong, and the run silently stops saying how
+    # wrong. In this repository that is not hypothetical; see the PR body.
+    #
+    # `!cancelled()` rather than `always()`: a cancelled run should stop, and a
+    # failed one should finish reporting. Neither form makes the JOB green -- a
+    # step that runs and fails still fails the job, so the overall verdict is
+    # unchanged and only the amount the run tells you goes up.
       - name: Check out the repository under test
         uses: actions/checkout@v4
         with:
@@ -61,15 +74,18 @@ jobs:
           path: lint-tools
 
       - name: Set up Python
+        if: ${{ !cancelled() }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: no-private-submodule
+        if: ${{ !cancelled() }}
         working-directory: lint-tools
         run: python3 -m nmg2_tools.submodule_lint "${GITHUB_WORKSPACE}/under-test"
 
       - name: no-clavia-payload
+        if: ${{ !cancelled() }}
         working-directory: lint-tools
         run: |
           python3 -m nmg2_tools.payload_lint "${GITHUB_WORKSPACE}/under-test" \
@@ -89,6 +105,7 @@ jobs:
       # one. A pattern written as one literal would match its own definition
       # and the step would fail on itself for ever.
       - name: no-clavia-upload
+        if: ${{ !cancelled() }}
         env:
           VISIBILITY: ${{ inputs.visibility }}
         run: |
@@ -149,11 +166,35 @@ jobs:
       # gated test has been verified here. A step that printed PASS instead
       # would be the exact green tick design section 18.5 exists to prevent.
       #
-      # The step does not fail the job. It reports. T1 and T2 are informational
-      # tiers by design section 19.1 and the job that runs a gated test owns its
-      # own exit status; overloading this reporter's status would put the tier
-      # rule in two places.
+      # THE VERDICT IS THE STEP'S EXIT STATUS, AND THAT IS THE WHOLE POINT.
+      # This step used to echo the verdict and exit 0 on every path, so a job
+      # whose gated tests had FAILED and a job that had verified nothing at all
+      # both rendered a green tick. A summary that computes PASS / FAIL / NOT
+      # VERIFIED and cannot fail is exactly the defect design section 18.5
+      # names, wearing the costume of the guard against it -- the operator sees
+      # a verdict printed in a step marked success, and the printed word is the
+      # only place the difference lives.
+      #
+      # FAIL is non-zero for the obvious reason. NOT VERIFIED IS ALSO NON-ZERO,
+      # because "no gated test executed its body" is the absence this job exists
+      # to detect, and an absence reported through a green step is reported
+      # nowhere. The three verdicts now reach CI as two exit statuses, and PASS
+      # is the only one that is zero.
+      #
+      # This supersedes the earlier reading of design section 19.1 -- that T1
+      # and T2 are informational tiers, so this reporter should not carry an
+      # exit status. Tier informationality is about which tests block a merge.
+      # It is not licence for the step that renders their verdict to be unable
+      # to report one. The job that runs a gated test still owns its own exit
+      # status; this step owns whether its own summary was believed.
+      #
+      # CONSEQUENCE, STATED PLAINLY: no repository writes gated-tests.counts
+      # today, so this step now fails in every repository that runs it, with
+      # the reason printed. That red is the true answer the comment below has
+      # always claimed to give. Silencing it means producing the file, not
+      # restoring the exit 0.
       - name: gated-test-summary
+        if: ${{ !cancelled() }}
         run: |
           set -uo pipefail
           counts="${GITHUB_WORKSPACE}/under-test/gated-tests.counts"
@@ -184,7 +225,25 @@ jobs:
             echo "${line}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+          case "${verdict}" in
+            PASS)
+              exit 0
+              ;;
+            FAIL)
+              echo "FAILURE gated-test-summary: ${failed} of the ${run} gated test(s) that ran did not pass."
+              exit 1
+              ;;
+            *)
+              echo "FAILURE gated-test-summary: NOT VERIFIED is not a pass."
+              echo "Zero gated tests executed their body here, so this job has proved"
+              echo "nothing about the gated tiers. Produce gated-tests.counts in the"
+              echo "repository under test to make this step able to say PASS."
+              exit 1
+              ;;
+          esac
+
       - name: no-artifact-credential
+        if: ${{ !cancelled() }}
         working-directory: lint-tools
         run: |
           python3 -m nmg2_tools.credential_lint "${GITHUB_WORKSPACE}/under-test" \
