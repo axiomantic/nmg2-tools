@@ -275,6 +275,17 @@ def test_pe_refuses_an_mz_that_is_not_pe():
         pe.parse_pe(bytes(blob))
 
 
+def test_pe_names_the_offending_rva_when_it_maps_to_no_section():
+    # The data-directory resource RVA sits at optional-header offset 96 + 2*8,
+    # and the optional header starts after the DOS stub, the PE signature and
+    # the COFF header.
+    res_dir_rva_off = 0x40 + 4 + 20 + 96 + 2 * 8
+    blob = bytearray(PEFILE)
+    struct.pack_into("<I", blob, res_dir_rva_off, 0xDEADB000)
+    with pytest.raises(PeError, match=r"PE-OFFSET-OUT-OF-RANGE: resource section RVA 0xDEADB000"):
+        pe.parse_pe(bytes(blob))
+
+
 # ---------------------------------------------------------------------------
 # End to end, ungated: the mac and windows paths recover the same image, and
 # the recovered container re-loads its two sections. This is the claim of

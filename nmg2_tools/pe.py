@@ -232,7 +232,7 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
 
     base = _rva_to_offset(res_rva, sections)
     if base is None or base + res_size > len(raw):
-        raise PeError("PE-OFFSET-OUT-OF-RANGE: resource section RVA 0x{res_rva:08X}")
+        raise PeError(f"PE-OFFSET-OUT-OF-RANGE: resource section RVA 0x{res_rva:08X}")
 
     out: list[PeResource] = []
     _recurse(raw, base, base, sections, 0, None, None, None, out)
