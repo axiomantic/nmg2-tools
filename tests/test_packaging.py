@@ -6,9 +6,6 @@ therefore cannot import it. The list is asserted here so that adding a package
 directory without declaring it fails.
 
 The `plan_lint` module that this repository once carried is asserted ABSENT.
-It recovered 4 task blocks where `planlint` recovers 210, its `--` rule
-polarity was inverted against the behaviour of `ctest`, and it exited 0 when it
-parsed nothing. None of its rules survive.
 """
 
 import pathlib
@@ -99,7 +96,6 @@ def test_the_superseded_plan_lint_module_is_absent():
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [
         "__init__.py",
-        # REPO-5. The Python half of the ArtifactResolver.
         "artifacts.py",
         "credential_lint.py",
         "extract_demo_corpus.py",
@@ -110,7 +106,6 @@ def test_the_superseded_plan_lint_module_is_absent():
 
 def test_the_superseded_plan_lint_test_module_is_absent():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
-        # REPO-5. The Python half of the ArtifactResolver.
         "test_artifacts.py",
         "test_credential_lint.py",
         "test_extract_demo_corpus.py",

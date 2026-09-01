@@ -17,9 +17,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.scripts]
-# `planlint` is the installed entry point. The three wrapper scripts the plan
-# names are the same command with a different `--only` set, so the console
-# script is the one form that a fresh clone gets from `pip install .`.
+# `planlint` is the installed entry point. The wrapper scripts are the same
+# command with a different `--only` set, so the console script is the one form
+# that a fresh clone gets from `pip install .`.
 planlint = "planlint.cli:main"
 
 [tool.setuptools]
