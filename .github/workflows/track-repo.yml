@@ -7,7 +7,7 @@
 # therefore declares exactly one job in its own file and adds its steps inside
 # that job.
 #
-# This file exists in ALL SEVEN repositories, because the artifact-boundary
+# This file exists in EVERY tracked repository, because the artifact-boundary
 # lint step runs in every one of them, and a step with no file to live in runs
 # nowhere.
 #
