@@ -113,6 +113,8 @@ def test_the_superseded_plan_lint_module_is_absent():
         "checksum.py",
         # The container header and section table.
         "container.py",
+        # The firmware-CRC cross-check.
+        "crc_crosscheck.py",
         # The DSP56300 disassembler.
         "dsp56k_dis.py",
         "extract_demo_corpus.py",
@@ -122,12 +124,18 @@ def test_the_superseded_plan_lint_module_is_absent():
         "lzo1x.py",
         # The module map generator.
         "modulemap.py",
+        # The `.pch2` parser.
+        "pch2.py",
         # The Windows PE resource reader.
         "pe.py",
         # The Macintosh resource-fork reader.
         "rsrc.py",
         # The descriptor signature scanner.
         "sigscan.py",
+        # The synthesized `.pch2` corpus generator.
+        "synth_pch2.py",
+        # The `.pch2`-to-wire reassembler oracle.
+        "wire_compose.py",
     ]
 
 
@@ -139,6 +147,8 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_checksum.py",
         # The container header and section table.
         "test_container.py",
+        # The firmware-CRC cross-check.
+        "test_crc_crosscheck.py",
         # The DSP56300 disassembler.
         "test_dsp56k_dis.py",
         # The updater resource extraction tests.
@@ -151,8 +161,16 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         # The module map generator.
         "test_modulemap.py",
         "test_packaging.py",
+        # The `.pch2` parser against the synthesized corpus (T0).
+        "test_pch2.py",
+        # The `.pch2` parser against the G2 Demo corpus (T1).
+        "test_pch2_real_corpus.py",
         # The descriptor signature scanner.
         "test_sigscan.py",
+        # The synthesized `.pch2` corpus generator.
+        "test_synth_pch2.py",
+        # The `.pch2`-to-wire reassembler oracle.
+        "test_wire_compose.py",
     ]
 
 
