@@ -65,7 +65,7 @@ jobs:
           pe="fixtures/proto""col/"
           pf="[._]dum""p\b"
           patterns="${pa}|${pb}|${pc}|${pd}|${pe}|${pf}"
-          # The allow-list is the set of jobs the plan places INSIDE the private
+          # The allow-list is the set of jobs that run INSIDE the private
           # repository. That is exactly one workflow file, and it is allow-listed
           # only when the calling repository is the private one.
           allow=""
@@ -89,11 +89,6 @@ jobs:
 
       # THE SKIP DISCIPLINE.
       #
-      #   3. The CI job prints a summary line with the counts: run, passed,
-      #      failed, skipped.
-      #   4. A run that executed zero gated tests is reported as NOT VERIFIED,
-      #      not as PASS. The job's own summary says so in plain words.
-      #
       # "run" counts gated tests that EXECUTED THEIR BODY. A skipped test is not
       # a run test, which is what makes "a run that executed zero gated tests"
       # the condition run == 0. gatedFixture.h in the gearmulator fork carries
@@ -110,7 +105,7 @@ jobs:
       # repository, and this file exists in every repository. Until one
       # does, every repository prints NOT VERIFIED, WHICH IS THE TRUE ANSWER: no
       # gated test has been verified here. A step that printed PASS instead
-      # would be the exact green tick this step exists to prevent.
+      # would be exactly the green tick this verdict exists to prevent.
       #
       # A computed FAIL fails the job: a step that renders a verdict and cannot
       # report one makes a failing suite and a passing suite look the same.
