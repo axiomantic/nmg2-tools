@@ -109,7 +109,15 @@ def test_the_superseded_plan_lint_module_is_absent():
         "__init__.py",
         # The Python half of the ArtifactResolver.
         "artifacts.py",
+        # The container checksum.
+        "checksum.py",
+        # The container header and section table.
+        "container.py",
         "extract_demo_corpus.py",
+        # The CS2 flash image builder.
+        "flashimage.py",
+        # The LZO1X decompressor.
+        "lzo1x.py",
     ]
 
 
@@ -117,7 +125,15 @@ def test_the_superseded_plan_lint_test_module_is_absent():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
         # The Python half of the ArtifactResolver.
         "test_artifacts.py",
+        # The container checksum.
+        "test_checksum.py",
+        # The container header and section table.
+        "test_container.py",
         "test_extract_demo_corpus.py",
+        # The CS2 flash image builder.
+        "test_flashimage.py",
+        # The LZO1X decompressor.
+        "test_lzo1x.py",
         "test_packaging.py",
     ]
 
