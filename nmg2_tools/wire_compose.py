@@ -4,7 +4,7 @@ This module reads a parsed `.pch2` file through :mod:`nmg2_tools.pch2` -- which
 FRAMES objects and decodes NO payload semantics -- and re-emits each object in
 the USB wire framing the firmware's message worker reassembles: one message per
 object, `[1-byte type][2-byte big-endian length][payload]`, followed by the
-PROTO-1 CRC-16/CCITT-XMODEM (polynomial 0x1021, most significant bit first,
+CRC-16/CCITT-XMODEM (polynomial 0x1021, most significant bit first,
 initial value 0, no final exclusive-or) computed over that message's payload
 bytes and stored big-endian.
 
