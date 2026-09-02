@@ -9,11 +9,6 @@ the file UNCHANGED into ``<dest>/corpus/pch2/`` and records, in
 ``<dest>/corpus/pch2/MANIFEST.txt``, the file's path relative to the source
 tree, its size in bytes and its SHA-256 digest. The manifest's first line
 holds the total count of files it records.
-
-This module is a walk-and-copy tool only. It never runs against, reads, or
-writes a real Nord Modular G2 installer image inside this repository's own
-test suite; the test suite drives it against a synthetic directory tree
-that it builds itself.
 """
 
 from __future__ import annotations
