@@ -51,9 +51,8 @@ and IGNORES whatever follows it. Without step 4 a section whose declared
 compressed extent is longer than the stream it holds decodes cleanly and
 passes BOTH checksums, because the compressed checksum is computed over the
 declared extent and therefore covers the junk as well. The check would then be
-unable to fail. The reference decoder in the workspace returns its input cursor
-and asserts the same identity; `nmg2_tools.lzo1x.decompress` returns only the
-bytes, so the cursor is not available here.
+unable to fail. `nmg2_tools.lzo1x.decompress` returns only the bytes, so a
+cursor is not available here.
 
 Step 4 recovers the identity without that cursor. The decompressor stops at the
 FIRST end marker, so no shorter prefix of the stream can decode. The stream
