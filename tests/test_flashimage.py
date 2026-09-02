@@ -450,9 +450,8 @@ def test_the_compressed_length_and_the_trailing_zero_sit_at_their_declared_offse
     cannot pin their own order. A builder that EXCHANGED the compressed length
     with the trailing zero, or the plain checksum with the compressed checksum,
     writes a byte-identical image for every input, so no test anywhere can turn
-    either exchange red. Only a compressor, which this repository does not have
-    and which `pyproject.toml` declares no dependency that could supply, would
-    make the members of either pair differ and make the exchange visible.
+    either exchange red. Only a compressor, which this repository does not have,
+    would make the members of either pair differ and make the exchange visible.
 
     THE READER SIDE OF EACH PAIR IS OBSERVABLE, and that is what this test
     pins. Which BYTE OFFSET of the entry carries which name does not depend on

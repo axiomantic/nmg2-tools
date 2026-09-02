@@ -28,7 +28,7 @@ zero. `nmg2_tools.container` already reads that form: a compressed length of
 zero means the bytes at the file offset are already plain. The reason is plain
 too. `nmg2_tools.lzo1x` decompresses and nothing in this repository compresses,
 so a builder that wrote LZO1X streams would need a compressor this project does
-not have and `pyproject.toml` declares no dependency that could supply one.
+not have.
 
 **A stored image is a valid container and it is not a compressed one.** The
 difference is a boot cost, not a format: L1 pays one LZO1X decompression of
