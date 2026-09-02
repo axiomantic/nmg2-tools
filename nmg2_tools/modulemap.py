@@ -9,8 +9,7 @@ binding: one row per module descriptor.
 
 THE JOIN IS A CHAIN, AND THE ORDER IS LOAD-BEARING.
 
-The chain is stated once, here, and the ``PANL`` ``FileName`` is never a link
-in it:
+The chain, in which the ``PANL`` ``FileName`` is never a link:
 
     descriptor_index  ->  patch_type_id  ->  g2ools_name  ->  compute_symbol
 
