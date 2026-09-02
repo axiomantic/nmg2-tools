@@ -61,9 +61,19 @@ This repository holds no data that Clavia wrote, and it never will.
 The required tests read synthetic test data only. A contributor can run them
 from a fork, and they need no configuration.
 
-Some other tests read a private artifact tree. The environment variable
-`NMG2_ARTIFACTS` gives the path to that tree. When the variable is not set,
-those tests skip and give the reason. They never fail for that reason.
+Some other tests read a private artifact tree. Those trees come in FAMILIES,
+and each family has its own variable, because no one directory holds them all:
+
+| Variable | Family |
+|---|---|
+| `NMG2_ARTIFACTS` | The firmware images, the recovered tables and the patch corpus. |
+| `NMG2_DESCRIPTORS` | The module descriptor and editor panel tables. |
+| `NMG2_INSTALLERS` | The vendor installer images the extractor reads. |
+
+A family never falls back to another family's root. When a family's variable is
+not set, or a file the test declares is not under that family's root, the test
+skips and the reason names the variable and the path. It never fails for that
+reason, and it never resolves a fixture out of a tree it did not name.
 
 ## Licence
 

@@ -9,11 +9,19 @@ The `plan_lint` module that this repository once carried is asserted ABSENT.
 It recovered 4 task blocks where `planlint` recovers 210, its `--` rule
 polarity was inverted against the behaviour of `ctest`, and it exited 0 when it
 parsed nothing. None of its rules survive.
+
+The module and test rosters below are EXACT equalities, not membership checks.
+A file added to `nmg2_tools/` or to `tests/` without a row here is a file no
+one decided to ship.
 """
 
 import pathlib
+import shutil
+import subprocess
 import sys
 import tomllib
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -99,7 +107,7 @@ def test_the_superseded_plan_lint_module_is_absent():
         p.name for p in (ROOT / "nmg2_tools").glob("*.py")
     ) == [
         "__init__.py",
-        # REPO-5. The Python half of the ArtifactResolver.
+        # The Python half of the ArtifactResolver.
         "artifacts.py",
         "extract_demo_corpus.py",
     ]
@@ -107,7 +115,7 @@ def test_the_superseded_plan_lint_module_is_absent():
 
 def test_the_superseded_plan_lint_test_module_is_absent():
     assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
-        # REPO-5. The Python half of the ArtifactResolver.
+        # The Python half of the ArtifactResolver.
         "test_artifacts.py",
         "test_extract_demo_corpus.py",
         "test_packaging.py",
@@ -121,3 +129,36 @@ def test_planlint_is_imported_from_this_repository_and_not_elsewhere():
 
     assert pathlib.Path(planlint.__file__).resolve().parent == ROOT / "planlint"
     assert sys.modules["planlint"].__name__ == "planlint"
+
+
+def tracked_paths():
+    """Every path this repository tracks, or a stated reason there is no answer.
+
+    A missing `git` and a repository that tracks nothing produce the same empty
+    list, which is this project's signature failure mode. Each absence skips
+    with its own reason instead.
+    """
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH, so the tracked file set cannot be read")
+    if not (ROOT / ".git").exists():
+        pytest.skip(f"{ROOT} is not a git checkout, so it tracks nothing to read")
+    listing = subprocess.run(
+        [git, "ls-files", "-z"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [path for path in listing.split("\0") if path]
+
+
+def test_no_generated_metadata_tree_is_tracked():
+    """`setuptools` writes `*.egg-info/` and rewrites it on every build. Under
+    version control it disagrees with the tree between builds and nothing
+    notices, because a `grep -r` over this repository finds no reader for any
+    file in it.
+    """
+    tracked = tracked_paths()
+    assert "pyproject.toml" in tracked  # an empty listing makes the next line pass
+    assert [path for path in tracked if ".egg-info/" in path] == []
