@@ -2,19 +2,19 @@
 # one.
 #
 # THIS MATRIX IS T0 ONLY, AND IT ALWAYS WILL BE. No T1 job, no T2 job and no
-# integer-comparison job runs here. All three need a firmware byte, and no
+# integer-comparison job runs here. All of them need a firmware byte, and no
 # public repository may hold a credential that could fetch one. Those jobs run
 # inside the private artifact repository instead. T0 only is what lets every job
 # here run on a pull request from a fork.
 #
-# THIS REPOSITORY IS PYTHON AND IT USES NO CMAKE. The four required contexts
+# THIS REPOSITORY IS PYTHON AND IT USES NO CMAKE. The required contexts
 # carry the same names as in the CMake repositories, so the branch protection
-# rule reads one set of names everywhere. The fourth job is the strict analogue
+# rule reads one set of names everywhere. The strict job is the analogue
 # of the sanitizer build: Python has no address sanitizer, and `-X dev` with
 # warnings promoted to errors is the equivalent that can actually fail.
 
 # CI is manual. Automatic push/pull_request runs were removed because the
-# three-OS matrix cost hours of runner time per push. Start a run from the
+# matrix cost hours of runner time per push. Start a run from the
 # Actions tab or with `gh workflow run`.
 
 name: CI
@@ -40,7 +40,7 @@ jobs:
           # cancelled job gives a lower bound and not a duration. That run
           # measures a CMake build in another repository. No equivalent
           # measurement exists for this repository's own build.
-          # Uncomment the two lines below to restore the macOS job.
+          # Uncomment the lines below to restore the macOS job.
           # - target: macos-arm64
           #   runs-on: macos-14
           - target: linux-x86-64
@@ -94,6 +94,52 @@ jobs:
 
       - name: Run the T0 suite in development mode with warnings as errors
         run: python -X dev -W error -m pytest tests -q
+
+  lint:
+    # Two commit messages assert "ruff clean" and nothing ever read that claim.
+    # This job is what reads it.
+    #
+    # The gate is a DIFF against `.ruff-baseline.txt`, not a finding count and
+    # not a pass/fail on "any findings at all". Fixing the findings the tree
+    # already has is not this job's business; catching the next one is. A diff
+    # also fails when a finding is FIXED and the baseline is not refreshed, so
+    # the file cannot quietly drift out of agreement with the tree.
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # `.ruff-version` is the single pin. `scripts/ruff-baseline.sh` reads the
+      # same file, so this step cannot install a version the script did not
+      # expect.
+      - name: Install the pinned ruff
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < .ruff-version)
+          echo "pinned ruff: ${version}"
+          python -m pip install --upgrade pip "ruff==${version}"
+          ruff --version
+
+      - name: Assert that the tree still matches the ruff baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUFF_BIN=ruff scripts/ruff-baseline.sh > /tmp/ruff-baseline.actual
+          if ! diff -u .ruff-baseline.txt /tmp/ruff-baseline.actual; then
+            echo
+            echo "FAILURE: ruff findings no longer match .ruff-baseline.txt."
+            echo "A '+' line above is a finding this tree did not have before."
+            echo "A '-' line is one that was fixed without refreshing the file."
+            echo "Refresh with: scripts/ruff-baseline.sh > .ruff-baseline.txt"
+            exit 1
+          fi
+          echo "ruff findings match the baseline."
 
   track-repo:
     uses: ./.github/workflows/track-repo.yml
