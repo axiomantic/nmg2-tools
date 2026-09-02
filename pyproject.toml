@@ -42,9 +42,8 @@ markers = [
 filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]
 
 [tool.ruff]
-# `ruff clean` was asserted in two commit messages (fbbff97, 8adb54d) and no
-# mechanism read it. This section and the `lint` job in `.github/workflows/ci.yml`
-# are that mechanism.
+# A "ruff clean" claim means nothing unless something reads it. This section and
+# the `lint` job in `.github/workflows/ci.yml` are what reads it.
 #
 # THE VERSION IS PART OF THE CONFIGURATION. The same unmodified tree reports 1
 # finding under ruff 0.6.9 and 0.12.0, and 275 under 0.16.5, because 0.16 turned
@@ -61,9 +60,8 @@ target-version = "py311"
 preview = true
 explicit-preview-rules = true
 
-# Chosen on merit, not to reach a number. This set reports 162 findings on the
-# tree that introduced it, against 51 non-ISC004 findings from ruff 0.16.5's own
-# defaults: it is stricter than the defaults on real code, not weaker.
+# Chosen on merit, not to reach a number: stricter than the tool's own defaults
+# on real code, not weaker.
 select = [
     "E4", "E7", "E9",  # pycodestyle errors. E1/E2/E3 and E501 are formatter
                        # territory and this repository runs no formatter.
@@ -97,8 +95,7 @@ ignore = [
 
 # Rule groups deliberately NOT selected, and why:
 #   PT   - pytest style. The suite is `unittest`-based by choice, and PT009
-#          alone would report 801 findings demanding a rewrite of every
-#          assertion.
+#          would demand a rewrite of every assertion.
 #   PTH  - `pathlib` migration. A large mechanical diff with no defect behind it.
 #   T20  - `print`. It is how the console scripts emit their reports.
 #   TC   - moving imports into `TYPE_CHECKING` blocks. Cosmetic here.
