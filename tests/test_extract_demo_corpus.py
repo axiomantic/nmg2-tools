@@ -40,7 +40,8 @@ def test_manifest_first_line_agrees_with_count(tmp_path):
 
 
 def test_manifest_is_written_beside_the_copied_patches(tmp_path):
-    """`REGISTER.md` and `register.tsv` both name `corpus/pch2/MANIFEST.txt`."""
+    """`extract` documents `<dest>/corpus/pch2/MANIFEST.txt` as the path it
+    writes and builds the path there; this pins the returned value to it."""
     source = _make_source_tree(tmp_path)
     dest = tmp_path / "out"
 
@@ -48,8 +49,10 @@ def test_manifest_is_written_beside_the_copied_patches(tmp_path):
 
     assert manifest_path == dest / "corpus" / "pch2" / "MANIFEST.txt"
     assert manifest_path.is_file()
-    # The old location must not be written as well, or the register row for
-    # `corpus/pch2/MANIFEST.txt` would leave a second, unregistered manifest.
+    # The negative half is what makes the positive half mean anything. A
+    # regression that wrote BOTH locations still returns the documented path
+    # and still passes the assertion above, leaving a stale second manifest
+    # that only this line catches.
     assert not (dest / "corpus" / "MANIFEST.txt").exists()
 
 

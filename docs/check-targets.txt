@@ -1,16 +1,12 @@
 # This file is the repository-side declaration of what this repository's
-# own Check: lines target, per the plan document's plan_lint.py
-# --check-targets condition (PLAN-CHECKTARGETS).
+# own Check: lines target.
 #
 # One check target per line. Blank lines and lines starting with "#" are
 # ignored. A line is either a ctest test name or a "pytest <path>"
 # invocation.
 
-pytest tests/test_plan_lint.py
-pytest tests/test_payload_lint.py
-pytest tests/test_submodule_lint.py
-pytest tests/test_credential_lint.py
-pytest tests/test_extract_demo_corpus.py
-
-# REPO-5, the Python half of the ArtifactResolver.
 pytest tests/test_artifacts.py
+pytest tests/test_extract_demo_corpus.py
+pytest tests/test_packaging.py
+pytest tests/test_pch2.py
+pytest tests/test_pch2_real_corpus.py

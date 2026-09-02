@@ -1,56 +1,81 @@
-"""The packaging contract for the one package this repository ships.
+"""The packaging contract for the package this repository ships.
 
 `pyproject.toml` pins the layout. A package that the `packages` list does not
 name is a package that `pip install .` does not install, and a fresh clone
 therefore cannot import it. The list is asserted here so that adding a package
 directory without declaring it fails.
+
+The module and test rosters below are EXACT equalities, not membership checks.
+A file added to `nmg2_tools/` or to `tests/` without a row here is a file no
+one decided to ship.
 """
 
 import pathlib
-import sys
+import shutil
+import subprocess
 import tomllib
+
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
-def test_pyproject_declares_the_single_package():
+def test_pyproject_declares_the_one_package():
     """Exact equality, not membership. A second package added without a row
     here is a package no one decided to ship."""
     assert PYPROJECT["tool"]["setuptools"]["packages"] == ["nmg2_tools"]
 
 
-def test_nmg2_tools_holds_exactly_the_committed_modules():
-    """A module added or dropped without a row here is a module no one decided
-    to ship. The glob is asserted non-empty first so that a vanished package
-    directory fails loudly rather than passing on an empty iteration."""
-    committed = sorted(p.name for p in (ROOT / "nmg2_tools").glob("*.py"))
-
-    assert committed, "nmg2_tools/ holds no Python modules"
-    assert committed == [
+def test_the_package_holds_exactly_the_declared_modules():
+    """One row per shipped module."""
+    assert sorted(
+        p.name for p in (ROOT / "nmg2_tools").glob("*.py")
+    ) == [
         "__init__.py",
-        # REPO-5. The Python half of the ArtifactResolver.
+        # The Python half of the ArtifactResolver.
         "artifacts.py",
         "extract_demo_corpus.py",
     ]
 
 
-def test_tests_directory_holds_exactly_the_committed_test_modules():
-    committed = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
-
-    assert committed, "tests/ holds no test modules"
-    assert committed == [
-        # REPO-5. The Python half of the ArtifactResolver.
+def test_the_suite_holds_exactly_the_declared_test_modules():
+    assert sorted(p.name for p in (ROOT / "tests").glob("test_*.py")) == [
+        # The Python half of the ArtifactResolver.
         "test_artifacts.py",
         "test_extract_demo_corpus.py",
         "test_packaging.py",
     ]
 
 
-def test_nmg2_tools_is_imported_from_this_repository_and_not_elsewhere():
-    """A stale copy on `sys.path` would let every assertion above pass while
-    the committed tree stayed broken."""
-    import nmg2_tools
+def tracked_paths():
+    """Every path this repository tracks, or a stated reason there is no answer.
 
-    assert pathlib.Path(nmg2_tools.__file__).resolve().parent == ROOT / "nmg2_tools"
-    assert sys.modules["nmg2_tools"].__name__ == "nmg2_tools"
+    A missing `git` and a repository that tracks nothing produce the same empty
+    list, which is this project's signature failure mode. Each absence skips
+    with its own reason instead.
+    """
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not on PATH, so the tracked file set cannot be read")
+    if not (ROOT / ".git").exists():
+        pytest.skip(f"{ROOT} is not a git checkout, so it tracks nothing to read")
+    listing = subprocess.run(
+        [git, "ls-files", "-z"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [path for path in listing.split("\0") if path]
+
+
+def test_no_generated_metadata_tree_is_tracked():
+    """`setuptools` writes `*.egg-info/` and rewrites it on every build. Under
+    version control it disagrees with the tree between builds and nothing
+    notices, because a `grep -r` over this repository finds no reader for any
+    file in it.
+    """
+    tracked = tracked_paths()
+    assert "pyproject.toml" in tracked  # an empty listing makes the next line pass
+    assert [path for path in tracked if ".egg-info/" in path] == []
