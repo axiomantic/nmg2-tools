@@ -47,16 +47,16 @@ markers = [
 filterwarnings = ["error::pytest.PytestUnknownMarkWarning"]
 
 [tool.ruff]
-# A "ruff clean" claim means nothing unless something reads it. This section and
-# the `lint` job in `.github/workflows/ci.yml` are what reads it.
+# A "ruff clean" claim means nothing unless something reads it. This section is
+# what a reader runs ruff against; no CI job reads it.
 #
 # THE VERSION IS PART OF THE CONFIGURATION. The same unmodified tree reports 1
 # finding under ruff 0.6.9 and 0.12.0, and 275 under 0.16.5, because 0.16 turned
 # on a much wider default rule set. A claim about "ruff" that does not name a
 # version is therefore not a claim about anything. `select` below is written out
 # in full for the same reason: it pins the rule set to this file instead of to
-# whichever defaults the installed ruff happens to ship. CI installs the pinned
-# version; see `RUFF_VERSION` in the workflow.
+# whichever defaults the installed ruff happens to ship. Name the version you
+# ran alongside any finding count.
 target-version = "py311"
 
 [tool.ruff.lint]

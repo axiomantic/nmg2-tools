@@ -1,0 +1,12 @@
+# Generated trees. `setuptools` rewrites `*.egg-info/` on every build, so under
+# version control it disagrees with the working tree between builds and nothing
+# notices. The rest are caches and a local environment.
+#
+# Every entry here was ignored only by a contributor's GLOBAL ignore file or by
+# nothing at all, which is why one of them reached a commit.
+__pycache__/
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+.venv/
