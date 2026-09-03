@@ -79,6 +79,76 @@ module_map.coverage	public	axiomantic/gearmulator	pending=no file of this name i
 unclaimed_compute.count	public	axiomantic/gearmulator	pending=no file of this name in any of the seven repositories, and no commit in any of them has ever touched one; written in a91909d, and no task is known to create it
 artifacts.sha256	public	axiomantic/nmg2-tools,axiomantic/gearmulator
 golden.timebase	public	axiomantic/nmg2-tools,axiomantic/gearmulator
+# AMENDED 2026-09-03: THE THREE RAW `.log` ROWS THIS BLOCK ARGUED FOR ARE GONE,
+# AND THE RULING THAT PUT THEM HERE IS REVERSED. `gearmulator` commit
+# 4f396d67b9f7374fcd729e0edadc6bcfcc3dea69, "Drop three raw t1_boot logs the
+# ignore rule missed", 2026-09-01, untracked
+# `artifacts/boot/t1_boot_head_4fd2fa79.log`,
+# `artifacts/boot/t1_boot_pre_sch35.log` and
+# `artifacts/boot/t1_boot_post_sch35_jit203.log` -- 114,611 lines -- and added
+# the `.gitignore` rule that had missed them. The three rows then named absent
+# paths, so clause 6 answered for them, and they go for the reason 6debc54d
+# gave when it removed the Rhodes Chroma row: THE ROW GOES IN THE SAME BREATH AS
+# THE FILE.
+#
+# WHAT IS WITHDRAWN AND WHAT IS NOT, paragraph by paragraph. The paragraph
+# beginning "THEY WERE LEFT IN PLACE ON PURPOSE" and the paragraph beginning
+# "The two `allow-listed` rows" are WITHDRAWN 2026-09-03: both are about the
+# three raw `.log` files and about nothing else. They are QUOTED WHOLE RATHER
+# THAN DELETED, because a ruling that was made, evidenced, and then overturned
+# is worth more on the record than the rows it produced; deleting the argument
+# with the rows would leave no trace that the question was ever decided. The
+# first paragraph STANDS -- the case against an `artifacts/boot/` directory row
+# is untouched -- and so does the `public` provenance paragraph, whose scan
+# covered all fourteen tracked files, eleven of which are still registered
+# below. Two counts in the standing text are now stale by exactly these three:
+# read "eleven summaries and three raw CTest transcripts" as the eleven
+# summaries alone, and "FOURTEEN EXACT-PATH ROWS" as ELEVEN.
+#
+# THE WITHDRAWN RULING PREDICTED ITS OWN FAILURE MODE, AND IT WAS RIGHT ABOUT
+# IT. It says that leaving these files unregistered "leaves this guard
+# permanently red in `gearmulator`, and a guard that is always red stops being
+# read". Untracking the files produced that exact state from the other
+# direction. From 2026-09-01 to 2026-09-03 the register named three paths that
+# `main` has never carried and that no branch under review carries either;
+# `payload_lint` failed on all twelve open pull requests that run it, and nobody
+# read it for two days. The prediction was about what a standing red costs, and
+# the standing red it warned of is what happened -- to the rows themselves.
+#
+# THE FILES ARE STILL ON TWENTY-TWO OLDER BRANCHES, AND THIS BLOCK TAKES THE
+# OTHER FINDING RATHER THAN PRETEND THERE IS NONE. `4f396d67` is reachable from
+# `g2/emulator-core` and `g2/pin-override-guard` only. TWENTY-TWO branches that
+# predate it still track all three files: `g2/stack-08` through `g2/stack-18`,
+# `g2/plg-9-latency`, `g2/plg-16-handoff-load`, `g2/proto-8`,
+# `g2/proto-13-framing`, `g2/register-callback-timer`, `g2/stub-signatures-18`,
+# `g2/t0-test-registration`, `gear/agents-comment-rule`, `gear/lint-pr-trigger`,
+# `gear/pin-lint-current` and `archive/main-2026-08-27` [MEASURED 2026-09-03;
+# `git cat-file -e <ref>:<path>` for each of the three paths over each of the
+# fifty non-`preserve` remote branches; one unit is one BRANCH carrying all
+# three]. With the rows gone, a run against one of those twenty-two reports
+# PAYLOAD-UNREGISTERED for the three FILES instead of REGISTER-UNMATCHED for the
+# three ROWS. THAT IS THE CORRECT FINDING AND NOT A REGRESSION: on those
+# branches the files really are there and really are unclassified, which is
+# exactly what clause 2 is for, and not one of the twenty-two is under review.
+# All twenty-two already fail this lint without these three rows in it, for two
+# reasons that split them 18 to 4: eighteen carry
+# `source/nord/g2/g2Lib/test/fixtures/protocol/synth_editor_sequence.txt` and so
+# report PAYLOAD-REGISTER-PENDING-SATISFIED, and `g2/stack-08` through
+# `g2/stack-11` lack `artifacts/boot/summaries/PRE-REPAIR-NOTICE.txt` and so
+# report PAYLOAD-REGISTER-UNMATCHED for that row [MEASURED 2026-09-03; both
+# reasons confirmed by a full run on `g2/stack-18` and `g2/stack-08`, the rest
+# by the presence test the two runs establish]. The trade is three findings on
+# twenty-two branches that are red either way, against zero findings on the five
+# pull requests these rows were the whole of.
+#
+# WHAT BECOMES OF THE CITATIONS. `docs/plans/2026-08-04-nmg2-emulator-impl.md`
+# in `nmg2-artifacts` cites `t1_boot_head_4fd2fa79.log` at row W3-361 and
+# `t1_boot_pre_sch35.log` at row W3-355. A register row never protected those
+# citations and its removal does not rot them; they are redated in place, to say
+# that the measurement was read from a file untracked on 2026-09-01. A dated
+# historical reference stays true permanently. A present-tense one stopped being
+# true on 2026-09-01.
+#
 # `gearmulator`'s own recorded boot runs: eleven summaries and three raw CTest
 # transcripts of the `t1_boot` test. FOURTEEN EXACT-PATH ROWS AND NOT AN
 # `artifacts/boot/` DIRECTORY ROW, on the reasoning the `.ruff-*` rows above
@@ -114,9 +184,6 @@ golden.timebase	public	axiomantic/nmg2-tools,axiomantic/gearmulator
 # `.log` is 40,260 bytes and gets a plain `public` row ON PURPOSE: it is under
 # the ceiling, so if it ever grows past 65,536 clause 3 goes red and somebody
 # decides again. Sizes MEASURED 2026-08-28 by `stat -f%z` over the tracked tree.
-artifacts/boot/t1_boot_head_4fd2fa79.log	public allow-listed	axiomantic/gearmulator
-artifacts/boot/t1_boot_pre_sch35.log	public allow-listed	axiomantic/gearmulator
-artifacts/boot/t1_boot_post_sch35_jit203.log	public	axiomantic/gearmulator
 artifacts/boot/summaries/PRE-REPAIR-NOTICE.txt	public	axiomantic/gearmulator
 artifacts/boot/summaries/t1_boot_bannerdump.txt	public	axiomantic/gearmulator
 artifacts/boot/summaries/t1_boot_brd32_preinit.txt	public	axiomantic/gearmulator
