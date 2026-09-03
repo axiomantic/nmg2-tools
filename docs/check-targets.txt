@@ -12,5 +12,4 @@ pytest tests/test_submodule_lint.py
 pytest tests/test_credential_lint.py
 pytest tests/test_extract_demo_corpus.py
 
-# REPO-5, the Python half of the ArtifactResolver.
 pytest tests/test_artifacts.py
