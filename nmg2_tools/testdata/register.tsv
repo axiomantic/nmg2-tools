@@ -635,28 +635,42 @@ tests/abi_smoke_symbols.inc	public	axiomantic/mcf5307
 # complete record rather than a sample, and a sampled recovery record is not one.
 #
 # The other 22 are under the ceiling and take a plain `private`.
+#
+# AMENDED SAME DAY: EVERY ROW CARRIES `pending=`, AND THE FIRST ATTEMPT WITHOUT IT
+# TURNED FOUR PULL REQUESTS RED. A register row is read against EVERY branch of its
+# home repository, but `findings/` exists on ONE branch. Rows without `pending=`
+# therefore reported PAYLOAD-REGISTER-UNMATCHED on every other branch -- measured: 24
+# findings on `nmg2-artifacts` #1, #5 and #8 within minutes of the push. That is the
+# same defect REPO-30 records, caused this time by adding the rows rather than by
+# leaving stale ones.
+#
+# `pending=` is the mechanism built for exactly this and it SELF-EXPIRES: on the
+# branch where the files do exist the rows report PAYLOAD-REGISTER-PENDING-SATISFIED,
+# which is the guard asking for the marker to be removed once the corpus reaches the
+# default branch. That residual is on `findings/corpus-2026-09-03`, which carries no
+# pull request.
 
-findings/2026-08-28-execwindow-scaffold.patch	private	axiomantic/nmg2-artifacts
-findings/2026-08-28-ghidra-xrefs.txt	private	axiomantic/nmg2-artifacts
-findings/2026-08-28-ringprobe-raw-200k.txt	private	axiomantic/nmg2-artifacts
-findings/2026-08-28-ringprobe-scaffold.patch	private	axiomantic/nmg2-artifacts
-findings/artifacts/branch-heads-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/branch-tips.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/commit2pid.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/commit2subj.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/patch-ids.tsv	private allow-listed	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/pr-map.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/pre-collapse-record.tsv	private allow-listed	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/stack18-files.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/target-patchids.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/union-commits.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/collapse-2026-09-01/union-patchids.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/gearmulator-band-manifest.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/gearmulator-uncommitted-2026-09-01/PROVENANCE.txt	private	axiomantic/nmg2-artifacts
-findings/artifacts/gearmulator-uncommitted-2026-09-01/modified-tracked.diff	private	axiomantic/nmg2-artifacts
-findings/artifacts/pr-topology-2026-09-02-post-cull.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/pr-topology-2026-09-03-post-repo21-24.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/pr-topology-2026-09-03b-post-followup-push.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/pr-topology-2026-09-03c-post-residue-cull.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/pr-topology-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts
-findings/artifacts/preserve-inventory.txt	private	axiomantic/nmg2-artifacts
+findings/2026-08-28-execwindow-scaffold.patch	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/2026-08-28-ghidra-xrefs.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/2026-08-28-ringprobe-raw-200k.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/2026-08-28-ringprobe-scaffold.patch	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/branch-heads-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/branch-tips.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/commit2pid.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/commit2subj.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/patch-ids.tsv	private allow-listed	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/pr-map.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/pre-collapse-record.tsv	private allow-listed	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/stack18-files.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/target-patchids.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/union-commits.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/collapse-2026-09-01/union-patchids.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/gearmulator-band-manifest.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/gearmulator-uncommitted-2026-09-01/PROVENANCE.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/gearmulator-uncommitted-2026-09-01/modified-tracked.diff	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/pr-topology-2026-09-02-post-cull.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/pr-topology-2026-09-03-post-repo21-24.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/pr-topology-2026-09-03b-post-followup-push.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/pr-topology-2026-09-03c-post-residue-cull.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/pr-topology-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
+findings/artifacts/preserve-inventory.txt	private	axiomantic/nmg2-artifacts	pending=the corpus lands on findings/corpus-2026-09-03 and is on no other branch of this repository
