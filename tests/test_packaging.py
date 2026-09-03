@@ -39,11 +39,21 @@ def test_the_package_holds_exactly_the_declared_modules():
         "checksum.py",
         # The container header and section table.
         "container.py",
+        # The DSP56300 disassembler.
+        "dsp56k_dis.py",
         "extract_demo_corpus.py",
         # The CS2 flash image builder.
         "flashimage.py",
         # The LZO1X decompressor.
         "lzo1x.py",
+        # The module map generator.
+        "modulemap.py",
+        # The Windows PE resource reader.
+        "pe.py",
+        # The Macintosh resource-fork reader.
+        "rsrc.py",
+        # The descriptor signature scanner.
+        "sigscan.py",
     ]
 
 
@@ -55,12 +65,20 @@ def test_the_suite_holds_exactly_the_declared_test_modules():
         "test_checksum.py",
         # The container header and section table.
         "test_container.py",
+        # The DSP56300 disassembler.
+        "test_dsp56k_dis.py",
+        # The updater resource extraction tests.
+        "test_extract.py",
         "test_extract_demo_corpus.py",
         # The CS2 flash image builder.
         "test_flashimage.py",
         # The LZO1X decompressor.
         "test_lzo1x.py",
+        # The module map generator.
+        "test_modulemap.py",
         "test_packaging.py",
+        # The descriptor signature scanner.
+        "test_sigscan.py",
     ]
 
 
