@@ -29,7 +29,6 @@ def test_nmg2_tools_holds_exactly_the_committed_modules():
     assert committed, "nmg2_tools/ holds no Python modules"
     assert committed == [
         "__init__.py",
-        # REPO-5. The Python half of the ArtifactResolver.
         "artifacts.py",
         "extract_demo_corpus.py",
     ]
@@ -40,7 +39,6 @@ def test_tests_directory_holds_exactly_the_committed_test_modules():
 
     assert committed, "tests/ holds no test modules"
     assert committed == [
-        # REPO-5. The Python half of the ArtifactResolver.
         "test_artifacts.py",
         "test_extract_demo_corpus.py",
         "test_packaging.py",
