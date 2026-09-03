@@ -619,3 +619,44 @@ tests/abi_smoke_symbols.inc	public	axiomantic/mcf5307
 # ruling: "Three raw logs predate this convention and stay tracked." A row here
 # would decide the size of two ~2.5 MB logs on this pass's authority, and
 # untracking them would rot a live citation. Neither is this pass's to make.
+
+# THE MEASUREMENT CORPUS, REGISTERED 2026-09-03. `findings/` holds this project's
+# verification suite, its tool-traps record, and four directories rescued from
+# near-loss. It lived in a single uncontrolled copy on one disk, outside version
+# control, with no remote and no entry in `docs/BACKUPS.md` -- the material that
+# makes every other measurement here reproducible was the least durable thing in
+# the project. It is now committed to `axiomantic/nmg2-artifacts`, which is
+# PRIVATE, so every row below is `private`.
+#
+# TWO ROWS ARE `allow-listed` AND THAT IS A DECISION, NOT AN OVERSIGHT. The size
+# ceiling is 65,536 bytes. `patch-ids.tsv` and `pre-collapse-record.tsv` are the
+# gearmulator collapse's own record -- a 5,140-row patch-id map and the
+# pre-collapse state of 309 commits. They exceed the ceiling because they are a
+# complete record rather than a sample, and a sampled recovery record is not one.
+#
+# The other 22 are under the ceiling and take a plain `private`.
+
+findings/2026-08-28-execwindow-scaffold.patch	private	axiomantic/nmg2-artifacts
+findings/2026-08-28-ghidra-xrefs.txt	private	axiomantic/nmg2-artifacts
+findings/2026-08-28-ringprobe-raw-200k.txt	private	axiomantic/nmg2-artifacts
+findings/2026-08-28-ringprobe-scaffold.patch	private	axiomantic/nmg2-artifacts
+findings/artifacts/branch-heads-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/branch-tips.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/commit2pid.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/commit2subj.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/patch-ids.tsv	private allow-listed	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/pr-map.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/pre-collapse-record.tsv	private allow-listed	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/stack18-files.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/target-patchids.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/union-commits.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/collapse-2026-09-01/union-patchids.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/gearmulator-band-manifest.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/gearmulator-uncommitted-2026-09-01/PROVENANCE.txt	private	axiomantic/nmg2-artifacts
+findings/artifacts/gearmulator-uncommitted-2026-09-01/modified-tracked.diff	private	axiomantic/nmg2-artifacts
+findings/artifacts/pr-topology-2026-09-02-post-cull.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/pr-topology-2026-09-03-post-repo21-24.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/pr-topology-2026-09-03b-post-followup-push.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/pr-topology-2026-09-03c-post-residue-cull.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/pr-topology-before-rebase-2026-09-01.tsv	private	axiomantic/nmg2-artifacts
+findings/artifacts/preserve-inventory.txt	private	axiomantic/nmg2-artifacts
