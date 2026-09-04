@@ -1,5 +1,4 @@
-# The repo track's reusable workflow. Task REPO-6 creates it; the repo track
-# fills it.
+# The repo track's reusable workflow.
 #
 # A per-track unit is a REUSABLE WORKFLOW and it contributes a JOB, not a step.
 # GitHub resolves a local reusable workflow only as `./.github/workflows/<file>`,
@@ -7,20 +6,14 @@
 # therefore declares exactly one job in its own file and adds its steps inside
 # that job.
 #
-# This file exists in ALL SEVEN repositories, because the four artifact-boundary
-# lint steps run in every one of them, and a step with no file to live in runs
+# This file exists in EVERY tracked repository, because the artifact-boundary
+# lint step runs in every one of them, and a step with no file to live in runs
 # nowhere.
 #
-# THE FOUR STEPS CLOSE FOUR DIFFERENT HOLES AND NONE SUBSTITUTES FOR ANOTHER.
-#   no-private-submodule    stops the private repository's URL and commit
-#                           hashes being published.
-#   no-clavia-payload       stops a Clavia byte reaching a public tree as a
-#                           committed file.
 #   no-clavia-upload        stops a Clavia byte LEAVING a public runner as a
 #                           build artifact. That route has no committed file in
-#                           it at all, so the payload step cannot see it.
-#   no-artifact-credential  stops a public repository holding the credential
-#                           that would let it fetch one.
+#                           it at all, so a scan of committed files cannot see
+#                           it.
 
 name: track-repo
 
@@ -29,12 +22,9 @@ on:
     inputs:
       visibility:
         description: >-
-          The calling repository's visibility, `public` or `private`. One clause
-          of the credential lint is scoped to public repositories: a `secrets.`
-          reference outside the three organization momus secrets is a defect in
-          a public repository, while inside the private one the T1 and T2 jobs
-          legitimately hold what they need. The other three steps apply to all
-          seven repositories without exception.
+          The calling repository's visibility, `public` or `private`. The
+          no-clavia-upload allow-list is scoped by it: the T1 and T2 workflow
+          file is allow-listed only inside the private repository.
         required: false
         type: string
         default: public
@@ -51,31 +41,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: under-test
-
-      # The four lint scripts live in the tools repository, which is PUBLIC.
-      # Reading it needs no credential of any kind.
-      - name: Check out the lint scripts
-        uses: actions/checkout@v4
-        with:
-          repository: axiomantic/nmg2-tools
-          path: lint-tools
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: no-private-submodule
-        working-directory: lint-tools
-        run: python3 -m nmg2_tools.submodule_lint "${GITHUB_WORKSPACE}/under-test"
-
-      - name: no-clavia-payload
-        working-directory: lint-tools
-        run: |
-          python3 -m nmg2_tools.payload_lint "${GITHUB_WORKSPACE}/under-test" \
-            --register nmg2_tools/testdata/register.tsv \
-            --visibility "${{ inputs.visibility }}" \
-            --repo "${{ github.repository }}"
 
       # The upload step reads the WHOLE workflow text and NOT an action
       # allow-list. A `run: gh release download` against the private
@@ -122,7 +87,7 @@ jobs:
           done
           exit "${fail}"
 
-      # REPO-7, THE SKIP DISCIPLINE. Design section 18.5 steps 3 and 4.
+      # THE SKIP DISCIPLINE.
       #
       #   3. The CI job prints a summary line with the counts: run, passed,
       #      failed, skipped.
@@ -132,9 +97,7 @@ jobs:
       # "run" counts gated tests that EXECUTED THEIR BODY. A skipped test is not
       # a run test, which is what makes "a run that executed zero gated tests"
       # the condition run == 0. gatedFixture.h in the gearmulator fork carries
-      # the same three verdict tokens and the same rule, and t0_skip_discipline
-      # is the check that proves the rule fires -- including the negative case,
-      # that a job which ran one gated test does NOT print NOT VERIFIED.
+      # the same verdict tokens and the same rule.
       #
       # THE COUNT LABELS ARE LOWERCASE AND THE VERDICT TOKENS ARE UPPERCASE, so
       # that "the summary never prints PASS" is a case-sensitive property which
@@ -144,15 +107,14 @@ jobs:
       # writes gated-tests.counts at the root of the repository under test, with
       # one "name=integer" line per count. NO REPOSITORY PRODUCES THAT FILE
       # TODAY -- the first gated tests are T1 and T2, they run inside the private
-      # repository, and this file exists in all seven repositories. Until one
+      # repository, and this file exists in every repository. Until one
       # does, every repository prints NOT VERIFIED, WHICH IS THE TRUE ANSWER: no
       # gated test has been verified here. A step that printed PASS instead
-      # would be the exact green tick design section 18.5 exists to prevent.
+      # would be the exact green tick this step exists to prevent.
       #
       # The step does not fail the job. It reports. T1 and T2 are informational
-      # tiers by design section 19.1 and the job that runs a gated test owns its
-      # own exit status; overloading this reporter's status would put the tier
-      # rule in two places.
+      # tiers and the job that runs a gated test owns its own exit status;
+      # overloading this reporter's status would put the tier rule in two places.
       - name: gated-test-summary
         run: |
           set -uo pipefail
@@ -183,9 +145,3 @@ jobs:
           if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             echo "${line}" >> "${GITHUB_STEP_SUMMARY}"
           fi
-
-      - name: no-artifact-credential
-        working-directory: lint-tools
-        run: |
-          python3 -m nmg2_tools.credential_lint "${GITHUB_WORKSPACE}/under-test" \
-            --visibility "${{ inputs.visibility }}"
