@@ -106,8 +106,6 @@ def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
 
 
 def test_never_raises(monkeypatch, tmp_path):
-    """The resolver never throws. The cases below are the
-    inputs most likely to make a naive implementation raise."""
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
     # hold one, so no caller can present that input and a case for it would test
     # the test harness rather than the module.
@@ -134,9 +132,6 @@ def test_never_raises(monkeypatch, tmp_path):
 
 
 def test_an_existing_directory_resolves(tmp_path, monkeypatch):
-    """The negative case. Every counter a test asserts to be
-    zero needs a companion case that drives it above zero. Without this, all of
-    the assertions above would hold for a resolver that always fails."""
     monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
 
     directory, why = resolve_artifacts()
