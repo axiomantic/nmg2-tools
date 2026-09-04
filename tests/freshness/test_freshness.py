@@ -17,8 +17,8 @@ The KNOWN POSITIVE and the KNOWN NEGATIVE are carried by
 `test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only_it`:
 two `count` pins in one note, running the SAME command over the SAME population
 through the SAME resolver, one whose figure has moved and one whose figure has
-not. Its subject is a plan fixture COMMITTED TO THIS REPOSITORY, so the pair
-states a fact this repository controls.
+not. Its subject is a fixture repository COMMITTED TO THIS REPOSITORY, so the
+pair states a fact this repository controls.
 
 The real-corpus tests at the bottom are informational and skip when the corpus
 is absent. None of them asserts that a document outside this repository is in a
@@ -887,27 +887,25 @@ def test_the_cli_exits_one_when_check_remotes_finds_a_commit_on_no_remote(
 # whoever left a wrong document alone. A test may only assert a state its own
 # repository controls.
 #
-# The command is a real `planlint` invocation with a `cd`, a module run, a pipe
-# and a `sed`, not an `echo`: the resolver has to survive the shape a pin
-# actually takes in a note.
+# The command is a real lint invocation with a `cd`, a module run, a redirect,
+# a pipe and a `sed`, not an `echo`: the resolver has to survive the shape a pin
+# actually takes in a note. `submodule_lint` writes its findings to stderr, so
+# the redirect is part of the shape a real pin over it must carry.
 
-FIXTURE_PLAN = (
-    ROOT / "tests" / "planlint" / "fixtures"
-    / "neg_structure_table_row_column_count.md"
-)
+FIXTURE_REPO = ROOT / "tests" / "fixtures" / "repo_public_bad"
 
-# The figure the fixture plan yields, as a literal. Deriving it here by running
-# the same command the pin runs would compare the tool against itself and assert
-# nothing. The fixture is committed, so this figure moves only when somebody
-# edits the fixture — and then this test is the thing that says so.
-FIXTURE_STRUCTURE_FINDINGS = 2
+# The figure the fixture repository yields, as a literal. Deriving it here by
+# running the same command the pin runs would compare the tool against itself
+# and assert nothing. The fixture is committed, so this figure moves only when
+# somebody edits the fixture — and then this test is the thing that says so.
+FIXTURE_SUBMODULE_FINDINGS = 2
 
 
-def structure_count_command():
+def submodule_count_command():
     return (
-        f"cd {ROOT} && {sys.executable} -m planlint.cli --plan {FIXTURE_PLAN} "
-        r"--only structure | sed -n 's/^structure: \([0-9][0-9]*\) "
-        r"finding(s).*/\1/p'"
+        f"cd {ROOT} && {sys.executable} -m nmg2_tools.submodule_lint "
+        f"{FIXTURE_REPO} 2>&1 | "
+        r"sed -n 's/^\(SUBMODULE-[A-Z-]*\):.*/\1/p' | wc -l"
     )
 
 
@@ -915,11 +913,11 @@ def test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only
     tmp_path,
 ):
     """The known positive and the known negative, one run, one resolver."""
-    command = structure_count_command()
+    command = submodule_count_command()
     path = note(
         tmp_path,
         pin_block(
-            f"count {FIXTURE_STRUCTURE_FINDINGS} -- {command}",
+            f"count {FIXTURE_SUBMODULE_FINDINGS} -- {command}",
             f"count 40 -- {command}",
         ),
     )
@@ -933,18 +931,18 @@ def test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only
                 pin=checker.Pin(
                     kind="count",
                     subject=command,
-                    expected=str(FIXTURE_STRUCTURE_FINDINGS),
+                    expected=str(FIXTURE_SUBMODULE_FINDINGS),
                     line=6,
                 ),
                 verdict=checker.OK,
-                detail=f"the count is still {FIXTURE_STRUCTURE_FINDINGS}",
+                detail=f"the count is still {FIXTURE_SUBMODULE_FINDINGS}",
             ),
             checker.PinResult(
                 pin=checker.Pin(
                     kind="count", subject=command, expected="40", line=7
                 ),
                 verdict=checker.MOVED,
-                detail=f"the count was 40, is now {FIXTURE_STRUCTURE_FINDINGS}",
+                detail=f"the count was 40, is now {FIXTURE_SUBMODULE_FINDINGS}",
             ),
         ],
     )

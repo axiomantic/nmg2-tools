@@ -234,7 +234,7 @@ docs/check-targets.txt	public	axiomantic/nmg2-tools,axiomantic/gearmulator,axiom
 # lints that read them have something to be red about. They hold `.pch2` files
 # outside the synth corpus and deliberately over-ceiling blobs; excepting each
 # of those with a row of its own would be a roster where a class belongs.
-tests/planlint/fixtures/	public fixture-repo	axiomantic/nmg2-tools
+tests/fixtures/	public fixture-repo	axiomantic/nmg2-tools
 # --- nmg2-artifacts (PRIVATE) ------------------------------------------------
 # Recorded run outputs kept as before/after evidence: test logs, register
 # dumps, lint transcripts. One rule row, not one row per baseline file, and
