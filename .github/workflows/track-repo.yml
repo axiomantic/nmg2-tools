@@ -112,9 +112,10 @@ jobs:
       # gated test has been verified here. A step that printed PASS instead
       # would be the exact green tick this step exists to prevent.
       #
-      # The step does not fail the job. It reports. T1 and T2 are informational
-      # tiers and the job that runs a gated test owns its own exit status;
-      # overloading this reporter's status would put the tier rule in two places.
+      # A computed FAIL fails the job: a step that renders a verdict and cannot
+      # report one makes a failing suite and a passing suite look the same.
+      # NOT VERIFIED deliberately still exits 0, because no repository writes
+      # the counts file yet and failing on its absence would red every one.
       - name: gated-test-summary
         run: |
           set -uo pipefail
@@ -145,3 +146,8 @@ jobs:
           if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             echo "${line}" >> "${GITHUB_STEP_SUMMARY}"
           fi
+          if [ "${verdict}" = "FAIL" ]; then
+            echo "FAILURE gated-test-summary: ${failed} of the ${run} gated test(s) that ran did not pass."
+            exit 1
+          fi
+          exit 0
