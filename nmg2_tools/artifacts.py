@@ -1,23 +1,20 @@
-"""The Python half of task REPO-5's ``ArtifactResolver``.
+"""The Python half of the ``ArtifactResolver``.
 
-Design section 4.2 is the definition site. The C++ half lives at
-``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the ``gearmulator`` fork.
-Both halves are written by ONE task so that the two messages cannot drift; plan
-section 7.4.2 records that as the reason this file has REPO-5 as its owner.
+The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
+``gearmulator`` fork. Both halves are written together so that the two messages
+cannot drift.
 
-Design section 4.2, on the Python half:
-
-    ``axiomantic/nmg2-tools`` carries the Python equivalent,
-    ``resolve_artifacts()``, with the same contract and three distinct messages,
-    one for each of the three conditions REPO-5's check names, so that the Python
-    extractor and the C++ extractor skip for the same reason in the same words.
+``resolve_artifacts()`` carries the same contract as the C++ half and three
+distinct messages, one for each of the three conditions the C++ check names, so
+that the Python extractor and the C++ extractor skip for the same reason in the
+same words.
 """
 
 import os
 from typing import Optional
 
-# The messages, WORD FOR WORD. Design section 4.2 fixes the wording and
-# section 18.5 builds the skip line on top of them. They are distinct on
+# The messages, WORD FOR WORD. The wording is fixed and the skip line below is
+# built on top of them. They are distinct on
 # purpose: one message covering two conditions tells an operator with a wrong
 # path that their variable is unset, which sends them to the wrong file.
 # Echoing the variable value unchanged is the whole point of message 2.
@@ -83,8 +80,8 @@ def resolve_artifacts(
 
     ``name`` is the artifact the caller asked for and only message 3 reads it.
 
-    Never raises. This mirrors the C++ half, where design section 4.2 states the
-    no-exception rule on ``ArtifactResolver::resolve`` directly.
+    Never raises. This mirrors the C++ half, which states the no-exception rule
+    on ``ArtifactResolver::resolve`` directly.
     """
     variable = artifact_variable(family)
     value = os.environ.get(variable)
@@ -115,15 +112,11 @@ def resolve_artifacts(
 
 
 # ---------------------------------------------------------------------------
-# Task REPO-7, the Python half of the skip discipline. Design section 18.5,
-# plan section 5.2 rules 2 and 3.
-#
-# REPO-7 depends on REPO-5 and both are repo-track tasks, so this section is a
-# track-internal order and not a race. The C++ half is
+# The Python half of the skip discipline. The C++ half is
 # `source/nord/g2/g2Lib/test/gatedFixture.h` in the `gearmulator` fork.
 # ---------------------------------------------------------------------------
 
-# Section 18.5's skip line is section 4.2's message with this prefix. The line is
+# The skip line is message 1 above with this prefix. The line is
 # built by CONCATENATION and is not spelled out a second time: a message with two
 # texts is a message with two meanings, and the one an implementer copies is the
 # one that drifts. `gatedFixture.h` builds it the same way.
@@ -131,7 +124,7 @@ GATED_SKIP_PREFIX = "SKIPPED: "
 
 
 def gated_skip_line(family: str = DEFAULT_ARTIFACT_FAMILY) -> str:
-    """The line design section 18.5 step 2 requires a gated test to emit.
+    """The line a gated test emits when it cannot run.
 
     The line names the family's own variable, which is the one an operator has
     to set to make the test run. A line that named the base variable for every
@@ -150,23 +143,21 @@ def gated_skip_reason(
     alone, because a directory that resolves says nothing about whether the
     files in it exist. A gate that opens on the directory alone answers RUN to
     a body whose input is absent, and that body raises ``FileNotFoundError``
-    where design section 18.5 requires a skip WITH A REASON. Plan section 24.6
-    row W3-427(c) is the withdrawal that records it as a defect in its own
-    right.
+    where a skip WITH A REASON is required.
 
     ``None`` means every required artifact is present and the gated body must
     run. Any other return is a reason, never a silent pass.
 
     The gate reads names only. **A file that is PRESENT and WRONG resolves, so
-    the body runs and FAILS**, which is the case section 18.5 exists to protect
+    the body runs and FAILS**, which is the case this gate exists to protect
     and the reason this function never opens a file: a gate that read content
     could not tell a broken artifact from an absent one, and it would answer
     "unavailable" to both.
 
-    Two reasons, taken from REPO-5's three messages rather than from a fourth
+    Two reasons, taken from the three messages above rather than from a fourth
     text of this function's own:
 
-    * the root does not resolve -- section 18.5's line, message 1, whatever
+    * the root does not resolve -- the skip line built on message 1, whatever
       ``required`` says, because there is no directory to look in;
     * the root resolves and a required path is not a file under it -- the
       prefix on message 3, which names that path.
@@ -190,11 +181,11 @@ def gated_skip_reason(
 # ---------------------------------------------------------------------------
 # The RUN's verdict on its own skips.
 #
-# `gated_skip_reason` above makes ONE test skip with a reason. That is section
-# 18.5, and it stops there. What a reader actually looks at is the RUN, and a
-# run reporting `929 passed, 12 skipped` shows a green summary over
-# deliverables nothing exercised. A gate whose silence is indistinguishable
-# from success is not a gate.
+# `gated_skip_reason` above makes ONE test skip with a reason, and it stops
+# there. What a reader actually looks at is the RUN, and a run whose summary
+# line reports only passes and skips shows a green verdict over deliverables
+# nothing exercised. A gate whose silence is indistinguishable from success is
+# not a gate.
 #
 # THE LIMIT COMES ACROSS WITH THE PATTERN: a skip changes the verdict's WORDING
 # and NEVER its exit code. Scoring a skip would change what `if pytest; then`
