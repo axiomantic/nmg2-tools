@@ -89,7 +89,19 @@ total=$(sort -u "$ALL" 2>/dev/null | grep -c . )
 rm -f "$ALL"
 
 print ""
-print "population: $(find "$@" -type f 2>/dev/null | grep -v '/\.git/' | wc -l | tr -d ' ') files under $*"
+# CONTROL: a scan of ZERO files must not exit 0. A symlinked scan target reports
+# `population: 0 files` and every clause 0, which is byte-for-byte what a clean tree
+# prints -- `find <symlink> -type f` does not descend without `-L`. That hazard was
+# created on 2026-09-03 when the findings corpus became a symlink into a checkout.
+# A scan that examined nothing is not a pass; it is an unusable result, so it exits 2
+# with the other control failures.
+POP=$(find "$@" -type f 2>/dev/null | grep -v '/\.git/' | wc -l | tr -d ' ')
+print "population: ${POP} files under $*"
+if (( POP == 0 )); then
+  print -u2 "CONTROL FAILED: the scan examined ZERO files under $*."
+  print -u2 "  If that path is a SYMLINK, find does not descend it without -L; pass the real path."
+  exit 2
+fi
 print "total hits: $total"
 (( total )) && { print "Read every hit. A raw count is not a violation count -- across seven"
                  print "repositories this scan produced 18 hits and 0 violations."; exit 1 }
