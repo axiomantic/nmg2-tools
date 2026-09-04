@@ -9,12 +9,6 @@
 #
 # Line numbers are deliberately absent. They would churn on every unrelated edit
 # and turn the ratchet into noise.
-1	B007	freshness/checker.py
-2	PERF401	freshness/checker.py
-1	PIE810	freshness/checker.py
-1	PLW1510	freshness/checker.py
-1	SIM108	freshness/checker.py
-2	UP031	freshness/checker.py
 2	UP045	nmg2_tools/artifacts.py
 1	B905	nmg2_tools/modulemap.py
 1	RUF023	nmg2_tools/payload_lint.py
@@ -22,7 +16,6 @@
 1	SIM110	nmg2_tools/payload_lint.py
 4	N818	nmg2_tools/pch2.py
 1	I001	nmg2_tools/pe.py
-1	PLC0415	tests/freshness/test_freshness.py
 14	PLC0415	tests/test_artifacts.py
 3	C402	tests/test_extract.py
 2	N806	tests/test_extract.py
