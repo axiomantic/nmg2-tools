@@ -15,10 +15,9 @@ note is not counted as a resolved pin, so a corpus of nothing but settled
 tombstones still exits 1 on "no pins resolved". The exemption removes a false
 alarm; it never manufactures a clean run.
 
-`ctest -R` exits 0 when its pattern matches no test, and `planlint` states the
-same reasoning for itself one repository over. This tool therefore never exits 0
-on "nothing to check": an empty corpus and a corpus of wholly unpinned notes are
-both exit 1, and each prints which of the two it was.
+`ctest -R` exits 0 when its pattern matches no test. This tool therefore never
+exits 0 on "nothing to check": an empty corpus and a corpus of wholly unpinned
+notes are both exit 1, and each prints which of the two it was.
 
 Running a note's commands is OPT-IN via `--run-commands`. A note is data. Without
 the flag a command pin reports UNRESOLVABLE, which fails the run — declining to

@@ -590,21 +590,18 @@ def test_the_family_fixture_skips_when_a_declared_path_is_absent_from_the_family
 
 
 # ---------------------------------------------------------------------------
-# The SUITE announces its skips, the way `planlint` announces skipped lints.
+# The SUITE announces its skips.
 #
 # Section 18.5 makes ONE gated test skip with a reason. It says nothing about
 # the RUN, and the run is what a reader looks at: a suite reporting
 # `929 passed, 12 skipped` shows a green summary over deliverables that were
 # never exercised, and a skip whose silence is indistinguishable from success
-# is the shape `planlint` already refuses for lints. `planlint/cli.py` states
-# the limit this borrows with it: **a skip changes the verdict's WORDING and
-# never its exit code.** Scoring it would change what `if pytest; then` means
-# for every existing caller, which is a separate decision from making the skip
+# is not a gate. THE LIMIT: **a skip changes the verdict's WORDING and never
+# its exit code.** Scoring it would change what `if pytest; then` means for
+# every existing caller, which is a separate decision from making the skip
 # visible, and this is only the second of the two.
 #
-# The sentence is `A skipped test is not a clean test.` and it is a DIFFERENT
-# text from `planlint`'s, because it is about a different subject. Neither is
-# derived from the other and neither is a copy of the other.
+# The sentence is `A skipped test is not a clean test.`
 # ---------------------------------------------------------------------------
 
 
@@ -633,8 +630,8 @@ def test_the_skip_verdict_names_every_skipped_test_and_its_reason():
 
 
 def test_the_skip_verdict_says_test_in_the_singular_for_one_skip():
-    """The noun agrees with the count. `planlint` does the same for `lint`, and
-    a verdict reading `1 tests SKIPPED` is a verdict nobody trusts."""
+    """The noun agrees with the count. A verdict reading `1 tests SKIPPED` is a
+    verdict nobody trusts."""
     from nmg2_tools.artifacts import skip_verdict
 
     assert skip_verdict({"tests/test_x.py::test_one": "a reason"}) == (
