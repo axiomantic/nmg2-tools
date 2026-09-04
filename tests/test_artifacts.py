@@ -1,9 +1,7 @@
-"""Task REPO-5, the Python half of the ArtifactResolver.
+"""The Python half of the ArtifactResolver.
 
 Tier T0: every case here runs with ``NMG2_ARTIFACTS`` unset and needs no
 firmware artifact of any kind.
-
-Plan section 9.2, REPO-5. Design sections 4.2 and 18.5.
 
 The C++ half lives at ``source/nord/g2/g2Lib/artifactResolver.{h,cpp}`` in the
 ``gearmulator`` fork and ``source/nord/g2/g2Lib/test/t0_artifact_resolver.cpp``
@@ -39,8 +37,8 @@ def test_unset_returns_empty_and_the_exact_message(monkeypatch):
 
 
 def test_missing_directory_returns_message_two(monkeypatch):
-    """Design section 4.2 gives the unset case and the missing-directory case
-    DISTINCT messages, so the two results must NOT be equal."""
+    """The unset case and the missing-directory case have DISTINCT messages,
+    so the two results must NOT be equal."""
     monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory/REPO-5")
 
     directory, why = resolve_artifacts()
@@ -108,8 +106,8 @@ def test_directory_with_named_artifact_returns_success(tmp_path, monkeypatch):
 
 
 def test_never_raises(monkeypatch, tmp_path):
-    """Design section 4.2: the resolver never throws. The cases below are the
-    inputs most likely to make a naive implementation raise."""
+    """The resolver never throws. The cases below are the inputs most likely
+    to make a naive implementation raise."""
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
     # hold one, so no caller can present that input and a case for it would test
     # the test harness rather than the module.
@@ -148,16 +146,11 @@ def test_an_existing_directory_resolves(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Task REPO-7, the Python half of the skip discipline.
+# The Python half of the skip discipline.
 #
-# REPO-7 depends on REPO-5 and both are repo-track tasks, so extending this
-# module and tests/conftest.py is a track-internal order and not a race. Plan
-# section 7.4.2 gives that shape for every file with one owner and a later
-# writer inside the same track.
-#
-# The plan gives REPO-7 only a ctest check. tests/conftest.py would
-# otherwise ship with no check of its own, so the cases below drive it: the pure
-# function directly, and the fixture through pytest's own `pytester`.
+# tests/conftest.py would otherwise ship with no check of its own, so the cases
+# below drive it: the pure function directly, and the fixture through pytest's
+# own `pytester`.
 # ---------------------------------------------------------------------------
 
 EXPECTED_SKIP_LINE = "SKIPPED: firmware artifact not available (NMG2_ARTIFACTS unset)"
@@ -247,11 +240,10 @@ def test_the_conftest_fixture_runs_the_body_when_the_artifact_resolves(pytester,
 # ---------------------------------------------------------------------------
 # The gate opens on the FILES the gated body reads, not on the directory alone.
 #
-# Section 24.6 row W3-427(c): `gated_skip_reason()` returned RUN as soon as a
-# directory resolved, so a gated body raised `FileNotFoundError` where section
-# 18.5 requires a skip WITH A REASON. The reason is REPO-5's message 3, which
-# already exists and already names the missing artifact -- a fourth message
-# would be a second text for one meaning.
+# A gate that answers RUN as soon as a directory resolves lets a gated body
+# raise `FileNotFoundError` where a skip WITH A REASON is required. The reason
+# is the resolver's message 3, which already exists and already names the
+# missing artifact -- a fourth message would be a second text for one meaning.
 #
 # The distinction these cases hold apart, and it is the whole point of them:
 #   artifact ABSENT           -> SKIP, naming the path.
