@@ -24,26 +24,27 @@
 # two pull requests elsewhere in this queue were red only in the `push`
 # context, and their head trees failed on DIFFERENT lint codes: one reported
 # 24 findings against its head, the other 1, and both reported 0 against
-# their merge tree. The counts differ; the zero does not. They are named in the plan record, not here: this file is public and
+# their merge tree. The counts differ; the zero does not.
+#
+# They are named in the plan record and not here: this file is public and
 # the `no-clavia-upload` guard rejects a workflow that names the private
 # repository. That guard caught this comment on the commit that installed it.
 #
-# THE `ruff` JOB BELOW IS THE SECOND HALF OF THE SAME REMOVAL, AND IT IS WHY
-# THIS FILE ALONE WAS NOT ENOUGH. The paragraphs above describe the repo-lint
-# layer only. `ci.yml` also declares a `lint` job -- the ruff baseline ratchet
-# -- and `workflow_dispatch` stranded that one exactly as it stranded
-# `track-repo`. A `lint.yml` carrying only the `lints` caller restores the
-# artifact-boundary guards and runs ZERO ruff, so the rules `pyproject.toml`
-# selects still could not fail anything on a push. RUF027 is the case that made
-# this visible: a missing `f` prefix is silent at runtime, silent under the
-# tests, and was silent in CI too, because no automatic trigger reached ruff.
+# THERE IS NO `ruff` JOB IN THIS FILE ON THIS BRANCH, AND THAT IS DELIBERATE.
+# The branches that introduce the ruff baseline ratchet carry it here, together
+# with the three files it reads -- `.ruff-version`, `.ruff-baseline.txt` and
+# `scripts/ruff-baseline.sh`. This branch has none of the three, so the job
+# would fail on its first line rather than lint anything, and a gate that
+# cannot run is worth less than no gate because it reports red for a reason
+# unrelated to the tree.
 #
-# The job is a copy of the `lint` job in `ci.yml`, not a replacement for it.
-# `ci.yml` is left exactly as it was, on `workflow_dispatch`, per the deliberate
-# decision to make the three-OS matrix manual. Duplicating ~20 lines is the
-# cheaper of the two errors here: extracting a reusable workflow would edit
-# `ci.yml`, and a gate that does not run is worth more attention than a gate
-# defined twice.
+# The gap that leaves is real and is not hidden: `ci.yml` declares the ruff
+# job and is `workflow_dispatch` only, so on this branch NOTHING runs ruff
+# automatically. RUF027 is the case that showed why that matters -- a missing
+# `f` prefix is silent at runtime, silent under the tests, and silent in CI.
+# Closing it here needs those three files on this branch and a baseline
+# generated against THIS tree; a baseline copied from another branch would
+# describe a different tree and fail on arrival.
 
 name: Lint
 
