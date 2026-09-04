@@ -1,0 +1,105 @@
+# The lint-only caller.
+#
+# `ci.yml` already declares a `track-repo` job, but `ci.yml` is
+# `workflow_dispatch` only: its build matrix costs hours of runner time, so
+# automatic triggers were removed from it. That removal took the repo-lint
+# layer with it, and the artifact-boundary guards have therefore never run on
+# a pull request in this repository. A guard that never runs and a guard that
+# is absent produce the same observable.
+#
+# This file restores the automatic trigger for the CHEAP half only. It calls
+# the same reusable workflow `ci.yml` calls, on one ubuntu runner, and it
+# carries no build matrix and no T0 job. `ci.yml` is left exactly as it was.
+#
+# The `push` trigger is now scoped to the default branch, so a branch and its
+# pull request are judged once, by the `pull_request` event.
+#
+# That event checks out the MERGE result; a `push` event checks out the head as
+# it stands. The reusable workflow's checkout of the repository under test
+# passes no `ref:`, so the event alone decides which tree the lints read.
+#
+# The cost, stated and not hidden: a branch with no open pull request is no
+# longer covered. That is what the unscoped trigger bought, and it is
+# deliberately given up.
+#
+# Why, measured 2026-09-04: two pull requests elsewhere in this queue were red
+# only in the `push` context, and their head trees failed on different lint
+# codes -- one reported 24 findings against its head, the other 1, and both
+# reported 0 against their merge tree. The counts differ; the zero does not.
+#
+# THE `ruff` JOB BELOW IS THE SECOND HALF OF THE SAME REMOVAL, AND IT IS WHY
+# THIS FILE ALONE WAS NOT ENOUGH. The paragraphs above describe the repo-lint
+# layer only. `ci.yml` also declares a `lint` job -- the ruff baseline ratchet
+# -- and `workflow_dispatch` stranded that one exactly as it stranded
+# `track-repo`. A `lint.yml` carrying only the `lints` caller restores the
+# artifact-boundary guards and runs ZERO ruff, so the rules `pyproject.toml`
+# selects still could not fail anything on a push. RUF027 is the case that made
+# this visible: a missing `f` prefix is silent at runtime, silent under the
+# tests, and was silent in CI too, because no automatic trigger reached ruff.
+#
+# The job is a copy of the `lint` job in `ci.yml`, not a replacement for it.
+# `ci.yml` is left exactly as it was, on `workflow_dispatch`, per the deliberate
+# decision to make the three-OS matrix manual. Duplicating ~20 lines is the
+# cheaper of the two errors here: extracting a reusable workflow would edit
+# `ci.yml`, and a gate that does not run is worth more attention than a gate
+# defined twice.
+
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lints:
+    uses: ./.github/workflows/track-repo.yml
+    with:
+      visibility: public
+
+  ruff:
+    # The gate is a DIFF against `.ruff-baseline.txt`, not a finding count and
+    # not a pass/fail on "any findings at all". Fixing the findings the tree
+    # already has is not this job's business; catching the next one is. A diff
+    # also fails when a finding is FIXED and the baseline is not refreshed, so
+    # the file cannot quietly drift out of agreement with the tree.
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # `.ruff-version` is the single pin. `scripts/ruff-baseline.sh` reads the
+      # same file, so this step cannot install a version the script did not
+      # expect.
+      - name: Install the pinned ruff
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < .ruff-version)
+          echo "pinned ruff: ${version}"
+          python -m pip install --upgrade pip "ruff==${version}"
+          ruff --version
+
+      - name: Assert that the tree still matches the ruff baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUFF_BIN=ruff scripts/ruff-baseline.sh > /tmp/ruff-baseline.actual
+          if ! diff -u .ruff-baseline.txt /tmp/ruff-baseline.actual; then
+            echo
+            echo "FAILURE: ruff findings no longer match .ruff-baseline.txt."
+            echo "A '+' line above is a finding this tree did not have before."
+            echo "A '-' line is one that was fixed without refreshing the file."
+            echo "Refresh with: scripts/ruff-baseline.sh > .ruff-baseline.txt"
+            exit 1
+          fi
+          echo "ruff findings match the baseline."
