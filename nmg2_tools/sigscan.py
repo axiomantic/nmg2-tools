@@ -1,10 +1,10 @@
-"""The descriptor signature scanner. Task TOOL-6, design 7.13, logbook ``AGENTS.md`` 3.1.
+"""The descriptor signature scanner.
 
 WHAT A MODULE DESCRIPTOR IS.
 
 The G2 firmware carries DSP module descriptors, each naming three blobs of
-DSP data: an X workspace, a Y workspace and a P program. ``AGENTS.md`` section
-3.1 fixes the record layout, read as 32-bit big-endian longwords over a base
+DSP data: an X workspace, a Y workspace and a P program. The record layout is
+read as 32-bit big-endian longwords over a base
 ``B`` (the pointer-triple address minus 8):
 
     +0x08  pointer to X data      (0 means "no X blob")
@@ -27,7 +27,7 @@ recovery is a *signature scan*: walk the image at 2-byte granularity and accept
 a record where the terminator ``0xFF000000`` sits at ``+0x14`` **together with**
 an in-range P pointer at ``+0x10``.
 
-WHY 2-BYTE GRANULARITY (logbook trap 7.2).
+WHY 2-BYTE GRANULARITY.
 
 Many blobs are stored at 2 mod 4. A sweep that tests only 4-byte alignment sees
 that noise and misses those records. 16-bit alignment is legal for a 68k
@@ -54,9 +54,8 @@ of the image bytes and the image's load address.
 
 WHAT THIS FILE IS, because the licence makes it matter.
 
-`nmg2-tools` is MIT. The source of the record layout above is INTERNAL: the
-logbook, ``AGENTS.md`` section 3.1, is this project's own note of which field
-sits at which offset, and design section 7.13 is this project's own
+`nmg2-tools` is MIT. The source of the record layout above is INTERNAL: this
+project's own note of which field sits at which offset, and this project's own
 specification of the scan. Neither is a third-party implementation, and no
 scanner written by anyone else was consulted. No line of any other
 implementation is copied, transliterated or paraphrased here, because none was
@@ -150,8 +149,8 @@ def scan(image: bytes, base: int) -> list[ModuleDescriptor]:
     return records
 
 
-# The CSV column order. TOOL-8's reader takes ``p_ptr`` with ``int(value, 16)``
-# and the three counts with ``int(value)``, so the pointer columns are hex and
+# The CSV column order. The module-map reader takes ``p_ptr`` with
+# ``int(value, 16)`` and the counts with ``int(value)``, so the pointer columns are hex and
 # the count columns are decimal; the count names carry their record offsets
 # because that is what makes a column self-describing to a reader holding the
 # layout above.
@@ -190,7 +189,7 @@ def identity_of(record: ModuleDescriptor) -> str:
 def to_csv_text(records) -> str:
     """Render recovered records as ``dsp/g2_module_descriptors.csv`` text.
 
-    ``index`` is the signature-scan order, which is TOOL-8's
+    ``index`` is the signature-scan order, which the module map uses as its
     ``descriptor_index``. No byte of any Clavia image is embedded: every value
     is computed from the scan.
     """

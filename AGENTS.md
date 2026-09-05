@@ -115,6 +115,15 @@ of the alternative.
 
 Never write these in a comment or a docstring:
 
+- **A plan-task identifier or a design-section or plan-section pointer.**
+  `TOOL-18`, `REPO-7`, `W3-114`, "design section 15.7", "plan section 5.2",
+  "logbook section 3.1", "trap 7.10". This is the most-violated rule in this
+  repository. A comment states the FACT or the DECISION; the pointer to where
+  the fact was first written down is a foreign ledger that this tree cannot
+  keep right. **There is no exception for the project's own specification.**
+  "These sections are this project's own design, so the pointer is a citation"
+  is the argument this rule exists to refuse. Write what the specification
+  says, not where it says it.
 - **A count** — rules, mutations, tests, cases, files, or lines. The next change
   makes it wrong, and nothing catches it.
 - **A present-tense claim about what the tests cover**, or about what a wrong
@@ -133,6 +142,12 @@ Never write these in a comment or a docstring:
   caller is, which task consumes it next, or what another file does not name.
   The import graph answers those and stays right; a sentence about them is
   derivable, goes stale the moment another task moves, and records no decision.
+
+**What the rules above do NOT reach.** A datasheet or hardware-manual citation
+(Motorola, Freescale, Clavia, ISP1181) names an external, immutable document and
+stays. So does a hazard banner, and so does a comment inherited from upstream or
+vendored code. A design-section pointer is not a datasheet citation, and reading
+it as one is the mistake that let the pointers accumulate.
 
 **One exception, and it is the only one.** A number that a mechanism reads and
 checks at test time may stay. The check is then the source of truth, not the
@@ -166,9 +181,13 @@ is the whole of the rule.
 
 ### Scope: code we authored
 
-This repository is original work, so the rule applies throughout. Do not delete
-or rewrite comments as a sweep; repair a comment when you change the line it
-describes.
+This repository is original work, so the rule applies throughout. A sweep is a
+legitimate way to apply it: `scripts/check-comment-rubric.sh` measures the tree,
+every hit is read in context before anything is cut, and a sweep that touches
+only comments and docstrings must prove it changed no behaviour — parse each
+modified `.py` file before and after, strip docstrings, and compare `ast.dump`.
+Repairing a comment when you change the line it describes is the other way in,
+not the only one.
 
 ## Gotchas
 

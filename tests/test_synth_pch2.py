@@ -1,15 +1,16 @@
-"""The synthesized `.pch2` corpus. Task TOOL-12, design section 15.7.
+"""The synthesized `.pch2` corpus.
 
 EVERY BYTE OF THIS CORPUS IS AUTHORED BY THIS PROJECT. No Clavia byte enters
 this repository in any form: not a file, not an inline array, not base64. The
-generator reads design section 15.7 and design section 15.3, and nothing else.
+generator reads this project's own format specification and its CRC
+definition, and nothing else.
 
-WHAT A GREEN RUN HERE DOES NOT PROVE. Design section 15.7 states it and this
+WHAT A GREEN RUN HERE DOES NOT PROVE. The specification states it and this
 docstring repeats it so that a reader of the test cannot miss it: a green run
 against the synthesized corpus proves that the corpus matches the format
 specification. **It proves nothing about real-world patch variety**, because
 nobody wrote this corpus from real patches. A construct that a real patch uses
-and that section 15.7 does not describe passes here and fails against the G2
+and that the specification does not describe passes here and fails against the G2
 Demo corpus, which is private and informational by tier.
 
 THE CRC EXPECTATIONS ARE NOT COMPUTED BY THE CODE UNDER TEST. This file carries
@@ -112,9 +113,8 @@ def test_the_committed_corpus_holds_exactly_these_files():
 
 
 def test_regenerating_the_corpus_reproduces_every_committed_byte():
-    """Plan TOOL-12: "re-running the generator reproduces them
-    byte-identically, which the test asserts". The corpus is regenerated, never
-    hand-edited, so an edit made by hand fails here."""
+    """Re-running the generator reproduces every committed byte. The corpus is
+    regenerated, never hand-edited, so an edit made by hand fails here."""
     generated = generate()
 
     committed = {
@@ -151,8 +151,8 @@ def test_the_minimum_file_is_exactly_these_bytes():
 
 
 def test_every_well_formed_file_carries_the_crc_the_reference_computes():
-    """Design section 15.3: the routine covers the version and type bytes and
-    every chunk, and excludes only the trailing CRC. The text header is before
+    """The routine covers the version and type bytes and every chunk, and
+    excludes only the trailing CRC. The text header is before
     the covered range and is not covered."""
     generated = generate()
 
@@ -179,9 +179,9 @@ def test_the_bad_crc_file_stores_a_crc_the_reference_rejects():
 
 
 def test_the_corpus_covers_every_object_type_the_specification_names():
-    """Design section 15.7 names 0x21, 0x4D and 0x65 in its own text, and
-    design section 18's protocol row names 0x4A, 0x52, 0x60, 0x62 and 0x69 as
-    the other bit-packed types. The union is what `object_types.pch2` holds."""
+    """The format specification names 0x21, 0x4D and 0x65 in its own text, and
+    the protocol row names 0x4A, 0x52, 0x60, 0x62 and 0x69 as the other
+    bit-packed types. The union is what `object_types.pch2` holds."""
     assert OBJECT_TYPES == (0x21, 0x4A, 0x4D, 0x52, 0x60, 0x62, 0x65, 0x69)
 
     image = generate()["object_types.pch2"]
@@ -200,8 +200,7 @@ def test_the_corpus_covers_every_object_type_the_specification_names():
 
 
 def test_the_length_boundaries_file_holds_a_zero_length_payload_and_reaches_the_ceiling():
-    """Design section 15.7: the boundary object lengths, including a
-    zero-length payload. The upper committed boundary is the payload lint's
+    """The boundary object lengths, including a zero-length payload. The upper committed boundary is the payload lint's
     byte ceiling, not the field's own maximum; the next test covers that."""
     image = generate()["length_boundaries.pch2"]
     body = image[image.index(b"\x00") + 1 + 2 : -2]
@@ -214,8 +213,8 @@ def test_the_length_boundaries_file_holds_a_zero_length_payload_and_reaches_the_
 
 
 def test_no_committed_file_exceeds_the_payload_lint_byte_ceiling():
-    """REPO-11's PAYLOAD-CEILING fails a committed file above 65,536 bytes
-    under `testdata/`, and this corpus lives under `testdata/`."""
+    """The payload lint's PAYLOAD-CEILING fails a committed file above 65,536
+    bytes under `testdata/`, and this corpus lives under `testdata/`."""
     generated = generate()
 
     assert max(len(v) for v in generated.values()) == SIZE_CEILING
@@ -275,9 +274,9 @@ def test_an_object_type_outside_a_byte_is_refused():
 
 
 # ---------------------------------------------------------------------------
-# Bit packing. Design section 15.7: fields are bit-packed and are not byte
-# aligned. Design section 15.3: the 0x39 LED payload is the ONLY reversed bit
-# order in the protocol, so every other field is most significant bit first.
+# Bit packing. Fields are bit-packed and are not byte aligned. The 0x39 LED
+# payload is the ONLY reversed bit order in the protocol, so every other field
+# is most significant bit first.
 # ---------------------------------------------------------------------------
 
 
@@ -363,8 +362,7 @@ def test_a_width_outside_one_to_thirty_two_is_refused():
 
 
 def test_the_bit_width_file_covers_the_minimum_the_interior_and_the_maximum_width():
-    """Design section 15.7: every bit-packed field at its minimum, maximum and
-    one interior width. The interior width is 7, which is deliberately not a
+    """Every bit-packed field at its minimum, maximum and one interior width. The interior width is 7, which is deliberately not a
     byte, so a reader that aligned to bytes would disagree here."""
     image = generate()["bit_widths.pch2"]
     body = image[image.index(b"\x00") + 1 + 2 : -2]
@@ -388,7 +386,7 @@ def test_the_bit_width_file_covers_the_minimum_the_interior_and_the_maximum_widt
 
 
 # ---------------------------------------------------------------------------
-# The file-against-wire differences. Design section 15.7.
+# The file-against-wire differences.
 # ---------------------------------------------------------------------------
 
 
@@ -435,8 +433,7 @@ def test_morph_parameter_names_are_omitted_in_both_paths():
 
 
 # ---------------------------------------------------------------------------
-# The malformed set. Design section 15.7: the parser must reject each with a
-# NAMED error, and the manifest is where the corpus states which name.
+# The malformed set. The parser must reject each with a NAMED error, and the manifest is where the corpus states which name.
 # ---------------------------------------------------------------------------
 
 
@@ -495,8 +492,8 @@ def test_the_unknown_type_file_holds_a_type_the_specification_does_not_name():
 
 
 def test_the_corpus_directory_is_the_one_the_payload_lint_permits():
-    """REPO-11's `no-clavia-payload` step allows a `*.pch2` file in exactly one
-    directory of a public repository."""
+    """The payload lint's `no-clavia-payload` step allows a `*.pch2` file in
+    exactly one directory of a public repository."""
     root = pathlib.Path(__file__).resolve().parents[1]
 
     assert CORPUS_DIRECTORY == root / "nmg2_tools" / "testdata" / "pch2_synth"

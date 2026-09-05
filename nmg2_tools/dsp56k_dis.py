@@ -1,6 +1,4 @@
-"""A DSP56300 disassembler over a stated subset. Task TOOL-7.
-
-Design sections 11.3 and 20.2.
+"""A DSP56300 disassembler over a stated subset.
 
 WHAT THIS FILE IS, because the licence makes it matter.
 
@@ -17,15 +15,15 @@ Two references were used and each is named with its licence:
     recorded here; its expression is not.
 
     `tools/dsphunt/dsp56k.py` in this project's own workspace. It is this
-    project's own partial disassembler and the plan names it as the source for
-    this port. **Its `MOVEP` decode is the one trap 7.10 records as WRONG** --
-    it prints the operand byte as the peripheral address -- so its statement of
-    that instruction was rejected rather than ported.
+    project's own partial disassembler and is the stated source for this port.
+    **Its `MOVEP` decode is WRONG** -- it prints the operand byte as the
+    peripheral address -- so its statement of that instruction was rejected
+    rather than ported.
 
 THE COVERED SET IS SMALL ON PURPOSE.
 
-This project's recorded failure mode is a plausible-looking wrong decode. Trap
-7.10 is one, and the correction log holds others. A disassembler that guessed at
+This project's recorded failure mode is a plausible-looking wrong decode. The
+`MOVEP` peripheral-address mistake below is one of several recorded. A disassembler that guessed at
 an encoding nobody had verified would manufacture exactly that failure, and it
 would do it silently, because a wrong mnemonic reads as well as a right one.
 
@@ -46,14 +44,15 @@ word is data. `0xFFFFFF` is a real instruction, and the oracle answers `macr`
 for it. Naming it `dc` would state something false about the machine, so this
 module does not.
 
-`MOVEP`, MEASURED, AND WHERE THE PLAN IS IMPRECISE.
+`MOVEP`, MEASURED, AND WHERE THE SPECIFICATION IS IMPRECISE.
 
-Plan task TOOL-7 says the byte after `08 F4` is the field `1Spppppp`. Two halves
-of that were measured against the oracle over all 256 operand values:
+The specification this port was written from says the byte after `08 F4` is the
+field `1Spppppp`. Two halves of that were measured against the oracle over all
+256 operand values:
 
     CONFIRMED. The peripheral address is the operand's low SIX bits added to
     $FFFFC0, so the window is the 64 words $FFFFC0 to $FFFFFF. This is the half
-    trap 7.10 is about, and it is the half that matters: reading the whole byte
+    the recorded mistake is about, and it is the half that matters: reading the whole byte
     as the address gives $FFFFA6, $FFFFA5 and $FFFF9D, which is the recorded
     mistake.
 
@@ -66,8 +65,8 @@ of that were measured against the oracle over all 256 operand values:
     0x40 to 0xFF and refuses 0x00 to 0x3F, so the rule is that at least one of
     the top two bits is set.
 
-Both corrections are recorded here rather than fixed in the plan, because the
-plan is not this task's to edit.
+Both corrections are recorded here rather than in the specification, because
+the specification is not this module's to edit.
 """
 
 from __future__ import annotations

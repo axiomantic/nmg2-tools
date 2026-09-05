@@ -1,8 +1,8 @@
-"""An LZO1X decompressor. Task TOOL-1, design sections 7.3 and 20.2.
+"""An LZO1X decompressor.
 
 The G2 loader holds an m68k port of LZO1X. Each section of the firmware
-container is an LZO1X stream, and design section 7.3 step 3 decompresses it
-between two checksum verifications.
+container is an LZO1X stream, and the loader decompresses it between two
+checksum verifications.
 
 HOW THIS FILE WAS WRITTEN, because the licence makes it matter.
 

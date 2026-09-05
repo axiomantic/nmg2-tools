@@ -1,7 +1,4 @@
-"""Task TOOL-4, resource extraction from the updaters.
-
-Design sections 7.2 (accepted inputs) and 7.3 step 1. Logbook ``AGENTS.md``
-section 6.
+"""Resource extraction from the updaters.
 
 WHAT RUNS WHERE. The two parsers themselves (``nmg2_tools.rsrc`` and
 ``nmg2_tools.pe``) are binary-format readers and are exercised here with
@@ -12,14 +9,14 @@ and their decompressed sections hash to the four values ``artifacts.sha256``
 lists -- DO touch real Clavia bytes, and are gated on their family roots via
 two family fixtures -- ``installers_dir`` for the vendor updater images and
 ``artifacts_dir`` for the already-extracted ``.bin`` files. With no artifact
-they skip with section 18.5's reason instead of failing or passing silently.
+they skip with the standard reason instead of failing or passing silently.
 
-WHY THE NON-GATED HALF MATTERS, in this task's own words (plan section 18.7):
-a test that passes when the code is broken is worse than no test. The gated
+WHY THE NON-GATED HALF MATTERS: a test that passes when the code is broken is
+worse than no test. The gated
 half cannot run in most environments, so the parsers need their own, ungated
 proof here.
 
-The design-section-18.6 digests, exact.
+The recorded digests, exact.
 """
 
 import hashlib
@@ -356,7 +353,8 @@ def test_advanced_path_accepts_the_bin_files(artifacts_dir):
     """The advanced path: the operator supplies the two images directly. The
     two files are DECLARED rather than asserted to exist inside the body -- an
     existence assertion in a body is a gate in the wrong place, and it reports
-    an absent artifact as a FAILURE where section 18.5 requires a skip."""
+    an absent artifact as a FAILURE where the skip discipline requires a
+    skip."""
     os_image = _read(artifacts_dir, OS_IMAGE_REL)
     loader = _read(artifacts_dir, LOADER_IMAGE_REL)
     assert hashlib.sha256(os_image).hexdigest() == HASH_NMG2_OS

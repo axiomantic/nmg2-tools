@@ -1,4 +1,4 @@
-"""Task TOOL-3. Design section 7.3 steps 2, 3, 5 and 6.
+"""The firmware container header and section table.
 
 WHERE THE CONTAINERS COME FROM.
 
@@ -7,10 +7,10 @@ values. No Clavia byte appears in this file. The G2 firmware lives in the
 PRIVATE `axiomantic/nmg2-artifacts` repository and must never enter a public
 tree, as a fixture, as an inline array or as base64.
 
-A green run therefore proves that this parser agrees with the container layout
-that design section 7.3 states. It does NOT prove that the layout matches the
-shipped `NMG2_128_OS.bin`. Task TOOL-4 reads the real firmware, is gated on the
-artifacts, and is the first check that touches a Clavia byte.
+A green run therefore proves that this parser agrees with the stated container
+layout. It does NOT prove that the layout matches the shipped
+`NMG2_128_OS.bin`. Reading the real firmware is gated on the artifacts, and is
+the first check that touches a Clavia byte.
 
 WHERE THE COMPRESSED STREAMS COME FROM.
 
@@ -96,7 +96,7 @@ def build_entry(
 ):
     """One 0x2C-byte section table entry, every field stated.
 
-    The first 0x20 bytes are the eight fields design section 7.3 names. The
+    The first 0x20 bytes are the fields the layout names. The
     remaining 12 bytes carry no documented meaning; `padding` fills them and
     the tests below put non-zero bytes there on purpose.
     """
@@ -186,18 +186,18 @@ def test_the_stated_checksums_are_the_ones_the_checksum_module_produces():
     assert checksum(BOMB_PLAIN) == BOMB_PLAIN_CKSUM
 
 
-# --- the header and the section table, design section 7.3 step 2 ------------
+# --- the header and the section table ---------------------------------------
 
 
 def test_the_header_offsets_and_the_entry_stride_are_the_documented_ones():
-    """0x14 and 0x2C are the two numbers every other test depends on."""
+    """0x14 is the header size and 0x2C is the section-table entry stride."""
     assert HEADER_SIZE == 0x14
     assert ENTRY_STRIDE == 0x2C
 
 
 def test_the_parse_records_the_version_word_and_every_other_header_field():
-    """Design section 7.3 step 6: record the version word. Section 15.5 item 5
-    saves it in plugin state, so the raw 16-bit value is what is kept."""
+    """The version word is recorded as read. The plugin state saves it as a
+    word, so the raw 16-bit value is what is kept."""
     image = build_container([], b"")
 
     assert parse_header(image) == Container(
@@ -209,7 +209,7 @@ def test_the_parse_records_the_version_word_and_every_other_header_field():
 
 
 def test_the_version_word_reads_as_a_decimal_release_number():
-    """Design section 7.3: `0x00A2` is 162, which is version 1.62. The word is
+    """`0x00A2` is 162, which is version 1.62. The word is
     read as a plain integer and then split at the hundreds, so an
     implementation that treats it as packed BCD returns something else."""
     assert version_text(0x00A2) == "1.62"
@@ -353,8 +353,8 @@ def test_the_entry_stride_is_0x2c_and_the_last_twelve_bytes_are_not_read():
 
 
 def test_the_word_at_0x04_is_recorded_and_never_verified():
-    """Design section 7.3 calls it "not resolved. Most probably the begin
-    checksum." A parser that checked a value it does not understand would
+    """The field is not resolved; it is most probably the begin checksum. A
+    parser that checked a value it does not understand would
     reject containers for a reason this project cannot state, so every value
     parses and the word is handed back."""
     for value in (0x00000000, 0xDEADBEEF, 0xFFFFFFFF):
@@ -463,7 +463,7 @@ def test_a_tag_that_is_not_ascii_is_a_named_failure():
     )
 
 
-# --- loading a section, design section 7.3 step 3 ---------------------------
+# --- loading a section -------------------------------------------------------
 
 
 def test_a_section_loads_the_exact_plain_bytes():
@@ -800,8 +800,8 @@ def test_a_stream_that_produces_more_than_the_declared_length_is_a_failure():
     container that declares 10 is either wrong or hostile, and the loader must
     not hand the caller 5,000 bytes for a section it said was 10.
 
-    Design section 7.3 step 3 puts this check after the decompressor, which is
-    where the m68k loader has it. It DETECTS the mismatch; it does not prevent
+    This check runs after the decompressor, which is where the m68k loader has
+    it. It DETECTS the mismatch; it does not prevent
     the allocation, because the bytes are already produced when it runs, and
     `decompress` takes no maximum output size. The exposure that leaves is
     bounded and linear: a length extension chain adds 255 for each byte it
