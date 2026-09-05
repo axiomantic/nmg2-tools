@@ -134,8 +134,8 @@ def test_never_raises(monkeypatch, tmp_path):
 
 
 def test_an_existing_directory_resolves(tmp_path, monkeypatch):
-    """The negative case. Section 5.2 rule 6: every counter a test asserts to be
-    zero needs a companion case that drives it above zero. Without this, all of
+    """The negative case. Every counter a test asserts to be zero needs a
+    companion case that drives it above zero. Without this, all of
     the assertions above would hold for a resolver that always fails."""
     monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
 
@@ -184,8 +184,8 @@ def test_gated_skip_reason_is_none_when_the_artifact_resolves(tmp_path, monkeypa
 
 
 def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
-    """The C++ half builds section 18.5's line by concatenating section 4.2's
-    message onto the prefix, so that the message has one text. This asserts the
+    """The C++ half builds the skip line by concatenating the unset message
+    onto the prefix, so that the message has one text. This asserts the
     Python half does the same rather than spelling the whole line out twice."""
     from nmg2_tools.artifacts import (
         ARTIFACT_UNSET_MESSAGE,
@@ -199,7 +199,8 @@ def test_the_skip_line_is_the_prefix_and_the_message_and_not_a_second_literal():
 
 def test_the_conftest_fixture_skips_with_the_exact_line(pytester, monkeypatch):
     """Drives tests/conftest.py itself. A gated test that cannot run must skip
-    WITH A REASON, and the reason must be section 18.5's line word for word."""
+    WITH A REASON, and the reason must be the standard skip line word for
+    word."""
     monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
 
     pytester.makeconftest(_GENERATED_CONFTEST)
@@ -306,8 +307,8 @@ def test_gated_skip_reason_runs_when_a_required_artifact_is_present_but_malforme
 
 def test_gated_skip_reason_reports_the_unset_line_before_it_looks_for_files(monkeypatch):
     """With the variable unset there is no directory to look in, so the reason
-    is section 18.5's line word for word and NOT a message naming a path under
-    an empty root."""
+    is the standard skip line word for word and NOT a message naming a path
+    under an empty root."""
     from nmg2_tools.artifacts import gated_skip_reason
 
     monkeypatch.delenv("NMG2_ARTIFACTS", raising=False)
@@ -584,9 +585,9 @@ def test_the_family_fixture_skips_when_a_declared_path_is_absent_from_the_family
 # ---------------------------------------------------------------------------
 # The SUITE announces its skips.
 #
-# Section 18.5 makes ONE gated test skip with a reason. It says nothing about
-# the RUN, and the run is what a reader looks at: a suite reporting
-# `929 passed, 12 skipped` shows a green summary over deliverables that were
+# The skip discipline makes ONE gated test skip with a reason. It says nothing
+# about the RUN, and the run is what a reader looks at: a summary line that
+# counts skips beside passes shows a green result over deliverables that were
 # never exercised, and a skip whose silence is indistinguishable from success
 # is not a gate. THE LIMIT: **a skip changes the verdict's WORDING and never
 # its exit code.** Scoring it would change what `if pytest; then` means for

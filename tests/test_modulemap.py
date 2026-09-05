@@ -1,4 +1,4 @@
-"""The module map generator. Task TOOL-8, design sections 18.9.1-18.9.3.
+"""The module map generator.
 
 WHAT RUNS WHERE.
 
@@ -14,8 +14,7 @@ coverage counts.
 
 THE WORKED EXAMPLE IS ASSERTED, NOT THE WHOLE MAP.
 
-Design 18.9.5 names ``LevCLevAdd`` as a ``PANL`` ``FileName`` whose engine
-class is ``LvlAdd``. The two routes do NOT agree, so that row must be
+``LevCLevAdd`` is a ``PANL`` ``FileName`` whose engine class is ``LvlAdd``. The two routes do NOT agree, so that row must be
 ``derived``, never ``exact``. The first test below pins that.
 """
 
@@ -72,8 +71,7 @@ def make_args(**kwargs):
 
 
 def test_levclevadd_is_derived_never_exact():
-    """Design 18.9.5 and trap 7.5: the PANL file name LevCLevAdd is not the
-    engine class LvlAdd. Only the chain resolves it, so it is a `derived` row
+    """The PANL file name LevCLevAdd is not the engine class LvlAdd. Only the chain resolves it, so it is a `derived` row
     that a false `exact` would conflate with a wrong binding."""
     rows = build_module_map(
         [FakeDescriptor(p_words=6)],
@@ -485,7 +483,7 @@ def test_gated_real_artifacts_produce_a_well_formed_map(descriptors_dir):
 # this test exists to find.
 #
 # It reads two roots' worth of nothing extra -- both files live under
-# NMG2_ARTIFACTS -- and it hardcodes no Clavia-derived value, so §22.4 holds.
+# NMG2_ARTIFACTS -- and it hardcodes no Clavia-derived value.
 # ---------------------------------------------------------------------------
 
 MODULE_MAP_NAME = "module_map.csv"

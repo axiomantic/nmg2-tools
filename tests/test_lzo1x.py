@@ -1,4 +1,4 @@
-"""Task TOOL-1. Design sections 7.3 and 20.2.
+"""The LZO1X decompressor.
 
 WHERE THE VECTORS COME FROM, and why that matters.
 
@@ -19,8 +19,8 @@ WHAT THESE VECTORS DO NOT COVER: no Clavia byte appears here. The G2 firmware
 lives in the PRIVATE `axiomantic/nmg2-artifacts` repository and must never
 enter a public tree in any form. A green run therefore proves that this
 decompressor agrees with `liblzo2` on synthetic input. It does not prove that
-the G2 loader's m68k port agrees with `liblzo2` on the shipped OS image. Task
-TOOL-4 reads the real firmware and is gated on the artifacts.
+the G2 loader's m68k port agrees with `liblzo2` on the shipped OS image.
+Reading the real firmware is gated on the artifacts.
 """
 
 import pytest
@@ -341,8 +341,9 @@ def test_every_truncation_of_every_vector_is_a_named_failure(name):
 
 
 def test_the_named_failure_is_a_value_error_and_carries_a_named_code():
-    """Callers in TOOL-3 stop the load and name the section. They need an
-    exception type they can catch and a message they can print."""
+    """A caller loading a container section stops the load and names the
+    section. It needs an exception type it can catch and a message it can
+    print."""
     assert issubclass(Lzo1xError, ValueError)
 
     with pytest.raises(ValueError):

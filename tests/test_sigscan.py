@@ -1,5 +1,4 @@
-"""The descriptor signature scanner. Task TOOL-6, design 7.13, logbook 3.1,
-trap 7.2.
+"""The descriptor signature scanner.
 
 WHAT RUNS WHERE.
 
@@ -11,14 +10,13 @@ validation identity holds for every record that carries an X pointer -- does
 touch real Clavia bytes and is gated on ``NMG2_ARTIFACTS`` via the
 ``artifacts_dir`` fixture.
 
-WHY THE NON-GATED HALF MATTERS (plan section 18.7, in this task's own words):
-a test that passes when the code is broken is worse than no test. The gated
-half cannot run in most environments, so the scanner needs its own, ungated
-proof here -- and the properties it proves (2-byte granularity, no fixed
-stride, the in-range P-pointer test) are the very traps the task warns about.
+WHY THE NON-GATED HALF MATTERS: a test that passes when the code is broken is
+worse than no test. The gated half cannot run in most environments, so the
+scanner needs its own, ungated proof here -- and the properties it proves
+(2-byte granularity, no fixed stride, the in-range P-pointer test) are the very
+traps this format is recorded to set.
 
-THE RECORD LAYOUT (logbook ``AGENTS.md`` section 3.1), read as 32-bit
-big-endian longwords over base ``B``:
+THE RECORD LAYOUT, read as 32-bit big-endian longwords over base ``B``:
 
     +0x08  pointer to X data
     +0x0C  pointer to Y data
@@ -35,7 +33,7 @@ import pytest
 
 from nmg2_tools.sigscan import TERMINATOR, ModuleDescriptor, scan
 
-# The CODE section of the G2 OS image loads here (design section 7.3 step 1).
+# The CODE section of the G2 OS image loads here.
 # The scanner needs the load address so "in range" means "inside the image".
 BASE = 0x30000400
 
@@ -57,8 +55,8 @@ def _place(image: bytearray, offset: int, x_ptr, y_ptr, p_ptr, x_words, y_words,
 # ---------------------------------------------------------------------------
 # Ungated: the scanner recovers records placed at non-uniform, non-0x28 gaps,
 # including records at 2 mod 4. A fixed-stride (0x28) walk and a 4-byte-only
-# walk both fail on this image. Logbook 3.1: "0x28 is only the MODAL stride",
-# and trap 7.2: many blobs are at 2 mod 4.
+# walk both fail on this image. 0x28 is only the MODAL stride, and many blobs
+# are at 2 mod 4.
 # ---------------------------------------------------------------------------
 
 def _synthetic_nonuniform():
@@ -98,8 +96,8 @@ def test_scan_recovers_nonuniform_gaps_not_the_modal_stride():
 
 
 def test_scan_finds_a_record_at_2_mod_4():
-    """Trap 7.2: a sweep that tests only 4-byte alignment sees noise and misses
-    the 2-mod-4 records. The scanner must find a record whose base is 2 mod 4
+    """A sweep that tests only 4-byte alignment sees noise and misses the
+    2-mod-4 records. The scanner must find a record whose base is 2 mod 4
     even when it is the only record in the image."""
     image = bytearray(0x200)
     # A single record at the 2-mod-4 base 0x12. A 4-byte-only walk (offsets
@@ -158,7 +156,7 @@ def test_scan_reports_field_values():
 # ---------------------------------------------------------------------------
 # Gated: the real firmware image. The validation identity holds for every
 # record that carries an X pointer, with zero exceptions. Skip
-# where NMG2_ARTIFACTS is unset, with section 18.5's reason, via the
+# where NMG2_ARTIFACTS is unset, with the standard skip reason, via the
 # `artifacts_dir` fixture.
 # ---------------------------------------------------------------------------
 
@@ -171,7 +169,8 @@ def _load_code_image(artifacts_dir):
     """The image is read from the path the test DECLARES and the tree is not
     searched for a file of that name. A body that hunts for its input cannot be
     gated on it: the gate would answer RUN and the open would then raise where
-    section 18.5 requires a skip WITH A REASON naming the expected path."""
+    the skip discipline requires a skip WITH A REASON naming the expected
+    path."""
     import os
 
     with open(os.path.join(artifacts_dir, CODE_IMAGE_NAME), "rb") as fh:
@@ -188,8 +187,7 @@ def test_scan_recovers_all_194_descriptors(artifacts_dir):
 @pytest.mark.artifacts(CODE_IMAGE_NAME)
 def test_validation_identity_holds_for_every_record_with_an_x_pointer(artifacts_dir):
     """X_ptr + 4*(X_words + Y_words) == P_ptr for every record that carries an
-    X pointer, with zero exceptions. Logbook 3.1 fixes the zero-exception
-    requirement."""
+    X pointer, with zero exceptions. The record layout admits no exception."""
     image = _load_code_image(artifacts_dir)
     recs = scan(image, BASE)
     with_x = [r for r in recs if r.carries_x]
@@ -199,8 +197,8 @@ def test_validation_identity_holds_for_every_record_with_an_x_pointer(artifacts_
 
 
 # ---------------------------------------------------------------------------
-# The CSV materialisation. TOOL-8 declares `dsp/g2_module_descriptors.csv` as
-# an input and reads four of its columns by name, so the header is a contract
+# The CSV materialisation. The module map declares `dsp/g2_module_descriptors.csv`
+# as an input and reads columns by name, so the header is a contract
 # and not a presentation choice. It is asserted here as a whole literal string
 # rather than column by column: a per-column check passes against a file whose
 # columns are in the wrong order, and the consumer reads by name from a
@@ -215,8 +213,9 @@ DESCRIPTOR_CSV_HEADER = (
 
 def test_to_csv_text_renders_every_record_as_the_declared_row():
     """The whole rendering, asserted as one exact string. Pointers are
-    uppercase `0x`-prefixed hex because TOOL-8's reader parses them with
-    `int(value, 16)`; counts are decimal because it parses those with `int()`."""
+    uppercase `0x`-prefixed hex because the module map's reader parses them
+    with `int(value, 16)`; counts are decimal because it parses those with
+    `int()`."""
     from nmg2_tools.sigscan import to_csv_text
 
     text = to_csv_text(scan(_synthetic_nonuniform(), BASE))
@@ -250,7 +249,7 @@ def test_to_csv_text_marks_a_record_that_breaks_the_identity_as_mismatch():
     """A record that carries an X blob but whose pointers do not satisfy the
     identity is recorded as `MISMATCH`. The column exists to carry that
     disagreement; a generator that silently wrote `OK` would hide the one
-    fact TOOL-6's check is built on."""
+    fact this check is built on."""
     from nmg2_tools.sigscan import to_csv_text
 
     image = bytearray(0x200)

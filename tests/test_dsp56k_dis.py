@@ -30,18 +30,17 @@ from nmg2_tools.dsp56k_dis import (
 )
 
 # ---------------------------------------------------------------------------
-# Trap 7.10. The three real DMA routing registers.
+# The recorded `MOVEP` mis-decode. The three real DMA routing registers.
 # ---------------------------------------------------------------------------
 
 
 # WHY EACH TEST BELOW CARRIES A SECOND OPERAND BYTE.
 #
-# The three operand bytes trap 7.10 records -- 0xA6, 0xA5 and 0x9D -- all have
-# BIT 6 CLEAR. A six-bit mask and a seven-bit mask therefore give the SAME
-# answer for every one of them, so the three registers the trap is about cannot
+# The three operand bytes the mis-decode was recorded on -- 0xA6, 0xA5 and
+# 0x9D -- all have BIT 6 CLEAR. A six-bit mask and a seven-bit mask therefore
+# give the SAME answer for every one of them, so those three registers cannot
 # detect a decoder that masked seven bits. That is the mask-width variant of
-# trap 7.10 itself, and the tests that exist because of the trap were blind to
-# it.
+# the same mistake, and a test built only on those bytes is blind to it.
 #
 # Each test below adds the SAME low six bits with BIT 6 SET. This states no new
 # fact about the processor: `test_the_operand_window_...` already pins, from the
@@ -99,8 +98,8 @@ def test_movep_decodes_the_dco4_register_at_x_ffffdd():
 
 
 def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
-    """The negative half of trap 7.10, stated as a test rather than as a
-    comment. Each wrong address is the operand byte read as an address, so a
+    """The negative half of the recorded mis-decode, stated as a test rather
+    than as a comment. Each wrong address is the operand byte read as an address, so a
     decoder that repeated the mistake would print it."""
     texts = [
         decode([0x08F4A6, 0]).text,
@@ -118,7 +117,7 @@ def test_the_three_addresses_trap_7_10_recorded_as_wrong_never_appear():
 
     # The same three registers reached through an operand whose bit 6 is SET.
     # Bit 6 is clear in all three bytes above, so without these the mask width
-    # is unpinned and a seven-bit mask passes the whole trap 7.10 group.
+    # is unpinned and a seven-bit mask passes the whole group.
     bit_six_set = [
         decode([0x08F466, 0]).text,
         decode([0x08F465, 0]).text,

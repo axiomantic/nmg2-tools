@@ -1,17 +1,15 @@
-"""The `.pch2` parser against the synthesized corpus. Task TOOL-10, T0 half.
-
-Design section 15.7, plan section 3.5.
+"""The `.pch2` parser against the synthesized corpus. The T0 half.
 
 THIS TEST RUNS ON THE SYNTHESIZED CORPUS AND ON NOTHING ELSE. It reads no
 Clavia byte, so it runs in every public repository and on a pull request from
-a fork. It depends on REPO-2 and TOOL-12 and on nothing else.
+a fork. It depends on the synthesized corpus generator and on nothing else.
 
 WHAT A GREEN RUN HERE PROVES, AND WHAT IT DOES NOT. A green run proves that the
 parser handles every case the format specification names: framing, the CRC, the
 file-against-wire differences and the malformed set. It proves NOTHING
 about real-world patch variety, because nobody wrote this corpus from real
-patches. A construct a real patch uses that section 15.7 does not describe
-passes here and fails the T1 half against the G2 Demo corpus, which is private
+patches. A construct a real patch uses that the specification does not
+describe passes here and fails the T1 half against the G2 Demo corpus, which is private
 and informational by tier. That gap is known, stated and accepted.
 
 THE NAMES ARE READ FROM THE MANIFEST, NEVER SPELLED OUT HERE. The synthesized
@@ -93,7 +91,7 @@ def test_every_well_formed_file_parses_and_every_malformed_one_raises_its_manife
 
 
 def test_the_minimum_file_parses_to_one_empty_0x21_object_and_a_valid_crc():
-    """Design section 15.7's minimum: a text header, the two-byte binary
+    """The specification's minimum: a text header, the two-byte binary
     header, one 0x21 object with a zero-length payload, and a CRC. The header
     values and the CRC are written out as literals, not derived from the
     corpus, so a regression in either the header split or the CRC surfaces
@@ -116,8 +114,8 @@ def test_the_minimum_file_parses_to_one_empty_0x21_object_and_a_valid_crc():
 
 
 def test_every_object_type_the_specification_names_is_read_in_order():
-    """The union of the types section 15.7 and design section 18 name, read in
-    the order the corpus writes them. Each payload is the object's own index
+    """The union of the types the format specification and the protocol row
+    name, read in the order the corpus writes them. Each payload is the object's own index
     as a single byte, so two objects never look alike."""
     result = pch2.parse(_corpus()["object_types.pch2"])
 
@@ -167,7 +165,7 @@ def test_the_boundary_lengths_parse_zero_and_the_largest_committed_payload():
 
 
 # ---------------------------------------------------------------------------
-# The file-against-wire differences. Design section 15.7.
+# The file-against-wire differences.
 # ---------------------------------------------------------------------------
 
 
@@ -255,8 +253,8 @@ def test_unknown_object_type_raises_the_named_refusal():
 
 
 # ---------------------------------------------------------------------------
-# The CRC coverage. Design section 15.3: the routine covers the version and
-# type bytes and every chunk, and excludes only the trailing CRC. The text
+# The CRC coverage. The routine covers the version and type bytes and every
+# chunk, and excludes only the trailing CRC. The text
 # header is before the covered range and is not covered.
 # ---------------------------------------------------------------------------
 
@@ -269,8 +267,7 @@ def test_every_well_formed_file_has_a_valid_crc():
 
 def test_a_mutation_in_the_covered_range_is_a_bad_crc():
     """Flipping one bit in the version byte -- the first covered byte -- must
-    make the CRC fail. The version byte is part of the covered range per
-    section 15.3."""
+    make the CRC fail. The version byte is part of the covered range."""
     image = bytearray(_corpus()["min.pch2"])
     nul = image.index(b"\x00")
     image[nul + 1] ^= 0x01  # the version byte

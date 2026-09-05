@@ -1,4 +1,4 @@
-"""The `.pch2` parser. Task TOOL-10, design section 15.7, plan section 3.5.
+"""The `.pch2` parser.
 
 HOW THIS FILE WAS WRITTEN, because the licence makes it matter.
 
@@ -14,21 +14,22 @@ this format.
 
 TWO SOURCES FED THIS FILE, AND THEY ARE NOT THE SAME KIND OF THING.
 
-(a) THE CONTAINER SHAPE CAME FROM THIS PROJECT'S OWN DESIGN, sections 15.7 and
-    15.3. That is an INTERNAL SPECIFICATION, not a third-party implementation.
+(a) THE CONTAINER SHAPE CAME FROM THIS PROJECT'S OWN DESIGN. That is an
+    INTERNAL SPECIFICATION, not a third-party implementation.
     From it come the `[1-byte type][2-byte length][payload]` framing and the
     CRC-16/CCITT XMODEM parameters -- polynomial 0x1021, most significant bit
     first, initial value 0, no final exclusive-or, stored big-endian -- both
     restated under THE FORMAT below.
 
-(b) THREE OF THE ELEVEN CODES IN `ACCEPTED_OBJECT_TYPES` CAME FROM OBSERVED
-    BYTES, added 2026-08-26. They were read off the operator's own patch by
+(b) SOME CODES IN `ACCEPTED_OBJECT_TYPES` CAME FROM OBSERVED BYTES rather
+    than from the specification. They were read off the operator's own patch by
     walking the framing and reading each frame's type byte. No reference
     implementation, and no description of one, was consulted for them. They
     were then confirmed against the 73-file corpus at
-    `nmg2-artifacts/corpus/pch2`: all 73 files walk to `filesize-2` exactly,
-    all 73 CRCs verify, and the 1314 frames they hold carry exactly those
-    eleven codes and no twelfth. The header boundary is MEASURED per file --
+    `nmg2-artifacts/corpus/pch2`: every file there walks to `filesize-2`
+    exactly, every CRC verifies, and every frame those files hold carries a
+    code in `ACCEPTED_OBJECT_TYPES` and no code outside it. The header boundary
+    is MEASURED per file --
     two of the 73 carry a shorter text header than the rest, so a fixed offset
     would have walked 71 and read the two failures as bad data rather than as
     its own wrong assumption.
@@ -36,17 +37,16 @@ TWO SOURCES FED THIS FILE, AND THEY ARE NOT THE SAME KIND OF THING.
 WHY THE RECORD CARRIES THE WEIGHT AND THE CODE CANNOT. A layout that merely
 happens to match a reference somebody read is not independent, and a matching
 layout is what BOTH a clean derivation and a contaminated one produce. The
-result cannot separate them; only the account of how it was obtained can. Lint
-18 reads this record's FORM and can never read its truth, so a reviewer is the
+result cannot separate them; only the account of how it was obtained can. A
+lint reads this record's FORM and can never read its truth, so a reviewer is the
 only thing between a false record and the repository.
 
 WHAT IS NOT DERIVED HERE, AND MUST NOT BE FILLED IN BY GUESSING.
 
-- THE ELEVEN TYPE CODES ARE UNNAMED AND THEIR MEANING IS NOT DERIVED. This
+- THE ACCEPTED TYPE CODES ARE UNNAMED AND THEIR MEANING IS NOT DERIVED. This
   parser FRAMES and CRC-CHECKS. Every payload stays an opaque byte string that
-  nothing here interprets. Accepting eleven types is not decoding eleven types,
-  and a reader who reads it as the second is reading something this file never
-  claims.
+  nothing here interprets. Accepting a type is not decoding it, and a reader
+  who reads it as the second is reading something this file never claims.
 - Names may not come from this project's current sessions. Deriving a name
   needs a reader who has seen NEITHER the reference NOR any summary of one, and
   who correlates against observable patch properties. A name recalled from a
@@ -61,14 +61,14 @@ WHAT IS NOT DERIVED HERE, AND MUST NOT BE FILLED IN BY GUESSING.
 
 THE FORMAT.
 
-Design section 15.7 fixes the shape, and this parser implements exactly that
+The specification fixes the shape, and this parser implements exactly that
 shape and nothing else:
 
     the `.pch2` format is a text header, a 2-byte binary header, then objects
     of [1-byte type][2-byte length][payload]. Fields are bit-packed and are
     not byte aligned.
 
-Design section 15.3 fixes the CRC: CRC-16/CCITT, the XMODEM variant,
+The specification fixes the CRC: CRC-16/CCITT, the XMODEM variant,
 polynomial 0x1021, most significant bit first, initial value 0, no final
 exclusive-or, stored big-endian. In a `.pch2` file it covers the version and
 type bytes and every chunk, and excludes only the trailing CRC. The text
@@ -87,20 +87,20 @@ The guarantee an import would have given -- that no type the generator writes
 is refused here -- is asserted in the suite instead. An assertion can fail; an
 import cannot.
 
-The CRC routine is still imported. It is an algorithm design section 15.3
-fixes rather than a decision about what to accept, and every real file is read
+The CRC routine is still imported. It is an algorithm the specification fixes
+rather than a decision about what to accept, and every real file is read
 through it, so a wrong routine refuses real files loudly.
 
 WHAT THE PARSER PROVES, AND WHAT IT DOES NOT.
 
 This module parses framing, bit packing and the CRC. It proves that a file
 holds well-formed objects and a valid CRC. It does NOT prove payload semantics:
-design section 15.7 gives no payload layout for any object type, so a payload
+the specification gives no payload layout for any object type, so a payload
 that is well-framed but semantically wrong passes this parser. That is a known,
 stated, accepted gap and a green T0 run over the synthesized corpus is not
 coverage of the G2 Demo corpus for exactly that reason.
 
-THE FILE-AGAINST-WIRE DIFFERENCES (design section 15.7).
+THE FILE-AGAINST-WIRE DIFFERENCES.
 
 1. The variation count is 9 in a file and 10 on the wire, and it affects
    0x4D and 0x65. A file carries 9; this parser reads the file, so it reads 9.
@@ -124,8 +124,8 @@ from pathlib import Path
 from nmg2_tools.synth_pch2 import crc16_ccitt
 
 # The object type codes this parser accepts, sorted. The provenance is mixed
-# and the mixture is the point: some are the codes design section 15.7 and
-# design section 18 name, and the rest were MEASURED in real `.pch2` files by
+# and the mixture is the point: some are the codes the specification names,
+# and the rest were MEASURED in real `.pch2` files by
 # walking the framing and reading each frame's type byte.
 #
 # NO AUTHORITY AVAILABLE TO THIS REPOSITORY STATES WHAT ANY OF THESE CODES
@@ -146,7 +146,7 @@ ACCEPTED_OBJECT_TYPES = (
     0x6F,
 )
 
-# The USB trailer design section 15.7 names: two raw bytes that follow the
+# The USB trailer: two raw bytes that follow the
 # 0x21 chunk in USB dumps and are not an object. An object header is three
 # bytes; this pair is two.
 USB_TRAILER = b"\x2d\x00"
@@ -236,7 +236,7 @@ def _raise(error_cls: type[Pch2Error], detail: str) -> None:
 def parse(data: bytes) -> Pch2File:
     """Parse a whole `.pch2` file and return the objects and the CRC result.
 
-    The shape this function implements is design section 15.7's, verbatim:
+    The shape this function implements is the specification's, verbatim:
 
         a text header, a 2-byte binary header, then objects of
         [1-byte type][2-byte length][payload].
@@ -245,7 +245,7 @@ def parse(data: bytes) -> Pch2File:
     the synthesized corpus writes it. The two bytes after it are the binary
     header: the version byte then the type byte. The covered range -- the
     binary header plus every object -- is checked against the two trailing
-    CRC bytes, big-endian, per design section 15.3.
+    CRC bytes, big-endian.
 
     Raises :class:`Pch2Error` (a named subclass) on any malformed input: a
     bad CRC, a truncated object, a length that runs past the end of the file,

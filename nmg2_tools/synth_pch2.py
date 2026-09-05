@@ -1,21 +1,21 @@
-"""The synthesized `.pch2` corpus generator. Task TOOL-12.
+"""The synthesized `.pch2` corpus generator.
 
-Design section 15.7 is the format specification. Design section 15.3 gives the
-CRC. This generator reads those two sections and NOTHING ELSE.
+This generator reads this project's own format specification and its CRC
+definition, and NOTHING ELSE.
 
 EVERY BYTE OF THIS CORPUS IS AUTHORED BY THIS PROJECT. No Clavia byte enters
 this repository in any form: not a committed file, not an inline array, not
 base64. `nmg2_tools/testdata/pch2_synth/` is the only directory in any public
-repository of this project where a `*.pch2` file may live, and REPO-11's
-`no-clavia-payload` step enforces that.
+repository of this project where a `*.pch2` file may live, and the payload
+lint's `no-clavia-payload` step enforces that.
 
 WHAT THIS FILE IS, because the licence makes it matter.
 
 `nmg2-tools` is MIT. The source of everything this generator writes is
-INTERNAL: design sections 15.7 and 15.3 are this project's own specification,
-and every choice those sections do not fix is listed below as AUTHORED HERE.
-Neither section is a third-party implementation, and no generator, parser or
-specification written by anyone else was consulted. No line of any other
+INTERNAL: the format and the CRC are fixed by this project's own
+specification, and every choice it does not fix is listed below as AUTHORED
+HERE. That specification is not a third-party implementation, and no generator,
+parser or specification written by anyone else was consulted. No line of any other
 implementation is copied, transliterated or paraphrased here, because none was
 read.
 
@@ -30,27 +30,26 @@ reproduces every committed byte, so an edit made by hand cannot survive.
 
 WHAT A GREEN RUN AGAINST THIS CORPUS PROVES, AND WHAT IT DOES NOT.
 
-Design section 15.7 states it and this docstring repeats it because a reader of
+The specification states it and this docstring repeats it because a reader of
 the generator is the reader most likely to over-read the result. A green run
 proves that the parser handles every case THIS SPECIFICATION NAMES. **It proves
 nothing about real-world patch variety**, because nobody wrote this corpus from
-real patches. A construct that a real Clavia patch uses and that section 15.7
-does not describe passes here and fails against the G2 Demo corpus, which is
+real patches. A construct that a real Clavia patch uses and that the
+specification does not describe passes here and fails against the G2 Demo corpus, which is
 private and informational by tier. That gap is known, stated and accepted.
 
 WHAT THE SPECIFICATION FIXES, AND WHAT THIS GENERATOR AUTHORS.
 
-Design section 15.7 fixes:
+The specification fixes:
 
     a text header, a 2-byte binary header, then objects of
     [1-byte type][2-byte length][payload]. Fields are bit-packed and are not
     byte aligned.
 
-Design section 15.3 fixes the CRC: CRC-16/CCITT, the XMODEM variant, polynomial
+The specification fixes the CRC: CRC-16/CCITT, the XMODEM variant, polynomial
 0x1021, most significant bit first, initial value 0, no final exclusive-or,
 stored big-endian. In a `.pch2` file it covers the version and type bytes and
-every chunk, and excludes only the trailing CRC. Section 15.3 also fixes the bit
-order: the `0x39` LED payload is "the only reversed bit order in the protocol",
+every chunk, and excludes only the trailing CRC. It also fixes the bit order: the `0x39` LED payload is "the only reversed bit order in the protocol",
 so every other bit-packed field is most significant bit first.
 
 The specification fixes nothing else, and the rest is AUTHORED HERE. It is
@@ -60,8 +59,9 @@ listed so that a reader never mistakes an authored choice for a recovered fact:
     2. The value of the version byte and of the type byte.
     3. The byte order of the 2-byte length field. Big-endian, because the CRC
        is stored big-endian and the target is a big-endian m68k.
-    4. Every payload. Section 15.7 gives no payload layout for any object type,
-       so each payload here states field WIDTHS and states no semantics.
+    4. Every payload. The specification gives no payload layout for any
+       object type, so each payload here states field WIDTHS and states no
+       semantics.
     5. The names of the refusals in `MANIFEST.tsv`.
 
 **Consequence, stated plainly:** this corpus proves framing, bit packing and the
@@ -70,15 +70,15 @@ states any.
 
 WHICH OBJECT TYPES THE SPECIFICATION NAMES.
 
-Section 15.7 names `0x21`, `0x4D` and `0x65` in its own text. Design section 18's
+The format specification names `0x21`, `0x4D` and `0x65` in its own text. The
 protocol test row names the bit-packed types as `0x21`, `0x4A`, `0x52`, `0x4D`,
 `0x65`, `0x62`, `0x60` and `0x69`. `OBJECT_TYPES` is that union, sorted.
 
 THE UPPER LENGTH BOUNDARY IS CAPPED BY A DIFFERENT RULE.
 
-Section 15.7 asks for "the largest the 2-byte length field allows", which is a
-payload of 0xFFFF bytes. REPO-11's PAYLOAD-CEILING fails a committed file above
-65,536 bytes under `testdata/`, and 3 framing bytes plus 65,535 payload bytes
+The specification asks for "the largest the 2-byte length field allows", which
+is a payload of 0xFFFF bytes. The payload lint's PAYLOAD-CEILING fails a
+committed file above 65,536 bytes under `testdata/`, and 3 framing bytes plus 65,535 payload bytes
 already exceed it. **The two rules cannot both hold for a committed file.** The
 resolution: `length_boundaries.pch2` is exactly 65,536 bytes, which is the
 largest a committed file may be, and the true 0xFFFF boundary is reachable only
@@ -93,13 +93,13 @@ from collections.abc import Iterable, Sequence
 
 CORPUS_DIRECTORY = pathlib.Path(__file__).resolve().parent / "testdata" / "pch2_synth"
 
-# REPO-11's PAYLOAD-CEILING. A committed file under `testdata/` may not exceed
-# it. `nmg2_tools.payload_lint.SIZE_CEILING` carries the same number and this
+# The payload lint's PAYLOAD-CEILING. A committed file under `testdata/` may
+# not exceed it. `nmg2_tools.payload_lint.SIZE_CEILING` carries the same number and this
 # module states it again rather than importing it, because a corpus that
 # silently followed a lint constant would change shape the day the lint moved.
 SIZE_CEILING = 65_536
 
-# Section 15.7 names 0x21, 0x4D and 0x65. Design section 18's protocol row names
+# The format specification names 0x21, 0x4D and 0x65. The protocol row names
 # the other bit-packed types. Sorted, so the tuple has one order.
 OBJECT_TYPES = (0x21, 0x4A, 0x4D, 0x52, 0x60, 0x62, 0x65, 0x69)
 
@@ -110,7 +110,7 @@ UNKNOWN_OBJECT_TYPE = 0xFF
 TEXT_HEADER = b"SYNTHESIZED PCH2 CORPUS\nGenerator=nmg2_tools.synth_pch2\n\x00"
 
 # AUTHORED. The 2-byte binary header: the version byte and the type byte. The
-# CRC of a file starts here, per design section 15.3.
+# CRC of a file starts here.
 BINARY_HEADER = b"\x01\x00"
 
 CRC_POLYNOMIAL = 0x1021
@@ -142,8 +142,8 @@ class SynthPch2Error(ValueError):
 def crc16_ccitt(data: bytes) -> int:
     """Return the CRC-16/CCITT (XMODEM) of `data`.
 
-    Design section 15.3: polynomial 0x1021, most significant bit first, initial
-    value 0, no final exclusive-or. The published check value over the ASCII
+    Polynomial 0x1021, most significant bit first, initial value 0, no final
+    exclusive-or. The published check value over the ASCII
     bytes `123456789` is 0x31C3, and the test asserts it against its own
     reference rather than against this function.
     """
@@ -211,7 +211,7 @@ def build_file(body: bytes, *, crc_error: int = 0) -> bytes:
 
     `crc_error` is exclusive-or'd into the stored CRC. A non-zero value writes a
     file whose CRC is wrong on purpose, which is one of the malformed cases
-    section 15.7 requires.
+    the specification requires.
     """
     covered = BINARY_HEADER + body
     stored = crc16_ccitt(covered) ^ crc_error
@@ -281,8 +281,7 @@ def generate() -> dict[str, bytes]:
         build_object(0x65, bytes([8]) + bytes(range(8)))
     )
 
-    # The malformed set. Section 15.7: the parser must reject each with a NAMED
-    # error, and `MANIFEST.tsv` is where the corpus states which name.
+    # The malformed set. The parser must reject each with a NAMED error, and `MANIFEST.tsv` is where the corpus states which name.
     #
     # A truncated object. The header is complete and the payload stops early.
     files["bad_truncated_object.pch2"] = build_file(
@@ -324,7 +323,7 @@ def write(directory: pathlib.Path | None = None) -> list[pathlib.Path]:
 
 
 # The refusal each malformed file expects. The names are AUTHORED here, and
-# TOOL-10 raises them.
+# `nmg2_tools.pch2` raises them.
 _REFUSALS = {
     "bad_crc.pch2": "PCH2-BAD-CRC",
     "bad_length_past_end.pch2": "PCH2-LENGTH-PAST-END",

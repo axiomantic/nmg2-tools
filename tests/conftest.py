@@ -117,8 +117,8 @@ def _skip_reason(report) -> str:
 
     pytest gives `(path, lineno, "Skipped: <reason>")` for a `pytest.skip` and
     a bare string for some other skip routes. The prefix is stripped because
-    the reason is section 18.5's line, which already carries its own `SKIPPED:`
-    prefix, and two prefixes on one line read as two different messages.
+    the reason is the standard skip line, which already carries its own
+    `SKIPPED:` prefix, and two prefixes on one line read as two different messages.
     """
     longrepr = report.longrepr
     text = longrepr[2] if isinstance(longrepr, tuple) else str(longrepr)

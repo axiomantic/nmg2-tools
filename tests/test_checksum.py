@@ -1,4 +1,4 @@
-"""Task TOOL-2. Design section 7.3 step 4.
+"""The container checksum.
 
 The checksum is the one's complement of the 32-bit sum of all bytes. Every
 assertion below states the full expected 32-bit value, because a checksum that
@@ -46,8 +46,8 @@ def test_a_bytearray_and_a_memoryview_give_the_same_value_as_bytes():
 
 
 def test_a_single_flipped_byte_changes_the_result():
-    """Design section 7.3 step 3 verifies a section with this value, so a
-    changed byte must change it. Both values are stated in full."""
+    """The loader verifies a section with this value, so a changed byte must
+    change it. Both values are stated in full."""
     good = b"CODE\x10\x20\x30\x40"
     # 67+79+68+69+16+32+48+64 = 443 = 0x1BB.
     assert checksum(good) == 0xFFFFFE44

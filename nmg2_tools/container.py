@@ -1,6 +1,4 @@
-"""The firmware container header and section table. Task TOOL-3.
-
-Design section 7.3 steps 2, 3, 5 and 6.
+"""The firmware container header and section table.
 
 WHAT THIS FILE IS, because the licence makes it matter.
 
@@ -48,8 +46,7 @@ The loader's own error strings confirm the order of the first five fields:
 
 LOADING A SECTION.
 
-Design section 7.3 step 3 gives the order, and **both checksum verifications
-are mandatory**:
+The order is fixed, and **both checksum verifications are mandatory**:
 
 1. Verify the compressed checksum over exactly `compressed_length` bytes.
 2. Decompress with LZO1X.
@@ -151,8 +148,8 @@ class Section:
 class Container:
     """The parsed header and section table.
 
-    `version` is the raw 16-bit word. Design section 15.5 item 5 saves it in
-    plugin state, so the value is kept as it was read and not as text.
+    `version` is the raw 16-bit word. The plugin state saves it as a word, so
+    the value is kept as it was read and not as text.
     """
 
     version: int

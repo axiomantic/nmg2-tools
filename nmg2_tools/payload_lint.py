@@ -59,20 +59,20 @@ independent conditions, each with its own failure name:
 
 3. PAYLOAD-CEILING: a REGISTERED committed file above 65,536 bytes whose row
    is not ``allow-listed`` fails, in either visibility. The ceiling keys on
-   the ROW and on nothing else. It used to key on a list of directory names,
-   and a 297,564-byte file escaped it because its directory was not on that
-   list; the answer was to retire the list, not to lengthen it. A file above
+   the ROW and on nothing else. A list of directory names lets a file escape
+   whenever its directory is not on the list -- a 297,564-byte file did -- and
+   the answer to that is no list at all rather than a longer one. A file above
    the ceiling therefore says so in its row -- ``public allow-listed`` or
    ``private allow-listed`` -- and the size is a decision on the record. The
    two by-rule classes are exempt: the ceiling exists to notice bulk data,
    and the size of source or prose is a review concern.
 
-   That exemption is the CLASS's and not the absence of a row. It used to be
-   reachable only by a path the register had never heard of, because the
-   ceiling was tested after the row lookup had already claimed the path. So
-   writing a directory row over a tree TIGHTENED the ceiling onto every source
-   file inside it: a 840,080-byte ``m68kops.c`` passed while nothing covered
-   it and failed the moment ``Musashi/`` was registered. That is backwards --
+   That exemption is the CLASS's and not the absence of a row. Testing the
+   ceiling only after the row lookup had claimed the path would reach the
+   exemption only for a path the register had never heard of, so writing a
+   directory row over a tree would TIGHTEN the ceiling onto every source file
+   inside it: a 840,080-byte ``m68kops.c`` passes uncovered and fails the
+   moment ``Musashi/`` is registered. That is backwards --
    a row is a decision that a tree may be committed, not a decision that its
    source files are now bulk data -- and it is a reason not to write the row,
    which is the one thing this register must never give anyone. The ceiling
@@ -734,9 +734,8 @@ def lint_committed_files(
         if entry is None:
             # The guard's default answer. A file with no row still gets one
             # chance -- a by-rule class -- and if it has none it is reported.
-            # This branch used to be a bare `continue`, which is why two real
-            # payload files were never mentioned by a check whose whole job
-            # was to mention them.
+            # A bare `continue` here would let such a file pass unmentioned by
+            # a check whose whole job is to mention it.
             if classify(posix_path) is None:
                 failures.append(
                     f"PAYLOAD-UNREGISTERED: {posix_path}: committed file with "

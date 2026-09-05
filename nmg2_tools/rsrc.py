@@ -1,8 +1,7 @@
 """Parse a Macintosh resource fork and extract the G2 firmware images.
 
-Task TOOL-4. Design section 7.2 (accepted inputs) and 7.3 step 1 (find the
-resources: type ``NMG2``, identifier 128, is the OS; type ``BOOT``, identifier
-128, is the loader).
+The accepted input is a Macintosh resource fork. Type ``NMG2``, identifier 128,
+is the OS; type ``BOOT``, identifier 128, is the loader.
 
 WHAT THIS FILE IS, because the licence makes it matter. ``nmg2-tools`` is MIT.
 The resource-fork layout below is a FACT about a data format: which field sits
@@ -51,7 +50,7 @@ The data area holds the payload of every resource. At the data offset recorded
 in the reference list the first big-endian u32 is the payload length and the
 payload follows it.
 
-Design section 7.1: the project ships no Clavia bytes. This module parses a
+The project ships no Clavia bytes. This module parses a
 fork the user supplies; it never embeds one.
 """
 
@@ -97,9 +96,8 @@ class Resource:
 class Firmware:
     """The two firmware images an updater carries.
 
-    ``os_image`` is the raw container image that design section 7.3 steps 2
-    and 3 parse (``nmg2_tools.container.parse_header`` /
-    ``load_sections``); it hashes to the ``NMG2_128_OS.bin`` line of
+    ``os_image`` is the raw container image that
+    ``nmg2_tools.container.parse_header`` and ``load_sections`` parse; it hashes to the ``NMG2_128_OS.bin`` line of
     ``artifacts.sha256``. ``loader`` is the boot loader and hashes to the
     ``BOOT_128_Loader.bin`` line.
     """
@@ -208,7 +206,7 @@ def extract_images(
 ) -> tuple[bytes, bytes]:
     """Return the ``(os_image, loader)`` pair from a resource fork.
 
-    Design section 7.3 step 1: type ``NMG2`` identifier 128 is the OS, type
+    Type ``NMG2`` identifier 128 is the OS, type
     ``BOOT`` identifier 128 is the loader. Raise :class:`RsrcError` when
     either image is missing.
     """
