@@ -16,17 +16,10 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 
-[project.scripts]
-# `planlint` is the installed entry point. The wrapper scripts the plan
-# names are the same command with a different `--only` set, so the console
-# script is the one form that a fresh clone gets from `pip install .`.
-planlint = "planlint.cli:main"
-
 [tool.setuptools]
-# The layout is fixed. `nmg2_tools/` holds the
-# repository lints, and `planlint/` holds the plan lints. A package that this
-# list does not name is a package `pip install .` does not install.
-packages = ["nmg2_tools", "planlint"]
+# The layout is fixed. `nmg2_tools/` holds the repository lints. A package that
+# this list does not name is a package `pip install .` does not install.
+packages = ["nmg2_tools"]
 
 [tool.pytest.ini_options]
 # The layout is fixed. Every test lives at `tests/` in the repository root, and
@@ -88,7 +81,7 @@ ignore = [
     # findings under 0.16 defaults are this one rule against unchanged code.
     "ISC004",
     # Flags a long message passed straight to `raise`. Long, specific messages
-    # are the house style; see the `Finding` messages throughout `planlint/`.
+    # are the house style; see the failure messages throughout `nmg2_tools/`.
     "TRY003",
 ]
 

@@ -194,16 +194,12 @@ def gated_skip_reason(
 # 18.5, and it stops there. What a reader actually looks at is the RUN, and a
 # run reporting `929 passed, 12 skipped` shows a green summary over
 # deliverables nothing exercised. A gate whose silence is indistinguishable
-# from success is not a gate, and `planlint` already refuses the same shape for
-# a lint that did not run.
+# from success is not a gate.
 #
 # THE LIMIT COMES ACROSS WITH THE PATTERN: a skip changes the verdict's WORDING
 # and NEVER its exit code. Scoring a skip would change what `if pytest; then`
 # means for every existing caller, and that is a separate decision from making
 # the skip visible.
-#
-# The sentence is a different text from `planlint`'s because it is about a
-# different subject. Neither is derived from the other.
 SKIP_VERDICT_SENTENCE = "A skipped test is not a clean test."
 
 
