@@ -536,14 +536,13 @@ def test_project_source_needs_no_register_row(tmp_path):
 
 
 def test_project_source_is_exempt_from_the_ceiling(tmp_path):
-    """`tests/planlint/test_secondwrite.py` grew past the ceiling.
+    """A Python test source file above the ceiling.
 
-    It is Python test source carrying no Clavia byte. The exemption is the
-    CLASS's, stated here and not granted by a row of its own: the ceiling
-    exists to notice bulk data, and the size of source is a code-review
-    concern.
+    It carries no Clavia byte. The exemption is the CLASS's, stated here and
+    not granted by a row of its own: the ceiling exists to notice bulk data,
+    and the size of source is a code-review concern.
     """
-    rel = "tests/planlint/test_secondwrite.py"
+    rel = "tests/test_payload_lint.py"
     _write(tmp_path / rel, 74_232)
     assert lint_committed_files(tmp_path, [rel], CLASS_REGISTER) == []
 
@@ -567,7 +566,7 @@ def test_an_explicit_row_beats_the_prose_class(tmp_path):
 
 def test_source_suffix_inside_a_payload_directory_still_needs_a_row(tmp_path):
     """A `.py` under `fixtures/` is fixture DATA, not project source."""
-    rel = "tests/planlint/fixtures/repo_provenance_bad/nmg2_tools/isa.py"
+    rel = "tests/fixtures/repo_provenance_bad/nmg2_tools/isa.py"
     _write(tmp_path / rel, 10)
     failures = lint_committed_files(tmp_path, [rel], CLASS_REGISTER)
     assert failures == [
@@ -618,7 +617,7 @@ def test_private_allow_listed_row_is_still_private_in_a_public_repo(tmp_path):
 
 # --- A lint's own synthetic repositories are a class, named as one ----------
 #
-# `tests/planlint/fixtures/repo_public_bad/` is a fake repository built to
+# `tests/fixtures/repo_public_bad/` is a fake repository built to
 # IMITATE a payload violation: it holds `.pch2` files outside the synth
 # corpus and a deliberately over-ceiling blob. Excepting each of those with a
 # row of its own would be the roster again, so the class carries one name.
@@ -627,14 +626,14 @@ def test_private_allow_listed_row_is_still_private_in_a_public_repo(tmp_path):
 
 FIXTURE_REPO_REGISTER = [
     RegisterEntry(
-        "tests/planlint/fixtures/", "public fixture-repo", "axiomantic/nmg2-tools"
+        "tests/fixtures/", "public fixture-repo", "axiomantic/nmg2-tools"
     ),
 ]
 
 
 def test_fixture_repo_row_exempts_clause_1_and_the_ceiling(tmp_path):
-    pch2 = "tests/planlint/fixtures/repo_public_bad/patches/demo_bank.pch2"
-    blob = "tests/planlint/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
+    pch2 = "tests/fixtures/repo_public_bad/patches/demo_bank.pch2"
+    blob = "tests/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
     _write(tmp_path / pch2, 10)
     _write(tmp_path / blob, 65_537)
     failures = lint_committed_files(
@@ -648,7 +647,7 @@ def test_fixture_repo_row_exempts_clause_1_and_the_ceiling(tmp_path):
 
 
 def test_fixture_repo_row_does_not_apply_in_another_repository(tmp_path):
-    pch2 = "tests/planlint/fixtures/repo_public_bad/patches/demo_bank.pch2"
+    pch2 = "tests/fixtures/repo_public_bad/patches/demo_bank.pch2"
     _write(tmp_path / pch2, 10)
     failures = lint_committed_files(
         tmp_path,
@@ -665,7 +664,7 @@ def test_fixture_repo_row_does_not_apply_in_another_repository(tmp_path):
 
 
 def test_fixture_repo_row_grants_nothing_when_no_repository_is_supplied(tmp_path):
-    blob = "tests/planlint/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
+    blob = "tests/fixtures/repo_public_bad/fixtures/over_ceiling.bin"
     _write(tmp_path / blob, 65_537)
     failures = lint_committed_files(
         tmp_path, [blob], FIXTURE_REPO_REGISTER, visibility="public", repo=None
@@ -688,7 +687,7 @@ def test_fixture_repo_row_grants_nothing_when_no_repository_is_supplied(tmp_path
 def test_fixture_repo_row_in_another_repository_does_not_register_a_small_file(
     tmp_path,
 ):
-    small = "tests/planlint/fixtures/repo_public_bad/fixtures/blob.bin"
+    small = "tests/fixtures/repo_public_bad/fixtures/blob.bin"
     _write(tmp_path / small, 10)
     failures = lint_committed_files(
         tmp_path,
@@ -710,7 +709,7 @@ def test_a_scoped_row_that_does_not_apply_falls_back_to_a_broader_row(tmp_path):
     the path sits beneath. Otherwise the repair would trade one wrong answer
     for another.
     """
-    small = "tests/planlint/fixtures/repo_public_bad/fixtures/blob.bin"
+    small = "tests/fixtures/repo_public_bad/fixtures/blob.bin"
     _write(tmp_path / small, 10)
     register = FIXTURE_REPO_REGISTER + [RegisterEntry("tests/", "private")]
     failures = lint_committed_files(
@@ -728,14 +727,14 @@ def test_a_scoped_row_that_does_not_apply_falls_back_to_a_broader_row(tmp_path):
 
 def test_load_register_rejects_a_fixture_repo_row_with_no_repository_field(tmp_path):
     path = _register_file(
-        tmp_path, "tests/planlint/fixtures/\tpublic fixture-repo\n"
+        tmp_path, "tests/fixtures/\tpublic fixture-repo\n"
     )
     with pytest.raises(RegisterError) as caught:
         load_register(path)
     assert str(caught.value) == (
         f"{path}:1: a `public fixture-repo` row must carry a third, "
         "tab-separated `owner/name` field naming the one repository it is "
-        "granted for: 'tests/planlint/fixtures/\\tpublic fixture-repo'"
+        "granted for: 'tests/fixtures/\\tpublic fixture-repo'"
     )
 
 
@@ -792,7 +791,7 @@ def test_every_repo_scoped_row_in_the_shipped_register_names_a_repository():
     assert scoped == [
         ("PatchTestFiles/", "public pch2-exception", "axiomantic/G2-Edit"),
         (
-            "tests/planlint/fixtures/",
+            "tests/fixtures/",
             "public fixture-repo",
             "axiomantic/nmg2-tools",
         ),

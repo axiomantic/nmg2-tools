@@ -25,7 +25,6 @@ nothing behind it.
 
 ```bash
 .venv/bin/python -m pytest tests/test_pch2.py    # one file
-.venv/bin/python -m pytest tests/planlint        # the plan linter alone
 .venv/bin/python -m pytest -k <expression>       # by name
 ```
 
@@ -77,7 +76,6 @@ The layout is fixed. Do not use a different one.
 | Path | Content |
 |---|---|
 | `nmg2_tools/` | The tool package. All tool code lives here. |
-| `planlint/` | The implementation-plan linter. Its own package with its own README. |
 | `tests/` | All tests. They live in the repository root, not inside a package. |
 
 The firmware extractor here is the test oracle for the C++ extractor in the
@@ -145,20 +143,17 @@ reads is a liability.
 discriminates nothing.
 
 This repository has already paid for the rule. A hand-maintained rule count in
-`planlint/README.md` disagreed with the count asserted in the tests, and a
-comment claiming a member count that "a grep for two property names finds"
-was an unverifiable hand-count in the very file written to end hand-counts.
-Where a count is genuinely needed, **compute it** — read it out of the source
-with `ast`, or out of the tool itself — and assert the computed value.
+a tool README disagreed with the count asserted in the tests, and a comment
+claiming a member count that "a grep for two property names finds" was an
+unverifiable hand-count in the very file written to end hand-counts. Where a
+count is genuinely needed, **compute it** — read it out of the source with
+`ast`, or out of the tool itself — and assert the computed value.
 
-**`planlint/README.md` is also the live example of the path rule, and its wrong
-paths are a separate defect from its wrong numbers.** It names the invocations
-`./plan_lint.py`, `./payload_lint.py` and `./assert_section_7_6.py`, and not one
-resolves as written: the loose wrappers were never migrated, and `payload_lint.py`
-survives only as the package module the README's own third column names. Every
-`tests/` path it cites has moved one directory down into `tests/planlint/`, so
-each names a real file at a wrong location. Measured 2026-08-14 with `find` and a
-file test, not with `git grep`.
+**A README is also the live example of the path rule, and wrong paths are a
+separate defect from wrong numbers.** A doc that names invocations which no
+longer resolve as written, or `tests/` paths that have since moved, names real
+files at wrong locations. Measure with `find` and a file test, not with
+`git grep`.
 
 **The path rule is the one a machine can decide, and that is why it is stated
 apart from the others.** Each other rule here needs a reader's judgement about

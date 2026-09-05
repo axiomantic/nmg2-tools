@@ -887,27 +887,23 @@ def test_the_cli_exits_one_when_check_remotes_finds_a_commit_on_no_remote(
 # whoever left a wrong document alone. A test may only assert a state its own
 # repository controls.
 #
-# The command is a real `planlint` invocation with a `cd`, a module run, a pipe
-# and a `sed`, not an `echo`: the resolver has to survive the shape a pin
-# actually takes in a note.
+# The command is a real lint invocation with a `cd`, a module run, a pipe and a
+# `sed`, not an `echo`: the resolver has to survive the shape a pin actually
+# takes in a note.
 
-FIXTURE_PLAN = (
-    ROOT / "tests" / "planlint" / "fixtures"
-    / "neg_structure_table_row_column_count.md"
-)
+FIXTURE_REPO_TREE = ROOT / "tests" / "fixtures" / "repo_public_bad"
 
-# The figure the fixture plan yields, as a literal. Deriving it here by running
+# The figure the fixture tree yields, as a literal. Deriving it here by running
 # the same command the pin runs would compare the tool against itself and assert
 # nothing. The fixture is committed, so this figure moves only when somebody
 # edits the fixture — and then this test is the thing that says so.
-FIXTURE_STRUCTURE_FINDINGS = 2
+FIXTURE_SUBMODULE_FINDINGS = 2
 
 
 def structure_count_command():
     return (
-        f"cd {ROOT} && {sys.executable} -m planlint.cli --plan {FIXTURE_PLAN} "
-        r"--only structure | sed -n 's/^structure: \([0-9][0-9]*\) "
-        r"finding(s).*/\1/p'"
+        f"cd {ROOT} && {sys.executable} -m nmg2_tools.submodule_lint "
+        f"{FIXTURE_REPO_TREE} 2>&1 | sed -n '$='"
     )
 
 
@@ -919,7 +915,7 @@ def test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only
     path = note(
         tmp_path,
         pin_block(
-            f"count {FIXTURE_STRUCTURE_FINDINGS} -- {command}",
+            f"count {FIXTURE_SUBMODULE_FINDINGS} -- {command}",
             f"count 40 -- {command}",
         ),
     )
@@ -933,18 +929,18 @@ def test_two_count_pins_over_one_real_command_report_the_drifted_figure_and_only
                 pin=checker.Pin(
                     kind="count",
                     subject=command,
-                    expected=str(FIXTURE_STRUCTURE_FINDINGS),
+                    expected=str(FIXTURE_SUBMODULE_FINDINGS),
                     line=6,
                 ),
                 verdict=checker.OK,
-                detail=f"the count is still {FIXTURE_STRUCTURE_FINDINGS}",
+                detail=f"the count is still {FIXTURE_SUBMODULE_FINDINGS}",
             ),
             checker.PinResult(
                 pin=checker.Pin(
                     kind="count", subject=command, expected="40", line=7
                 ),
                 verdict=checker.MOVED,
-                detail=f"the count was 40, is now {FIXTURE_STRUCTURE_FINDINGS}",
+                detail=f"the count was 40, is now {FIXTURE_SUBMODULE_FINDINGS}",
             ),
         ],
     )
