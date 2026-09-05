@@ -6,9 +6,9 @@ analysis and build tools. It holds no emulator code and it uses no CMake.
 Repository: `axiomantic/nmg2-tools`. Licence: MIT.
 
 This repository is part of the Nord Modular G2 emulator project. The work and
-the execution ceremony are in `ROADMAP.md` in `nmg2-artifacts`. Read that before
-you start a task. This file states the rules that apply while you write code
-here.
+the execution ceremony live in the project roadmap, in the `nmg2-artifacts`
+repository. Read it before you start a task. This file states the rules that
+apply while you write code here.
 
 ## Build and test
 
