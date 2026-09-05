@@ -40,7 +40,7 @@ def test_manifest_first_line_agrees_with_count(tmp_path):
 
 
 def test_manifest_is_written_beside_the_copied_patches(tmp_path):
-    """`REGISTER.md` and `register.tsv` both name `corpus/pch2/MANIFEST.txt`."""
+    """The manifest is written inside `corpus/pch2/`, beside the copied patches."""
     source = _make_source_tree(tmp_path)
     dest = tmp_path / "out"
 
@@ -48,8 +48,8 @@ def test_manifest_is_written_beside_the_copied_patches(tmp_path):
 
     assert manifest_path == dest / "corpus" / "pch2" / "MANIFEST.txt"
     assert manifest_path.is_file()
-    # The old location must not be written as well, or the register row for
-    # `corpus/pch2/MANIFEST.txt` would leave a second, unregistered manifest.
+    # Writing the old location as well would leave a second, stale manifest
+    # that nothing keeps in step with the copied patches.
     assert not (dest / "corpus" / "MANIFEST.txt").exists()
 
 
