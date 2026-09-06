@@ -94,8 +94,3 @@ jobs:
 
       - name: Run the T0 suite in development mode with warnings as errors
         run: python -X dev -W error -m pytest tests -q
-
-  track-repo:
-    uses: ./.github/workflows/track-repo.yml
-    with:
-      visibility: public
