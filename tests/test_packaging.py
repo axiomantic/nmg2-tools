@@ -103,7 +103,6 @@ def test_the_superseded_plan_lint_module_is_absent():
         "artifacts.py",
         "credential_lint.py",
         "extract_demo_corpus.py",
-        "payload_lint.py",
         "submodule_lint.py",
     ]
 
@@ -115,7 +114,6 @@ def test_the_superseded_plan_lint_test_module_is_absent():
         "test_credential_lint.py",
         "test_extract_demo_corpus.py",
         "test_packaging.py",
-        "test_payload_lint.py",
         "test_submodule_lint.py",
     ]
 
