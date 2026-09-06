@@ -21,14 +21,14 @@ python3 -m planlint.cli --plan <plan.md> --repo <repository-path>
 python3 -m planlint.cli --plan <plan.md> --repo <path> --private
 ```
 
-Three wrapper scripts carry the names the plan gives them. Each migrates into a
-repository as a move, not a rewrite: the wrapper and the `planlint/` package go
-together and no code changes.
+Three wrapper scripts carry the names the plan gives them. A wrapper with a
+destination migrates into a repository as a move, not a rewrite: the wrapper
+and the `planlint/` package go together and no code changes.
 
 | Script | What it runs | Migrates to |
 |---|---|---|
 | `./plan_lint.py <plan.md>` | `checks` and `registrar` | `nmg2_tools/plan_lint.py` (REPO-14) |
-| `./payload_lint.py <plan.md> <repo> [--private]` | `payload` | `nmg2_tools/payload_lint.py` (REPO-14, REPO-11) |
+| `./payload_lint.py <plan.md> <repo> [--private]` | `payload` | no destination; the repository-side boundary is covered by `no-private-submodule` and `no-clavia-upload` |
 | `./assert_section_7_6.py <plan.md>` | `graph`, `waves`, `tiers`, `counts`, `implicit`, `closure` | the section 7.6 assertion script |
 
 ## Exit codes

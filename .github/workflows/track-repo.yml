@@ -16,7 +16,8 @@
 #                           hashes being published.
 #   no-clavia-upload        stops a Clavia byte LEAVING a public runner as a
 #                           build artifact. That route has no committed file in
-#                           it at all, so the payload step cannot see it.
+#                           it at all, so a lint that reads committed files
+#                           cannot see it.
 #   no-artifact-credential  stops a public repository holding the credential
 #                           that would let it fetch one.
 

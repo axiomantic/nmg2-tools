@@ -40,7 +40,7 @@ def test_manifest_first_line_agrees_with_count(tmp_path):
 
 
 def test_manifest_is_written_beside_the_copied_patches(tmp_path):
-    """`REGISTER.md` and `register.tsv` both name `corpus/pch2/MANIFEST.txt`."""
+    """`REGISTER.md` names `corpus/pch2/MANIFEST.txt`."""
     source = _make_source_tree(tmp_path)
     dest = tmp_path / "out"
 
