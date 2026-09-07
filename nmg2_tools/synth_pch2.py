@@ -58,8 +58,14 @@ CORPUS_DIRECTORY = pathlib.Path(__file__).resolve().parent / "testdata" / "pch2_
 # The largest a committed file under `testdata/` may be.
 SIZE_CEILING = 65_536
 
-# The bit-packed object types, sorted so the tuple has one order.
-OBJECT_TYPES = (0x21, 0x4A, 0x4D, 0x52, 0x60, 0x62, 0x65, 0x69)
+# The bit-packed object types, sorted so the tuple has one order. This tuple
+# must hold every type `nmg2_tools.pch2` accepts: a type the parser accepts and
+# no committed file carries can be deleted from the parser with the whole suite
+# still green. The parser cannot be imported here -- it imports this module for
+# the CRC -- so the suite asserts the two sets against each other instead.
+OBJECT_TYPES = (
+    0x21, 0x4A, 0x4D, 0x52, 0x5A, 0x5B, 0x60, 0x62, 0x65, 0x69, 0x6F,
+)
 
 # A type that no authority names. The malformed set uses it.
 UNKNOWN_OBJECT_TYPE = 0xFF

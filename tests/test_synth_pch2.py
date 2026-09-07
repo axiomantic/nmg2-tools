@@ -173,7 +173,9 @@ def test_the_bad_crc_file_stores_a_crc_the_reference_rejects():
 def test_the_corpus_covers_every_object_type_the_specification_names():
     """The specified bit-packed types. The union is what `object_types.pch2`
     holds."""
-    assert OBJECT_TYPES == (0x21, 0x4A, 0x4D, 0x52, 0x60, 0x62, 0x65, 0x69)
+    assert OBJECT_TYPES == (
+        0x21, 0x4A, 0x4D, 0x52, 0x5A, 0x5B, 0x60, 0x62, 0x65, 0x69, 0x6F,
+    )
 
     image = generate()["object_types.pch2"]
     body = image[image.index(b"\x00") + 1 + 2 : -2]

@@ -245,6 +245,18 @@ def test_the_parser_accepts_every_object_type_the_generator_writes():
     assert known_positive == [UNKNOWN_OBJECT_TYPE]
 
 
+def test_the_generator_writes_every_object_type_the_parser_accepts():
+    """The other direction, and the one that has teeth. A type the parser
+    accepts and no committed file carries can be deleted from the parser with
+    the whole suite still green, because nothing ever asks the parser to read
+    one."""
+    uncovered = [t for t in pch2.ACCEPTED_OBJECT_TYPES if t not in OBJECT_TYPES]
+    assert uncovered == []
+
+    carried = {o.type for o in pch2.parse(_corpus()["object_types.pch2"]).objects}
+    assert carried == set(pch2.ACCEPTED_OBJECT_TYPES)
+
+
 def test_unknown_object_type_raises_the_named_refusal():
     with pytest.raises(Pch2Error) as caught:
         pch2.parse(_corpus()["bad_unknown_type.pch2"])
