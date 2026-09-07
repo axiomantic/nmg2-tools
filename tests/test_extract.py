@@ -82,9 +82,21 @@ class _PEBuilder:
         struct.pack_into(fmt, self.buf, off, *vals)
 
 
-def build_pe_file(os_image, loader):
-    """Build a synthetic PE32 whose resource tree carries type ``NMG2`` and
-    type ``BOOT``, each under one id and one language."""
+PE32_MAGIC = 0x10B
+PE32PLUS_MAGIC = 0x20B
+
+# Where each optional-header form puts its data directories.
+DATA_DIRECTORY_OFFSET = {PE32_MAGIC: 96, PE32PLUS_MAGIC: 112}
+
+
+def build_pe_file(os_image, loader, *, magic=PE32_MAGIC, virtual_size=None):
+    """Build a synthetic PE whose resource tree carries type ``NMG2`` and type
+    ``BOOT``, each under one id and one language.
+
+    ``magic`` selects the PE32 or PE32+ optional header, which differ only in
+    where the data directories start. ``virtual_size`` overrides the resource
+    section's virtual size; a real section's raw size often exceeds it,
+    because the raw data is padded to the file alignment."""
     rva_base = 0x1000
     raw_rsrc = 0x200
     b = _PEBuilder()
@@ -111,11 +123,21 @@ def build_pe_file(os_image, loader):
     struct.pack_into("<I", dos, 0x3C, 0x40)
     coff = struct.pack("<HHIIIHH", 0x14C, 1, 0, 0, 0, 0xE0, 0x010F)
     opt = bytearray(0xE0)
-    struct.pack_into("<H", opt, 0, 0x10B)
-    struct.pack_into("<II", opt, 96 + 2 * 8, rva_base, len(rsrc_blob))
+    struct.pack_into("<H", opt, 0, magic)
+    struct.pack_into(
+        "<II", opt, DATA_DIRECTORY_OFFSET[magic] + 2 * 8, rva_base, len(rsrc_blob)
+    )
     section = bytearray(40)
     section[0:8] = b".rsrc\0\0\0"
-    struct.pack_into("<IIII", section, 8, len(rsrc_blob), rva_base, len(rsrc_blob), raw_rsrc)
+    struct.pack_into(
+        "<IIII",
+        section,
+        8,
+        len(rsrc_blob) if virtual_size is None else virtual_size,
+        rva_base,
+        len(rsrc_blob),
+        raw_rsrc,
+    )
     pre = bytes(dos) + b"PE\0\0" + coff + bytes(opt) + bytes(section)
     out = bytearray(raw_rsrc + len(rsrc_blob))
     out[0 : len(pre)] = pre
@@ -284,6 +306,95 @@ def test_pe_names_the_offending_rva_when_it_maps_to_no_section():
     struct.pack_into("<I", blob, res_dir_rva_off, 0xDEADB000)
     with pytest.raises(PeError, match=r"PE-OFFSET-OUT-OF-RANGE: resource section RVA 0xDEADB000"):
         pe.parse_pe(bytes(blob))
+
+
+def test_pe_reads_a_pe32_plus_optional_header():
+    """PE32+ puts its data directories 112 bytes into the optional header
+    where PE32 puts them at 96. Reading a PE32+ image at the PE32 offset lands
+    on the wrong directory entirely."""
+    pe32_plus = build_pe_file(OS_IMAGE, LOADER, magic=PE32PLUS_MAGIC)
+    resources = {r.type_name: r for r in pe.parse_pe(pe32_plus)}
+
+    assert set(resources) == {"NMG2", "BOOT"}
+    assert resources["NMG2"].payload == OS_IMAGE
+    assert resources["BOOT"].payload == LOADER
+
+
+def test_pe_maps_an_rva_that_lies_past_the_section_virtual_size():
+    """A section's raw size may exceed its virtual size, and the resource data
+    then sits past the virtual size but inside the raw data. Mapping an RVA
+    against the virtual size alone loses every such resource."""
+    padded = build_pe_file(OS_IMAGE, LOADER, virtual_size=1)
+    resources = {r.type_name: r for r in pe.parse_pe(padded)}
+
+    assert resources["NMG2"].payload == OS_IMAGE
+    assert resources["BOOT"].payload == LOADER
+
+
+# ---------------------------------------------------------------------------
+# Every attacker-controlled offset reaches a NAMED refusal. `PeError` promises
+# one, and an unguarded `unpack_from` breaks that promise with `struct.error`.
+# ---------------------------------------------------------------------------
+
+
+def _pe_with(**overrides):
+    """The synthetic PE32 with one field overwritten in place."""
+    blob = bytearray(PEFILE)
+    dos_stub = 0x40
+    optional = dos_stub + 4 + 20
+    section = optional + 0xE0
+    resource_base = 0x200
+    field = {
+        "section_count": (dos_stub + 4 + 2, "<H"),
+        "section_virtual_address": (section + 12, "<I"),
+        "root_named": (resource_base + 12, "<H"),
+        "root_ids": (resource_base + 14, "<H"),
+        "root_first_name": (resource_base + 16, "<I"),
+        "root_first_target": (resource_base + 20, "<I"),
+    }
+    for name, value in overrides.items():
+        offset, fmt = field[name]
+        struct.pack_into(fmt, blob, offset, value)
+    return bytes(blob)
+
+
+def test_pe_names_a_dos_header_too_short_to_hold_e_lfanew():
+    with pytest.raises(PeError, match="PE-TRUNCATED"):
+        pe.parse_pe(b"MZ")
+
+
+def test_pe_names_a_section_count_the_file_cannot_hold():
+    with pytest.raises(PeError, match="PE-TRUNCATED"):
+        pe.parse_pe(_pe_with(section_count=0xFFFF))
+
+
+def test_pe_names_a_directory_entry_count_the_file_cannot_hold():
+    with pytest.raises(PeError, match="PE-TRUNCATED"):
+        pe.parse_pe(_pe_with(root_ids=4000))
+
+
+def test_pe_names_a_data_entry_target_past_the_end_of_the_file():
+    with pytest.raises(PeError, match="PE-TRUNCATED"):
+        pe.parse_pe(_pe_with(root_first_target=0x7FFFFFF0))
+
+
+def test_pe_names_a_directory_entry_name_past_the_end_of_the_file():
+    with pytest.raises(PeError, match="PE-TRUNCATED"):
+        pe.parse_pe(_pe_with(root_first_name=0x80000000 | 0x7FFFFFF0))
+
+
+def test_pe_names_a_resource_directory_that_points_at_itself():
+    """A self-pointing entry recurses until the interpreter's own stack limit
+    raises a RecursionError, which no caller can match on."""
+    with pytest.raises(PeError, match="PE-DIRECTORY-TOO-DEEP"):
+        pe.parse_pe(_pe_with(root_first_target=0x80000000 | 0x00000000))
+
+
+def test_pe_names_a_missing_image():
+    # The root directory holds two entries; walking only the first resolves
+    # NMG2 and leaves BOOT missing.
+    with pytest.raises(PeError, match="PE-RESOURCE-NOT-FOUND"):
+        pe.firmware(_pe_with(root_ids=1))
 
 
 # ---------------------------------------------------------------------------

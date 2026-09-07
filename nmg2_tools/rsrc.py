@@ -66,8 +66,8 @@ class RsrcError(ValueError):
 
     The message starts with a name: ``RSRC-NO-HEADER``,
     ``RSRC-TRUNCATED-MAP``, ``RSRC-TRUNCATED-TYPE-LIST``,
-    ``RSRC-TRUNCATED-REFERENCE-LIST``, ``RSRC-TRUNCATED-NAME-LIST`` or
-    ``RSRC-TRUNCATED-DATA``.
+    ``RSRC-TRUNCATED-REFERENCE-LIST``, ``RSRC-TRUNCATED-NAME-LIST``,
+    ``RSRC-TRUNCATED-DATA`` or ``RSRC-RESOURCE-NOT-FOUND``.
     """
 
 
@@ -210,9 +210,13 @@ def extract_images(
             loader = resource.payload
 
     if os_image is None:
-        raise RsrcError(f"{OS_TYPE} identifier {IMAGE_ID} not found in the fork")
+        raise RsrcError(
+            f"RSRC-RESOURCE-NOT-FOUND: {OS_TYPE} identifier {IMAGE_ID} not in the fork"
+        )
     if loader is None:
-        raise RsrcError(f"{LOADER_TYPE} identifier {IMAGE_ID} not found in the fork")
+        raise RsrcError(
+            f"RSRC-RESOURCE-NOT-FOUND: {LOADER_TYPE} identifier {IMAGE_ID} not in the fork"
+        )
     return os_image, loader
 
 

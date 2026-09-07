@@ -65,14 +65,36 @@ _DATA_ENTRY = struct.Struct("<IIII")
 RESOURCE_DIRECTORY_INDEX = 2
 _OFFSET_FLAG = 0x80000000
 
+# The resource tree is type, then name/id, then language. A directory entry
+# that points at a directory AT that depth -- including one that points at
+# itself -- would otherwise recurse until the interpreter's own stack limit
+# raises, which is not a refusal this reader can name.
+MAX_DIRECTORY_DEPTH = 3
+
 
 class PeError(ValueError):
     """A PE file that this reader refuses to read.
 
     The message starts with a name: ``PE-NOT-MZ``, ``PE-NOT-PE``,
-    ``PE-NO-OPTIONAL-HEADER``, ``PE-UNKNOWN-MAGIC``, ``PE-NO-RESOURCES`` or
-    ``PE-OFFSET-OUT-OF-RANGE``.
+    ``PE-TRUNCATED``, ``PE-NO-OPTIONAL-HEADER``, ``PE-UNKNOWN-MAGIC``,
+    ``PE-NO-RESOURCES``, ``PE-OFFSET-OUT-OF-RANGE``,
+    ``PE-DIRECTORY-TOO-DEEP`` or ``PE-RESOURCE-NOT-FOUND``.
     """
+
+
+def _need(raw: bytes, offset: int, size: int, what: str) -> None:
+    """Refuse a read that runs past the end of the file.
+
+    Every offset this module reads a structure at comes from the file itself
+    -- ``e_lfanew``, the section count, a directory's entry counts, an entry's
+    target. Letting one reach ``unpack_from`` raises ``struct.error``, which
+    carries no name and breaks this class's promise that every refusal has one.
+    """
+    if offset < 0 or size < 0 or offset + size > len(raw):
+        raise PeError(
+            f"PE-TRUNCATED: {what} needs {offset}+{size} bytes, "
+            f"{len(raw)} available"
+        )
 
 
 @dataclass(frozen=True)
@@ -102,6 +124,7 @@ def _rva_to_offset(rva: int, sections: list[tuple[int, int, int, int]]) -> int |
 
 def _parse_data_entry(raw: bytes, target: int, sections: list) -> bytes:
     """Read the payload a leaf directory entry points at."""
+    _need(raw, target, _DATA_ENTRY.size, "resource data entry")
     (data_rva, data_size, _codepage, _reserved) = _DATA_ENTRY.unpack_from(raw, target)
     file_off = _rva_to_offset(data_rva, sections)
     if file_off is None or file_off + data_size > len(raw):
@@ -113,7 +136,9 @@ def _decode_name(raw: bytes, base: int, name_raw: int):
     """Return ``(string_name, int_id)`` for a directory entry name word."""
     if name_raw & _OFFSET_FLAG:
         str_off = base + (name_raw & ~_OFFSET_FLAG)
+        _need(raw, str_off, 2, "directory entry name length")
         (length,) = struct.unpack_from("<H", raw, str_off)
+        _need(raw, str_off + 2, length * 2, "directory entry name")
         text = raw[str_off + 2 : str_off + 2 + length * 2].decode("utf-16-le", "replace")
         return text, None
     return None, name_raw
@@ -130,10 +155,18 @@ def _recurse(
     identifier: int | None,
     out: list[PeResource],
 ) -> None:
+    if depth >= MAX_DIRECTORY_DEPTH:
+        raise PeError(
+            f"PE-DIRECTORY-TOO-DEEP: more than {MAX_DIRECTORY_DEPTH} "
+            "resource directory levels"
+        )
+
+    _need(raw, offset, _DIRECTORY_HEAD.size, "resource directory header")
     head = _DIRECTORY_HEAD.unpack_from(raw, offset)
     named, ids = head[4], head[5]
     entry_off = offset + _DIRECTORY_HEAD.size
     total = named + ids
+    _need(raw, entry_off, total * _DIRECTORY_ENTRY.size, "resource directory entries")
 
     for i in range(total):
         name_raw, target_raw = _DIRECTORY_ENTRY.unpack_from(raw, entry_off + i * _DIRECTORY_ENTRY.size)
@@ -197,17 +230,20 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
     if raw[:2] != b"MZ":
         raise PeError("PE-NOT-MZ")
 
+    _need(raw, 0x3C, 4, "DOS header e_lfanew")
     (e_lfanew,) = struct.unpack_from("<I", raw, 0x3C)
     if raw[e_lfanew : e_lfanew + 4] != _PE_SIGNATURE:
         raise PeError("PE-NOT-PE")
 
     coff = e_lfanew + 4
+    _need(raw, coff, _COFF.size, "COFF header")
     _machine, section_count, _t, _sym_ptr, _sym_count, opt_size, _chars = _COFF.unpack_from(raw, coff)
     optional = coff + _COFF.size
 
     if opt_size < 2:
         raise PeError("PE-NO-OPTIONAL-HEADER")
 
+    _need(raw, optional, 2, "optional header magic")
     (magic,) = struct.unpack_from("<H", raw, optional)
     if magic == 0x10B:
         data_dir_off = optional + 96
@@ -225,6 +261,7 @@ def parse_pe(data: bytes | bytearray | memoryview) -> tuple[PeResource, ...]:
 
     sections = []
     section_off = optional + opt_size
+    _need(raw, section_off, section_count * _SECTION.size, "section headers")
     for i in range(section_count):
         sec = _SECTION.unpack_from(raw, section_off + i * _SECTION.size)
         virtual_size, virtual_address, raw_size, raw_pointer = sec[1], sec[2], sec[3], sec[4]
@@ -255,9 +292,9 @@ def extract_images(data: bytes | bytearray | memoryview) -> tuple[bytes, bytes]:
             loader = resource.payload
 
     if os_image is None:
-        raise PeError(f"{OS_TYPE} resource not found in the PE file")
+        raise PeError(f"PE-RESOURCE-NOT-FOUND: {OS_TYPE} resource not in the PE file")
     if loader is None:
-        raise PeError(f"{LOADER_TYPE} resource not found in the PE file")
+        raise PeError(f"PE-RESOURCE-NOT-FOUND: {LOADER_TYPE} resource not in the PE file")
     return os_image, loader
 
 
