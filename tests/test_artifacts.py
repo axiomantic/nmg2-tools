@@ -24,7 +24,7 @@ _GENERATED_CONFTEST = "from tests.conftest import artifacts_dir  # noqa: F401\n"
 
 # The expected messages, written out in full.
 EXPECTED_UNSET = "firmware artifact not available (NMG2_ARTIFACTS unset)"
-EXPECTED_BAD_PATH = "firmware artifact not available (NMG2_ARTIFACTS names no directory: /nmg2/no/such/directory/REPO-5)"
+EXPECTED_BAD_PATH = "firmware artifact not available (NMG2_ARTIFACTS names no directory: /nmg2/no/such/directory)"
 
 
 def test_unset_returns_empty_and_the_exact_message(monkeypatch):
@@ -39,7 +39,7 @@ def test_unset_returns_empty_and_the_exact_message(monkeypatch):
 def test_missing_directory_returns_message_two(monkeypatch):
     """The unset case and the missing-directory case carry
     DISTINCT messages, so the two results must NOT be equal."""
-    monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory/REPO-5")
+    monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory")
 
     directory, why = resolve_artifacts()
 
@@ -111,7 +111,7 @@ def test_never_raises(monkeypatch, tmp_path):
     # A NUL byte is not among these values on purpose: `os.environ` refuses to
     # hold one, so no caller can present that input and a case for it would test
     # the test harness rather than the module.
-    for value in ("", "/nmg2/no/such/directory/REPO-5", "relative/path", "/"):
+    for value in ("", "/nmg2/no/such/directory", "relative/path", "/"):
         monkeypatch.setenv("NMG2_ARTIFACTS", value)
         try:
             resolve_artifacts()
@@ -162,12 +162,71 @@ def test_gated_skip_reason_is_the_exact_line_when_unset(monkeypatch):
     assert gated_skip_reason() == EXPECTED_SKIP_LINE
 
 
-def test_gated_skip_reason_is_the_same_line_for_a_missing_directory(monkeypatch):
+def test_gated_skip_reason_names_a_wrong_path_rather_than_calling_it_unset(
+    monkeypatch,
+):
+    """The resolver carries three distinct messages so an operator with a
+    wrong path is not sent looking for an unset variable. The gate is the only
+    place a gated test reads them, so it must not collapse them."""
     from nmg2_tools.artifacts import gated_skip_reason
 
-    monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory/REPO-7")
+    monkeypatch.setenv("NMG2_ARTIFACTS", "/nmg2/no/such/directory")
 
-    assert gated_skip_reason() == EXPECTED_SKIP_LINE
+    reason = gated_skip_reason()
+
+    assert reason == (
+        "SKIPPED: firmware artifact not available "
+        "(NMG2_ARTIFACTS names no directory: /nmg2/no/such/directory)"
+    )
+    assert reason != EXPECTED_SKIP_LINE
+
+
+def test_gated_skip_reason_refuses_an_absolute_name(tmp_path, monkeypatch):
+    """`os.path.join` discards the root when the name is absolute, so the gate
+    would answer RUN for a file outside the family root entirely."""
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    outside = tmp_path.parent / "outside_the_root.bin"
+    outside.write_bytes(b"")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    reason = gated_skip_reason(str(outside))
+
+    assert reason is not None
+    assert "is not under NMG2_ARTIFACTS" in reason
+
+
+def test_gated_skip_reason_refuses_a_name_that_climbs_out_of_the_root(
+    tmp_path, monkeypatch
+):
+    from nmg2_tools.artifacts import gated_skip_reason
+
+    outside = tmp_path.parent / "climbed_out.bin"
+    outside.write_bytes(b"")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path / "inner"))
+    (tmp_path / "inner").mkdir()
+
+    reason = gated_skip_reason("../../" + outside.name)
+
+    assert reason is not None
+    assert "is not under NMG2_ARTIFACTS" in reason
+
+
+def test_resolve_artifacts_still_accepts_a_name_in_a_subdirectory(
+    tmp_path, monkeypatch
+):
+    """The containment check refuses what leaves the root and nothing else: a
+    nested relative name still resolves."""
+    from nmg2_tools.artifacts import resolve_artifacts
+
+    (tmp_path / "corpus").mkdir()
+    (tmp_path / "corpus" / "patch.pch2").write_bytes(b"")
+    monkeypatch.setenv("NMG2_ARTIFACTS", str(tmp_path))
+
+    directory, why = resolve_artifacts("corpus/patch.pch2")
+
+    assert why == ""
+    assert directory == str(tmp_path)
 
 
 def test_gated_skip_reason_is_none_when_the_artifact_resolves(tmp_path, monkeypatch):

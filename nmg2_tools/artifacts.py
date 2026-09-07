@@ -39,6 +39,24 @@ def _message_not_found(name: str, variable: str, value: str) -> str:
     return f"firmware artifact not available ({name} not found under {variable}: {value})"
 
 
+def _message_outside_root(name: str, variable: str, value: str) -> str:
+    return f"firmware artifact not available ({name} is not under {variable}: {value})"
+
+
+def _leaves_root(name: str) -> bool:
+    """Whether joining ``name`` onto a family root would land outside it.
+
+    ``os.path.join`` DISCARDS the root when the second argument is absolute, so
+    an absolute name turns the gate into a question about a file anywhere on
+    the machine and the gate answers RUN for it. A relative name that climbs
+    out with ``..`` reaches the same place one step later.
+    """
+    if os.path.isabs(name) or os.path.splitdrive(name)[0]:
+        return True
+    normalised = os.path.normpath(name)
+    return normalised == os.pardir or normalised.startswith(os.pardir + os.sep)
+
+
 ARTIFACT_ENVIRONMENT_VARIABLE = artifact_variable()
 ARTIFACT_UNSET_MESSAGE = _message_unset(ARTIFACT_ENVIRONMENT_VARIABLE)
 
@@ -59,8 +77,9 @@ def resolve_artifacts(
        (echoing the variable's value unchanged).
     3. The directory exists but the named artifact is not in it -- message 3
        (echoing the variable's value unchanged).
+    4. ``name`` would resolve outside the family root -- message 4.
 
-    ``name`` is the artifact the caller asked for and only message 3 reads it.
+    ``name`` is the artifact the caller asked for; messages 3 and 4 read it.
 
     Never raises, matching the C++ half.
     """
@@ -80,6 +99,8 @@ def resolve_artifacts(
         return "", _message_no_directory(variable, value)
 
     if name is not None:
+        if _leaves_root(name):
+            return "", _message_outside_root(name, variable, value)
         candidate = os.path.join(value, name)
         if not os.path.isfile(candidate):
             return "", _message_not_found(name, variable, value)
@@ -117,10 +138,13 @@ def gated_skip_reason(
     the body runs and FAILS.** A gate that read content could not tell a broken
     artifact from an absent one and would report "unavailable" for both.
     """
-    directory, _why = resolve_artifacts(family=family)
+    directory, why = resolve_artifacts(family=family)
 
     if not directory:
-        return gated_skip_line(family)
+        # The three messages above exist so an operator with a WRONG path is
+        # not told their variable is unset. Collapsing them here would undo
+        # that at the only place a gated test reads.
+        return GATED_SKIP_PREFIX + why
 
     for name in required:
         _resolved, why = resolve_artifacts(name, family=family)
