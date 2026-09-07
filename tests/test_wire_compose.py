@@ -711,6 +711,113 @@ def test_difference_1_065_wire_carries_a_full_tenth_variation(table):
     assert _morph_bit_layout_wire(wire_payload + following) == 297
     filler_consumed = _morph_bit_layout_wire(filler_form + following)
     assert filler_consumed > len(filler_form)
-    with pytest.raises(AssertionError):
-        assert filler_consumed == len(filler_form)
-        assert _morph_bit_layout_wire(filler_form + bytes(64)) == len(filler_form)
+
+    # The overshoot is the filler form's own, not an artifact of what follows:
+    # with benign zero bytes behind it the walk still runs past the payload.
+    assert _morph_bit_layout_wire(filler_form + bytes(64)) > len(filler_form)
+
+
+# ---------------------------------------------------------------------------
+# The 0x65 transform's preconditions: which payload SHAPES it accepts.
+# ---------------------------------------------------------------------------
+
+
+def _morph_file_payload(parameters_per_variation: int) -> bytes:
+    """A conforming nine-variation 0x65 file payload in the g2fx
+    MorphParameters bit layout, with the given parameter count per
+    variation."""
+    writer = wire_compose._BitWriter()
+    writer.put(8, wire_compose.FILE_VARIATION_COUNT)
+    writer.put(4, 8)
+    writer.put(20, 0)
+    for index in range(wire_compose.FILE_VARIATION_COUNT):
+        writer.put(4, index)
+        writer.put(24, 0)
+        writer.put(24, 0)
+        writer.put(8, 0)
+        writer.put(8, parameters_per_variation)
+        for param in range(parameters_per_variation):
+            writer.put(2, 1)
+            writer.put(8, (param + 1) % 256)
+            writer.put(7, param * 3 % 128)
+            writer.put(4, param % 16)
+            writer.put(8, (param * 7) % 256)
+        writer.put(4, 0)
+    writer.pad_to_byte()
+    return writer.bytes()
+
+
+@pytest.mark.parametrize(
+    "parameters_per_variation, expected_length",
+    [
+        # The shortest conforming payload: nine variations, no parameters.
+        # A precondition fitted to one measured file rejected this outright.
+        (0, 85),
+        (3, 183),
+        # Larger than any single measured file, and NOT a whole number of
+        # bytes once the ninth variation ends: the trailing padding the file
+        # form writes made the exact-fit boundary test refuse it.
+        (12, 477),
+    ],
+)
+def test_the_065_transform_accepts_every_conforming_payload_shape(
+    parameters_per_variation, expected_length
+):
+    file_payload = _morph_file_payload(parameters_per_variation)
+    assert len(file_payload) == expected_length
+
+    assert (
+        wire_compose.message_payload_form(0x65, file_payload)
+        == wire_compose.FORM_MORPH_TENTH_VARIATION
+    )
+    wire_payload = wire_compose.message_payload(0x65, file_payload)
+    assert wire_payload[0] == wire_compose.WIRE_VARIATION_COUNT
+    assert len(wire_payload) > len(file_payload)
+
+    # The firmware reader's own walk stops exactly at the wire payload's end,
+    # whatever chunk follows it.
+    assert _morph_bit_layout_wire(wire_payload + bytes(256)) == len(wire_payload)
+
+
+def test_a_065_payload_the_layout_does_not_describe_reports_the_filler_form():
+    """The committed corpus opens a 0x65 with the count byte plus nine
+    one-byte indices, which no MorphParameters layout describes. That payload
+    still falls to the filler form, and the form it took is reported rather
+    than left to be inferred from the composed bytes."""
+    payload = bytes([wire_compose.FILE_VARIATION_COUNT]) + bytes(range(9))
+
+    assert (
+        wire_compose.message_payload_form(0x65, payload)
+        == wire_compose.FORM_FILLER_BYTE
+    )
+    assert wire_compose.message_payload(0x65, payload) == (
+        bytes([wire_compose.WIRE_VARIATION_COUNT]) + bytes(range(9)) + b"\x00"
+    )
+
+
+def test_a_065_payload_that_does_not_open_with_the_file_count_is_unchanged():
+    payload = bytes([8]) + bytes(range(8))
+
+    assert (
+        wire_compose.message_payload_form(0x65, payload)
+        == wire_compose.FORM_UNCHANGED
+    )
+    assert wire_compose.message_payload(0x65, payload) == payload
+
+
+def test_only_the_morph_layout_refusal_falls_back_to_the_filler_form():
+    """The fallback catches the named layout refusal alone. A ValueError
+    raised for any other reason inside the transform must reach the caller,
+    not be answered with a frame the firmware's reader overshoots."""
+    file_payload = _morph_file_payload(3)
+
+    def explode(_payload):
+        raise ValueError("not a layout refusal")
+
+    original = wire_compose._morph_payload_tenth_variation
+    wire_compose._morph_payload_tenth_variation = explode
+    try:
+        with pytest.raises(ValueError, match="not a layout refusal"):
+            wire_compose.message_payload(0x65, file_payload)
+    finally:
+        wire_compose._morph_payload_tenth_variation = original

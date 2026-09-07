@@ -108,6 +108,27 @@ TENTH_VARIATION_BYTE = 0x00
 # (measured: 329 consumed against a 292-byte frame, 2026-08-30 run).
 MORPH_VARIATION_COUNT_TYPES = (0x65,)
 
+# The g2fx MorphParameters bit layout the 0x65 file form writes: an 8-bit
+# variation count, a 4-bit morph count and 20 reserved bits, then per variation
+# a 4-bit index, three reserved fields (24, 24, 8), an 8-bit morph count, that
+# many 29-bit parameters and a 4-bit tail. A variation carrying no parameters
+# is 72 bits, which is what makes the SHORTEST nine-variation payload 85 bytes.
+# A minimum fitted to one measured file rejects every smaller conforming
+# payload and drops it to the filler form the firmware's reader overshoots.
+MORPH_HEADER_BITS = 32
+MORPH_VARIATION_FIXED_BITS = 72
+MORPH_PARAMETER_BITS = 29
+
+# The payload forms :func:`message_payload` can emit, named so a caller can
+# see which one a payload took.
+FORM_MORPH_TENTH_VARIATION = "morph-tenth-variation"
+FORM_FILLER_BYTE = "filler-byte"
+FORM_UNCHANGED = "unchanged"
+
+
+class MorphLayoutError(ValueError):
+    """A 0x65 payload that does not decode through the MorphParameters layout."""
+
 # Difference 2: the raw two bytes that follow the 0x21 chunk on the wire. They
 # are the parser's USB_TRAILER pair; the wire side always carries them.
 TYPE_0X21 = pch2.TYPE_0X21
@@ -115,7 +136,7 @@ TYPE_0X21 = pch2.TYPE_0X21
 # ---------------------------------------------------------------------------
 # The patch-load message level. The framing below is the message-level form
 # the firmware's receive path reassembles, measured from two agreeing
-# sources: the real wire captures (sirlenselot/g2fx, capture-008
+# sources: the real wire captures (sirlensalot/g2fx, capture-008
 # and capture-002, validated byte-for-byte against g2fx's own
 # Usb.prepareSendBuffer) and g2fx's Patch.writeMessage / Performance
 # .writeMessage. Pad-to-64 was an instrument artifact and does NOT apply here:
@@ -132,7 +153,7 @@ TYPE_0X21 = pch2.TYPE_0X21
 #     [0x01][S_SLOT_REQ+slot][V_NEW_PATCH][0x37][0x00 0x00 0x00]
 #     [entry name][object chain]
 #
-# 0x01 is M_CMD, 0x37 is O_CREATE (g2fx Codes.java), V_NEW_PATCH is 0x53,
+# 0x01 is M_CMD, 0x37 is O_CREATE, V_NEW_PATCH is 0x53,
 # S_SLOT_REQ is 0x28 (slot 0), and the three 0x00 bytes are unexplained in
 # g2fx too (its own source marks them `// ??`) but present in every capture.
 # The entry name is g2fx's Protocol.EntryName field: a StringField(16,
@@ -162,8 +183,7 @@ ENTRY_NAME_LENGTH = 16
 def entry_name_field(name: str) -> bytes:
     """The wire form of g2fx's Protocol.EntryName field for ``name``.
 
-    The field is a StringField(16, lengthWithTerm) (g2fx Protocol.java:584):
-    the name's characters, then a single 0x00 terminator, or exactly 16
+    The field is a StringField(16, lengthWithTerm): the name's characters, then a single 0x00 terminator, or exactly 16
     characters with NO terminator when the name fills the field. A name
     longer than 16 characters raises ValueError: g2fx truncates with a log
     warning, and a silently short field would misalign the chain behind it.
@@ -332,8 +352,11 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
     a payload the layout does not fully describe would corrupt fields the
     transform does not name.
     """
-    if len(payload) * 8 < 32 + 8 * 275 + 72:
-        raise ValueError(
+    minimum_bits = (
+        MORPH_HEADER_BITS + FILE_VARIATION_COUNT * MORPH_VARIATION_FIXED_BITS
+    )
+    if len(payload) * 8 < minimum_bits:
+        raise MorphLayoutError(
             "0x65 payload is too short to hold the nine-variation file layout"
         )
     reader = _BitReader(payload)
@@ -342,8 +365,8 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
     reserved = reader.get(20)
     variations = []
     for _ in range(9):
-        if reader.get_position() + 72 > len(payload) * 8:
-            raise ValueError(
+        if reader.get_position() + MORPH_VARIATION_FIXED_BITS > len(payload) * 8:
+            raise MorphLayoutError(
                 "0x65 payload ends inside the nine-variation layout"
             )
         index = reader.get(4)
@@ -351,8 +374,11 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
         reserved1 = reader.get(24)
         reserved2 = reader.get(8)
         var_morph_count = reader.get(8)
-        if reader.get_position() + var_morph_count * 29 + 4 > len(payload) * 8:
-            raise ValueError(
+        if (
+            reader.get_position() + var_morph_count * MORPH_PARAMETER_BITS + 4
+            > len(payload) * 8
+        ):
+            raise MorphLayoutError(
                 "0x65 payload ends inside a variation's parameter list"
             )
         params = []
@@ -366,8 +392,11 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
         tail = reader.get(4)
         variations.append((index, reserved0, reserved1, reserved2,
                            var_morph_count, params, tail))
-    if reader.get_position() != len(payload) * 8:
-        raise ValueError(
+    # The file form pads the section to a byte, so up to seven bits of padding
+    # follow the ninth variation. Demanding an exact bit-for-byte fit refuses
+    # every payload whose layout does not happen to land on a byte boundary.
+    if len(payload) * 8 - reader.get_position() >= 8:
+        raise MorphLayoutError(
             "0x65 payload holds bytes beyond the nine-variation layout"
         )
     writer = _BitWriter()
@@ -409,19 +438,41 @@ def message_payload(object_type: int, payload: bytes) -> bytes:
     with a morph count of 8), and raising it would corrupt a field the
     difference does not name. Every other byte passes through unchanged.
     """
+    return _message_payload(object_type, payload)[1]
+
+
+def message_payload_form(object_type: int, payload: bytes) -> str:
+    """Which form :func:`message_payload` emits for this object and payload.
+
+    The three forms are :data:`FORM_MORPH_TENTH_VARIATION`,
+    :data:`FORM_FILLER_BYTE` and :data:`FORM_UNCHANGED`. A 0x65 that falls to
+    the filler form composes a frame the firmware's reader overshoots, and a
+    caller cannot tell that from the composed bytes: the filler form and the
+    unchanged form differ from each other by one byte, and from a correct
+    transform only in length. So the decision is reported rather than inferred.
+    """
+    return _message_payload(object_type, payload)[0]
+
+
+def _message_payload(object_type: int, payload: bytes) -> tuple[str, bytes]:
+    """The single decision behind :func:`message_payload` and
+    :func:`message_payload_form`, so the two cannot drift apart."""
     if payload and payload[0] == FILE_VARIATION_COUNT:
         if object_type in MORPH_VARIATION_COUNT_TYPES:
             try:
-                return _morph_payload_tenth_variation(payload)
-            except ValueError:
+                return (
+                    FORM_MORPH_TENTH_VARIATION,
+                    _morph_payload_tenth_variation(payload),
+                )
+            except MorphLayoutError:
                 pass
         if object_type in VARIATION_COUNT_TYPES:
-            return (
+            return FORM_FILLER_BYTE, (
                 bytes([WIRE_VARIATION_COUNT])
                 + payload[1:]
                 + bytes([TENTH_VARIATION_BYTE])
             )
-    return payload
+    return FORM_UNCHANGED, payload
 
 
 def compose_message(object_type: int, payload: bytes, table: tuple[int, ...]) -> bytes:

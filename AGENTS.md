@@ -107,6 +107,15 @@ Facts stay usable. Protocol message formats, field offsets, bit layouts and
 module type identifiers are facts, not expression, so a GPL tool is a
 legitimate place to *check* a fact. Only copied expression is a problem.
 
+Sources outside that prohibition are named here with their licence, because a
+permissive licence is not the same as no obligation:
+
+- `sirlensalot/g2fx` (BSD-3-Clause). The wire-protocol facts checked against it
+  are message framing, field widths and code point values. BSD-3 carries a
+  notice requirement for redistributed source; whether anything taken here
+  crosses from fact into expression is an open question for the repository
+  owner, not one for a contributor to close.
+
 ## Comments and docstrings
 
 Comments are sparse. Write one only where a reader must otherwise reconstruct a
