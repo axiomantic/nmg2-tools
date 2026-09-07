@@ -86,9 +86,9 @@ class Resource:
 class Firmware:
     """The two firmware images an updater carries.
 
-    ``os_image`` is the raw container image that the container reader's steps 2
-    and 3 parse (``nmg2_tools.container.parse_header`` /
-    ``load_sections``); it hashes to the ``NMG2_128_OS.bin`` line of
+    ``os_image`` is the raw container image that
+    ``nmg2_tools.container.parse_header`` and ``load_sections``
+    parse; it hashes to the ``NMG2_128_OS.bin`` line of
     ``artifacts.sha256``. ``loader`` is the boot loader and hashes to the
     ``BOOT_128_Loader.bin`` line.
     """

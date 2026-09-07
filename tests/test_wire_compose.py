@@ -512,7 +512,7 @@ def test_entry_name_field_is_terminated_when_short_and_exact_at_16():
     assert wire_compose.entry_name_field(full) == full.encode("ascii")
     assert b"\x00" not in wire_compose.entry_name_field(full)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="WIRECOMPOSE-ENTRY-NAME-TOO-LONG"):
         wire_compose.entry_name_field("0123456789abcdef7")
 
 

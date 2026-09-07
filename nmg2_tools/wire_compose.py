@@ -190,7 +190,8 @@ def entry_name_field(name: str) -> bytes:
     """
     if len(name) > ENTRY_NAME_LENGTH:
         raise ValueError(
-            f"entry name {name!r} exceeds the 16-character field length"
+            f"WIRECOMPOSE-ENTRY-NAME-TOO-LONG: entry name {name!r} exceeds "
+            f"the {ENTRY_NAME_LENGTH}-character field length"
         )
     if len(name) == ENTRY_NAME_LENGTH:
         return name.encode("ascii")
