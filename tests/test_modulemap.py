@@ -281,6 +281,89 @@ def test_port_shape_arity_contradiction_demotes_to_unmapped():
     assert rows[0].confidence == CONFIDENCE_UNMAPPED
 
 
+def test_port_shape_reversed_directions_demote_to_unmapped():
+    """A routine whose arguments run the descriptor's directions backwards has
+    the same input and output COUNTS as the descriptor. Counting alone cannot
+    see the reversal, and certifying it would bind Tier 1 to a routine driven
+    the wrong way round."""
+    port_panl = (Port("input", "Audio"), Port("output", "Audio"))
+    reversed_args = (Port("output", "Audio"), Port("input", "Audio"))
+    rows = build_module_map(
+        [FakeDescriptor(p_words=8)],
+        [7],
+        **make_args(
+            compute={
+                "CNativeOscBPart": ComputeRoutine(
+                    "CNativeOscBPart", 0x200, 16, reversed_args
+                )
+            }
+        ),
+        panl=[FakePanl("CNativeOscBPart", port_panl)],
+        size_tolerance=10 ** 9,
+    )
+    assert rows[0].confidence == CONFIDENCE_UNMAPPED
+    assert "port shape contradicts" in rows[0].evidence
+
+
+def test_port_shape_reversed_directions_demote_when_the_signals_differ_too():
+    port_panl = (Port("input", "Audio"), Port("output", "Logic"))
+    reversed_args = (Port("output", "Logic"), Port("input", "Audio"))
+    rows = build_module_map(
+        [FakeDescriptor(p_words=8)],
+        [7],
+        **make_args(
+            compute={
+                "CNativeOscBPart": ComputeRoutine(
+                    "CNativeOscBPart", 0x200, 16, reversed_args
+                )
+            }
+        ),
+        panl=[FakePanl("CNativeOscBPart", port_panl)],
+        size_tolerance=10 ** 9,
+    )
+    assert rows[0].confidence == CONFIDENCE_UNMAPPED
+
+
+def test_port_shape_direction_alone_contradicts_with_a_compatible_signal():
+    """``any`` is compatible with every signal, so only the direction can
+    decide this pair."""
+    port_panl = (Port("input", "Audio"),)
+    wrong_direction = (Port("output", "any"),)
+    rows = build_module_map(
+        [FakeDescriptor(p_words=8)],
+        [7],
+        **make_args(
+            compute={
+                "CNativeOscBPart": ComputeRoutine(
+                    "CNativeOscBPart", 0x200, 16, wrong_direction
+                )
+            }
+        ),
+        panl=[FakePanl("CNativeOscBPart", port_panl)],
+        size_tolerance=10 ** 9,
+    )
+    assert rows[0].confidence == CONFIDENCE_UNMAPPED
+
+
+def test_an_unrecognised_argument_direction_is_named():
+    bad_args = (Port("in", "Audio"), Port("output", "Audio"))
+    with pytest.raises(ModuleMapError) as excinfo:
+        build_module_map(
+            [FakeDescriptor(p_words=8)],
+            [7],
+            **make_args(
+                compute={
+                    "CNativeOscBPart": ComputeRoutine(
+                        "CNativeOscBPart", 0x200, 16, bad_args
+                    )
+                }
+            ),
+            panl=[FakePanl("CNativeOscBPart", (Port("input", "Audio"),))],
+            size_tolerance=10 ** 9,
+        )
+    assert str(excinfo.value).startswith("MODULEMAP-BAD-ARG-DIRECTION")
+
+
 def test_port_shape_unknown_args_do_not_contradict():
     """An empty argument shape is 'unknown', and unknown is not a
     contradiction. A routine with no shape cannot be demoted by this check."""

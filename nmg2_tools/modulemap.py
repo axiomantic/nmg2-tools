@@ -72,6 +72,10 @@ CONFIDENCE_EXACT = "exact"
 CONFIDENCE_DERIVED = "derived"
 CONFIDENCE_UNMAPPED = "unmapped"
 
+# The directions a port may carry. A port outside this set is a broken input
+# table, not a shape this generator may quietly drop from its comparison.
+PORT_DIRECTIONS = ("input", "output")
+
 # The CSV column order. ``evidence`` is last so it never breaks a fixed-width
 # read.
 COLUMNS = (
@@ -93,8 +97,8 @@ COLUMNS = (
 class ModuleMapError(ValueError):
     """An input this generator refuses to read.
 
-    The message starts with a name: ``MODULEMAP-MISMATCHED-LENGTHS``,
-    ``MODULEMAP-BAD-CONFIDENCE`` or ``MODULEMAP-BAD-ARG-DIRECTION``.
+    The message starts with a name: ``MODULEMAP-MISMATCHED-LENGTHS`` or
+    ``MODULEMAP-BAD-ARG-DIRECTION``.
     """
 
 
@@ -183,10 +187,17 @@ def _port_shape_contradicts(compute_args: Sequence[Port], panl_ports: Sequence[P
     """The port-shape check.
 
     A ``Compute()`` routine with a known argument shape must agree with its
-    descriptor's ports: the same number of inputs and outputs, and compatible
-    signal types position by position. A contradiction means the chain bound a
-    routine that this descriptor cannot actually drive, so the row must fall to
-    ``unmapped`` rather than keep a wrong binding.
+    descriptor's ports position by position, in both direction and signal type.
+    A contradiction means the chain bound a routine that this descriptor cannot
+    actually drive, so the row must fall to ``unmapped`` rather than keep a
+    wrong binding.
+
+    Position matters because an argument list is ordered: a routine whose
+    arguments carry the descriptor's directions in the reverse order runs its
+    ports backwards, and comparing only the input and output COUNTS certifies
+    that row as a binding. Under this module's invariant the reverse mistake --
+    demoting a routine whose arguments merely happen to be listed in another
+    order -- costs a Tier 1 row and nothing else.
 
     An EMPTY argument shape (unknown) never contradicts -- "unknown" is not
     evidence of a contradiction, and demoting every unknown routine would
@@ -195,15 +206,16 @@ def _port_shape_contradicts(compute_args: Sequence[Port], panl_ports: Sequence[P
     if not compute_args:
         return False
 
-    compute_inputs = [p for p in compute_args if p.direction == "input"]
-    compute_outputs = [p for p in compute_args if p.direction == "output"]
-    panl_inputs = [p for p in panl_ports if p.direction == "input"]
-    panl_outputs = [p for p in panl_ports if p.direction == "output"]
+    for port in compute_args:
+        if port.direction not in PORT_DIRECTIONS:
+            raise ModuleMapError(f"MODULEMAP-BAD-ARG-DIRECTION: {port.direction!r}")
 
-    if len(compute_inputs) != len(panl_inputs) or len(compute_outputs) != len(panl_outputs):
+    if len(compute_args) != len(panl_ports):
         return True
 
     for compute_port, panl_port in zip(compute_args, panl_ports):
+        if compute_port.direction != panl_port.direction:
+            return True
         if not _signal_compatible(compute_port.signal, panl_port.signal):
             return True
 
@@ -390,9 +402,6 @@ def _build_row(index, descriptor, patch_type_id, g2ools, panl_entry,
     ):
         confidence = CONFIDENCE_UNMAPPED
         evidence += "; port shape contradicts the descriptor's ports"
-
-    if confidence not in (CONFIDENCE_EXACT, CONFIDENCE_DERIVED, CONFIDENCE_UNMAPPED):
-        raise ModuleMapError(f"MODULEMAP-BAD-CONFIDENCE: {confidence!r}")
 
     return ModuleRow(
         index, p_ptr, x_words, y_words, p_words,
