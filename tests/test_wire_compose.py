@@ -779,6 +779,28 @@ def test_the_065_transform_accepts_every_conforming_payload_shape(
     assert _morph_bit_layout_wire(wire_payload + bytes(256)) == len(wire_payload)
 
 
+@pytest.mark.parametrize(
+    "parameters_per_variation", list(range(20))
+)
+def test_the_065_transform_round_trips_back_to_the_file_payload(
+    parameters_per_variation
+):
+    """Wire to file, for the transformed form. Every conforming shape the
+    forward transform accepts converts back to the file payload it came from,
+    byte for byte: the inverse decodes the tenth variation the forward
+    direction appended rather than dropping one byte, which recovers a payload
+    a byte short of the file's own."""
+    file_payload = _morph_file_payload(parameters_per_variation)
+    wire_payload = wire_compose.message_payload(0x65, file_payload)
+
+    assert (
+        wire_compose.message_payload_form(0x65, file_payload)
+        == wire_compose.FORM_MORPH_TENTH_VARIATION
+    )
+    assert len(wire_payload) > len(file_payload) + 1
+    assert wire_compose.message_payload_reversed(0x65, wire_payload) == file_payload
+
+
 def test_a_065_payload_the_layout_does_not_describe_reports_the_filler_form():
     """The committed corpus opens a 0x65 with the count byte plus nine
     one-byte indices, which no MorphParameters layout describes. That payload

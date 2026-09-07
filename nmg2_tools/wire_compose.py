@@ -24,8 +24,8 @@ THE FILE-AGAINST-WIRE DIFFERENCES, and what this module does about each:
    writes it (``synth_pch2.generate`` writes ``bytes([9]) + indices`` for the
    ``wire_variation_count.pch2`` fixture), and a wire record carries 10 there.
    A 0x65 payload that decodes through the nine-variation bit layout gets a
-   FULL tenth variation appended -- a copy of the last variation with its
-   index renumbered -- by :func:`_morph_payload_tenth_variation`. A single
+   FULL tenth variation appended -- a copy of the last variation, carrying
+   its index -- by :func:`_morph_payload_tenth_variation`. A single
    filler byte does not work: the firmware's 0x65 reader (``FUN_3002DC84``)
    walks the section as a continuous bit stream, so a short tenth variation
    leaves it reading the FOLLOWING chunk's bytes as a parameter count and
@@ -183,10 +183,11 @@ ENTRY_NAME_LENGTH = 16
 def entry_name_field(name: str) -> bytes:
     """The wire form of g2fx's Protocol.EntryName field for ``name``.
 
-    The field is a StringField(16, lengthWithTerm): the name's characters, then a single 0x00 terminator, or exactly 16
-    characters with NO terminator when the name fills the field. A name
-    longer than 16 characters raises ValueError: g2fx truncates with a log
-    warning, and a silently short field would misalign the chain behind it.
+    The field is a StringField(16, lengthWithTerm): the name's characters,
+    then a single 0x00 terminator, or exactly 16 characters with NO
+    terminator when the name fills the field. A name longer than 16
+    characters raises ValueError: g2fx truncates with a log warning, and a
+    silently short field would misalign the chain behind it.
     """
     if len(name) > ENTRY_NAME_LENGTH:
         raise ValueError(
@@ -333,42 +334,37 @@ class _BitWriter:
         return bytes(self._buf)
 
 
-def _morph_payload_tenth_variation(payload: bytes) -> bytes:
-    """The wire payload for a 0x65 object whose file form carries 9 variations.
-
-    The file form is the g2fx ``MorphParameters`` layout: the variation count
-    (8 bits), the morph count (4), twenty reserved bits, then per variation
-    the variation index (4 bits), three reserved fields (24, 24, 8), the
-    variation's morph count (8), that many 29-bit morph parameters (2+8+7+4+8)
-    and a 4-bit reserved tail, with the whole section padded to a byte at the
-    end. The transform decodes the nine variations, re-emits them with the
-    count rewritten to 10, and appends the LAST variation again as the tenth
-    with its variation index renumbered.
+def _morph_decode(payload: bytes, variation_count: int):
+    """Decode the g2fx ``MorphParameters`` layout holding ``variation_count``
+    variations: the count byte (8 bits), the morph count (4), twenty reserved
+    bits, then per variation the variation index (4 bits), three reserved
+    fields (24, 24, 8), the variation's morph count (8), that many 29-bit
+    morph parameters (2+8+7+4+8) and a 4-bit reserved tail, with the whole
+    section padded to a byte at the end.
 
     A payload that does not decode exactly through that layout -- the
     committed synthetic corpus (`wire_variation_count.pch2`) opens a 0x65
     with the count byte plus nine one-byte indices, and some real corpus
     files carry fewer than nine fully-encoded variations -- raises
-    ``ValueError``, and the caller falls back to the filler form: expanding
-    a payload the layout does not fully describe would corrupt fields the
-    transform does not name.
+    :class:`MorphLayoutError`: reading fields the layout does not describe
+    would corrupt bytes this decoder cannot name.
     """
     minimum_bits = (
-        MORPH_HEADER_BITS + FILE_VARIATION_COUNT * MORPH_VARIATION_FIXED_BITS
+        MORPH_HEADER_BITS + variation_count * MORPH_VARIATION_FIXED_BITS
     )
     if len(payload) * 8 < minimum_bits:
         raise MorphLayoutError(
-            "0x65 payload is too short to hold the nine-variation file layout"
+            f"0x65 payload is too short to hold the {variation_count}-variation layout"
         )
     reader = _BitReader(payload)
     reader.get(8)
     morph_count = reader.get(4)
     reserved = reader.get(20)
     variations = []
-    for _ in range(9):
+    for _ in range(variation_count):
         if reader.get_position() + MORPH_VARIATION_FIXED_BITS > len(payload) * 8:
             raise MorphLayoutError(
-                "0x65 payload ends inside the nine-variation layout"
+                f"0x65 payload ends inside the {variation_count}-variation layout"
             )
         index = reader.get(4)
         reserved0 = reader.get(24)
@@ -393,20 +389,26 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
         tail = reader.get(4)
         variations.append((index, reserved0, reserved1, reserved2,
                            var_morph_count, params, tail))
-    # The file form pads the section to a byte, so up to seven bits of padding
-    # follow the ninth variation. Demanding an exact bit-for-byte fit refuses
+    # The form pads the section to a byte, so up to seven bits of padding
+    # follow the last variation. Demanding an exact bit-for-byte fit refuses
     # every payload whose layout does not happen to land on a byte boundary.
     if len(payload) * 8 - reader.get_position() >= 8:
         raise MorphLayoutError(
-            "0x65 payload holds bytes beyond the nine-variation layout"
+            f"0x65 payload holds bytes beyond the {variation_count}-variation layout"
         )
+    return morph_count, reserved, variations
+
+
+def _morph_encode(
+    count_byte: int, morph_count: int, reserved: int, variations
+) -> bytes:
+    """Re-emit a decoded ``MorphParameters`` section with ``count_byte`` as its
+    variation count and ``variations`` as its variation list."""
     writer = _BitWriter()
-    writer.put(8, WIRE_VARIATION_COUNT)
+    writer.put(8, count_byte)
     writer.put(4, morph_count)
     writer.put(20, reserved)
-    for index, reserved0, reserved1, reserved2, count, params, tail in (
-        variations + [variations[-1]]
-    ):
+    for index, reserved0, reserved1, reserved2, count, params, tail in variations:
         writer.put(4, index)
         writer.put(24, reserved0)
         writer.put(24, reserved1)
@@ -421,6 +423,35 @@ def _morph_payload_tenth_variation(payload: bytes) -> bytes:
         writer.put(4, tail)
     writer.pad_to_byte()
     return writer.bytes()
+
+
+def _morph_payload_tenth_variation(payload: bytes) -> bytes:
+    """The wire payload for a 0x65 object whose file form carries 9 variations.
+
+    The transform decodes the nine variations, re-emits them with the count
+    rewritten to 10, and appends the LAST variation again as the tenth.
+    """
+    morph_count, reserved, variations = _morph_decode(
+        payload, FILE_VARIATION_COUNT
+    )
+    return _morph_encode(
+        WIRE_VARIATION_COUNT, morph_count, reserved, variations + [variations[-1]]
+    )
+
+
+def _morph_payload_ninth_variation(wire_payload: bytes) -> bytes:
+    """The file payload for a 0x65 wire form carrying 10 variations.
+
+    The inverse of :func:`_morph_payload_tenth_variation`: the ten variations
+    decode, the tenth -- the wire's copy of the ninth -- is dropped, and the
+    remaining nine re-emit with the count back at 9.
+    """
+    morph_count, reserved, variations = _morph_decode(
+        wire_payload, WIRE_VARIATION_COUNT
+    )
+    return _morph_encode(
+        FILE_VARIATION_COUNT, morph_count, reserved, variations[:-1]
+    )
 
 
 def message_payload(object_type: int, payload: bytes) -> bytes:
@@ -493,17 +524,44 @@ def message_payload_reversed(object_type: int, wire_payload: bytes) -> bytes:
     """Return the FILE payload a wire payload converts back to (difference 1).
 
     The inverse of :func:`message_payload` for a 0x4D or 0x65 object opening
-    with the wire count: the count falls to the file's 9 and the appended
-    tenth-variation byte is dropped, so the round trip recovers the file's
-    own bytes. Every other byte passes through unchanged.
+    with the wire count. Each of the forward direction's two forms has its own
+    inverse -- the tenth variation is decoded and dropped, or the single filler
+    byte is dropped -- and WHICH one applies is not read off the wire bytes,
+    which do not say: it is settled by handing each candidate file payload back
+    to :func:`message_payload_form` and keeping the one whose forward form is
+    the form that was inverted. The two directions therefore share a single
+    decision and cannot drift apart. A candidate neither form claims means the
+    payload was never transformed, and it passes through unchanged.
+
+    The agreement is on the FORM, not on the bytes: the filler form discards
+    whatever the wire carried as its tenth-variation byte, so a wire payload
+    whose tenth byte is not :data:`TENTH_VARIATION_BYTE` still converts back to
+    the file's nine, and re-composing it does not reproduce that byte.
     """
-    if (
-        object_type in VARIATION_COUNT_TYPES
-        and len(wire_payload) >= 2
-        and wire_payload[0] == WIRE_VARIATION_COUNT
-    ):
-        return bytes([FILE_VARIATION_COUNT]) + wire_payload[1:-1]
+    for form, candidate in _reverse_candidates(object_type, wire_payload):
+        if message_payload_form(object_type, candidate) == form:
+            return candidate
     return wire_payload
+
+
+def _reverse_candidates(object_type: int, wire_payload: bytes):
+    """The file payloads a wire payload could have come from, most specific
+    first, each paired with the forward form that would have produced it."""
+    if not wire_payload or wire_payload[0] != WIRE_VARIATION_COUNT:
+        return
+    if object_type in MORPH_VARIATION_COUNT_TYPES:
+        try:
+            yield (
+                FORM_MORPH_TENTH_VARIATION,
+                _morph_payload_ninth_variation(wire_payload),
+            )
+        except MorphLayoutError:
+            pass
+    if object_type in VARIATION_COUNT_TYPES and len(wire_payload) >= 2:
+        yield (
+            FORM_FILLER_BYTE,
+            bytes([FILE_VARIATION_COUNT]) + wire_payload[1:-1],
+        )
 
 
 def compose(file_data: bytes, table: tuple[int, ...]) -> list[bytes]:
