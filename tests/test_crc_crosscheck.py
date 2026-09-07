@@ -155,11 +155,20 @@ def _largest_corpus_payload(corpus: pathlib.Path) -> tuple[str, bytes]:
 
 @pytest.fixture(scope="module")
 def corpus_inputs() -> list[tuple[str, bytes]]:
-    """The corpus, plus the gated largest-payload case when the corpus is
-    reachable. The skip is the standard one: an artifact-gated input that
-    cannot be reached skips WITH A REASON and never fails for that reason."""
+    """The synthetic inputs, which need no Clavia byte.
+
+    They are NOT behind the artifact gate. A fixture that skips before
+    returning them takes every case that asks for them dark on a runner with
+    no artifacts, which is every runner this repository's CI has."""
+    return _corpus_inputs()
+
+
+@pytest.fixture(scope="module")
+def gated_corpus_inputs() -> list[tuple[str, bytes]]:
+    """The synthetic inputs plus the largest real corpus payload. The skip is
+    the standard one: an artifact-gated input that cannot be reached skips
+    WITH A REASON and never fails for that reason."""
     reason = gated_skip_reason()
-    inputs = _corpus_inputs()
     if reason is not None:
         pytest.skip(reason)
     base, _why = resolve_artifacts()
@@ -173,8 +182,7 @@ def corpus_inputs() -> list[tuple[str, bytes]]:
             "SKIPPED: the demo patch corpus is not present under "
             "NMG2_ARTIFACTS (corpus/pch2 missing)"
         )
-    inputs.append(_largest_corpus_payload(corpus))
-    return inputs
+    return _corpus_inputs() + [_largest_corpus_payload(corpus)]
 
 
 def test_the_oracle_and_the_table_form_agree_on_the_whole_corpus(
@@ -190,21 +198,30 @@ def test_the_oracle_and_the_table_form_agree_on_the_whole_corpus(
         assert walked == arithmetic, f"the two forms disagree on {label}"
 
 
-def test_the_arithmetic_oracle_agrees_with_the_decompiled_walk(
+def test_the_table_walk_is_the_crc_and_not_the_container_sum(
     fixture_table, corpus_inputs
 ):
-    """The same agreement, through :mod:`nmg2_tools.checksum`'s exported
-    entry point rather than the ``synth_pch2`` wrapper. ``checksum`` is the
-    additive container sum and is NOT the CRC; the CRC-16/CCITT-XMODEM
-    parameters live in the ``synth_pch2`` oracle, and this case keeps the
-    pair-comparison honest about which file was measured."""
-    # `checksum` is a different algorithm by design. The case that
-    # matters is documented at the call site, not silently substituted:
-    # the CRC oracle is `crc16_ccitt`, and the container sum is asserted to
-    # be DIFFERENT so nobody reads a green run here as an identity between
-    # the two algorithms.
-    data = b"1234"
-    assert checksum(data) != crc16_ccitt(data)
+    """:mod:`nmg2_tools.checksum` is the additive container sum, not the CRC.
+    Each input is walked through the fixture table and held against BOTH: it
+    must equal the CRC oracle and differ from the container sum. Asserting
+    only that the two oracles differ measures neither the table nor the walk,
+    and stays green while the walk returns any constant at all."""
+    for label, data in corpus_inputs:
+        walked = crc_crosscheck.table_walk(data, fixture_table)
+        assert walked == crc16_ccitt(data), f"the walk is not the CRC on {label}"
+        assert walked != checksum(data), (
+            f"the walk computed the container sum on {label}"
+        )
+
+
+def test_the_gated_corpus_payload_agrees_through_both_forms(
+    fixture_table, gated_corpus_inputs
+):
+    """The same agreement over the largest object payload the real demo
+    corpus holds, which no synthetic input can stand in for."""
+    for label, data in gated_corpus_inputs:
+        walked = crc_crosscheck.table_walk(data, fixture_table)
+        assert walked == crc16_ccitt(data), f"the two forms disagree on {label}"
 
 
 # ---------------------------------------------------------------------------
