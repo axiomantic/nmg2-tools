@@ -14,7 +14,7 @@ requires-python = ">=3.11"
 # form, and not a `License ::` trove classifier. Both of those are deprecated
 # and setuptools warns on them.
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD-PARTY-NOTICES.md"]
 
 [project.scripts]
 # `planlint` is the installed entry point. The three wrapper scripts the plan

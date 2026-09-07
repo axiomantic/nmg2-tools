@@ -77,7 +77,7 @@ reason, and it never resolves a fixture out of a tree it did not name.
 
 ## Licence
 
-MIT. See `LICENSE`.
+MIT. See `LICENSE`. Third-party notices are in `THIRD-PARTY-NOTICES.md`.
 
 The MIT licence puts a rule on every contribution: **this repository is
 clean-room with respect to GPL and LGPL code.** Do not copy, port, translate or

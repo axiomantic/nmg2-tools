@@ -111,10 +111,14 @@ Sources outside that prohibition are named here with their licence, because a
 permissive licence is not the same as no obligation:
 
 - `sirlensalot/g2fx` (BSD-3-Clause). The wire-protocol facts checked against it
-  are message framing, field widths and code point values. BSD-3 carries a
-  notice requirement for redistributed source; whether anything taken here
-  crosses from fact into expression is an open question for the repository
-  owner, not one for a contributor to close.
+  are message framing, field widths and code point values, and
+  `nmg2_tools/wire_compose.py` follows its entry-name field behaviour. BSD-3
+  carries a notice requirement for redistributed source, and that notice is in
+  `THIRD-PARTY-NOTICES.md`. The notice stands whether or not a given passage
+  crosses from fact into expression, so that line does not have to be drawn.
+
+A source that goes in that list gets its notice in `THIRD-PARTY-NOTICES.md` at
+the same time, or the list records an obligation the repository does not meet.
 
 ## Comments and docstrings
 
