@@ -238,3 +238,60 @@ describes.
 - A capability that is not committed is a capability no other clone or runner
   can use. The presence of a rule NAME in the tool is not evidence of the
   capability behind it.
+
+## Tests
+
+**In the sibling repositories that use ctest, always pass `--no-tests=error`.**
+Without it, ctest exits 0 when the filter matches no test. A pass and an empty
+run then look the same. This project has a repository where that exact false
+green is live today.
+
+Write the failing test first. Confirm that it fails for the intended reason.
+
+A test must consume real values. A test that checks only exit status,
+non-emptiness, or truthiness proves nothing. Before you call a test done, plant
+a fault and confirm that the test goes red.
+
+## Verify the artifact, not the signal
+
+A step that can do nothing reports success in the same way as a step that
+worked. When a step writes a file, regenerates code, or targets a path you did
+not name, look at what it produced. Do not read the exit code and stop.
+
+Count with a command. Never estimate a number, and never recall one.
+
+State what you ran next to the result. A rule stated more broadly than what you
+tested is false in a way the test will not show you.
+
+## Git
+
+Never push to a default branch without permission. Never force push without
+stating what it discards first.
+
+Never run a tree-wide git operation in a checkout you share with anyone:
+`git stash`, `git checkout .`, `git restore .`, `git clean -fd`,
+`git reset --hard`. To compare against a commit, read it with `git show`.
+
+Never put an issue number in a commit message, a pull request title, or a pull
+request body. It notifies every subscriber.
+
+Work in a clone you created yourself. Never delete a path you did not create.
+
+**Containment by ancestry and containment by content are different questions.**
+`git merge-base --is-ancestor` answers "is this commit in that history". It does
+NOT answer "does that branch already carry this work". Where a stack was rebuilt
+rather than merged -- any rebase, cherry-pick or squash -- ancestry says NOT
+CONTAINED for work that is fully present. It is wrong in the dangerous direction
+too: a fix can sit on three branches as three distinct commits and ancestry finds
+none of them from a fourth.
+
+Say which question you are answering. To decide whether closing something loses
+work, compare CONTENT -- hash the files, or diff the trees and count what is
+absent from the survivor. Reserve ancestry for what it is exact about: whether a
+fast-forward exists.
+
+Observed twice in one day, in opposite directions. A rule demanding an ancestry
+proof before any close would have blocked every legitimate close in a repository
+whose branches were rebuilt; applying it loosely instead would have deleted a
+branch holding seven files that existed nowhere else. Elsewhere the same test
+returned false for all three copies of a bug fix that blob identity found at once.
