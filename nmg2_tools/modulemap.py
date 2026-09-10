@@ -16,7 +16,16 @@ The chain, in which the ``PANL`` ``FileName`` is never a link:
 ``descriptor_index`` is the signature-scan order. ``patch_type_id`` is the
 patch-file and wire module type identifier. ``g2ools_name`` is ``msg/g2ools``
 ``nord/g2/modules.py`` keyed by that identifier. ``compute_symbol`` is the
-``Compute()`` routine in ``extracted/g2engine/p2_compute_index.txt``.
+``Compute()`` routine named in the g2engine decompilation index.
+
+Neither source is a path in any repository of this project, and this module
+reads neither. ``nord/g2/modules.py`` belongs to ``msg/g2ools``, an external
+project. The g2engine decompilation index and ``p4_all_compute.c`` came from a
+decompilation workspace outside these repositories -- searched 2026-09-10 across
+``nmg2-artifacts`` by name, untracked files included, with a known positive in
+the same command: no ``extracted/`` tree is there and none ever was. Both are
+PROVENANCE for data handed to this module as ``ComputeRoutine`` objects, not
+files to open.
 
 The ``PANL`` ``FileName`` is carried as a column so a human can read the table,
 and it is used for exactly one thing: to RAISE a row's confidence. Many names
@@ -118,8 +127,9 @@ class Port:
 class ComputeRoutine:
     """One decompiled ``Compute()`` routine.
 
-    ``symbol`` is the routine's class name. ``addr`` and ``size`` come from
-    ``extracted/g2engine/p2_compute_index.txt`` and ``p4_all_compute.c``; a
+    ``symbol`` is the routine's class name. ``addr`` and ``size`` come from the
+    g2engine decompilation index and ``p4_all_compute.c``, which the module
+    docstring records are outside every repository here; a
     ``None`` size means no size is available for the word-count check. ``args``
     is the argument shape used by the port-shape check (empty when it is not
     known).
