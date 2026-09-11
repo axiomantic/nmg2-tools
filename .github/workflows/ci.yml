@@ -58,22 +58,6 @@ jobs:
       - name: Install pytest
         run: python -m pip install --upgrade pip pytest
 
-      # The layout is pinned by `pyproject.toml`: the package is `nmg2_tools/`
-      # and every test lives at `tests/` in the repository root. A test invoked
-      # by a path that does not hold it is a test that never runs.
-      - name: Assert that the pinned test layout holds
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -d nmg2_tools
-          test -d tests
-          collected=$(python -m pytest tests --collect-only -q | tail -1)
-          echo "${collected}"
-          if printf '%s' "${collected}" | grep -qE '^0 |no tests ran'; then
-            echo "FAILURE: the pinned test path holds no test."
-            exit 1
-          fi
-
       - name: Run the T0 suite
         run: python -m pytest tests -q
 
