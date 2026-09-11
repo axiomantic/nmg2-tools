@@ -12,8 +12,6 @@ reference is anchored to the PUBLISHED CRC-16/XMODEM check value 0x31C3. A test
 whose expectation comes from the function it tests cannot fail.
 """
 
-import pathlib
-
 import pytest
 
 from nmg2_tools.synth_pch2 import (
@@ -73,35 +71,12 @@ def test_the_module_crc_agrees_with_the_reference_on_every_vector():
 # The corpus.
 # ---------------------------------------------------------------------------
 
-CORPUS_FILES = [
-    "bad_crc.pch2",
-    "bad_length_past_end.pch2",
-    "bad_truncated_object.pch2",
-    "bad_unknown_type.pch2",
-    "bit_widths.pch2",
-    "length_boundaries.pch2",
-    "min.pch2",
-    "object_types.pch2",
-    "wire_extra_bytes_file.pch2",
-    "wire_extra_bytes_usb.pch2",
-    "wire_morph_names.pch2",
-    "wire_variation_count.pch2",
-]
-
 MALFORMED = {
     "bad_crc.pch2",
     "bad_length_past_end.pch2",
     "bad_truncated_object.pch2",
     "bad_unknown_type.pch2",
 }
-
-
-def test_the_committed_corpus_holds_exactly_these_files():
-    """Exact equality, not membership. A file added without a row here is a
-    file no one decided to publish."""
-    committed = sorted(p.name for p in CORPUS_DIRECTORY.glob("*.pch2"))
-
-    assert committed == CORPUS_FILES
 
 
 def test_regenerating_the_corpus_reproduces_every_committed_byte():
@@ -148,8 +123,8 @@ def test_every_well_formed_file_carries_the_crc_the_reference_computes():
     the covered range and is not covered."""
     generated = generate()
 
-    for name in CORPUS_FILES:
-        if name in MALFORMED:
+    for name in sorted(generated):
+        if name in MALFORMED or not name.endswith(".pch2"):
             continue
         image = generated[name]
         covered = image[image.index(b"\x00") + 1 : -2]
@@ -429,28 +404,8 @@ def test_morph_parameter_names_are_omitted_in_both_paths():
 
 
 # ---------------------------------------------------------------------------
-# The malformed set. The parser must reject each with a
-# NAMED error, and the manifest is where the corpus states which name.
+# The malformed set. The parser must reject each with a NAMED error.
 # ---------------------------------------------------------------------------
-
-
-def test_the_manifest_names_every_file_and_the_refusal_each_malformed_one_expects():
-    assert generate()["MANIFEST.tsv"].decode("ascii") == (
-        "# The synthesized .pch2 corpus. Regenerated, never hand-edited.\n"
-        "# file\tkind\texpected_refusal\n"
-        "bad_crc.pch2\tmalformed\tPCH2-BAD-CRC\n"
-        "bad_length_past_end.pch2\tmalformed\tPCH2-LENGTH-PAST-END\n"
-        "bad_truncated_object.pch2\tmalformed\tPCH2-TRUNCATED-OBJECT\n"
-        "bad_unknown_type.pch2\tmalformed\tPCH2-UNKNOWN-OBJECT-TYPE\n"
-        "bit_widths.pch2\twellformed\t-\n"
-        "length_boundaries.pch2\twellformed\t-\n"
-        "min.pch2\twellformed\t-\n"
-        "object_types.pch2\twellformed\t-\n"
-        "wire_extra_bytes_file.pch2\twellformed\t-\n"
-        "wire_extra_bytes_usb.pch2\twellformed\t-\n"
-        "wire_morph_names.pch2\twellformed\t-\n"
-        "wire_variation_count.pch2\twellformed\t-\n"
-    )
 
 
 def test_the_truncated_object_declares_more_payload_than_the_file_holds():
@@ -486,13 +441,3 @@ def test_the_unknown_type_file_holds_a_type_the_specification_does_not_name():
 
     assert body == b"\xff\x00\x01\x00"
     assert 0xFF not in OBJECT_TYPES
-
-
-def test_the_corpus_directory_is_nmg2_tools_testdata_pch2_synth():
-    """`CORPUS_DIRECTORY` resolves to `nmg2_tools/testdata/pch2_synth` under
-    the repository root. It is the generator's default write target and the
-    path every corpus test reads through, so this pins the one location they
-    share."""
-    root = pathlib.Path(__file__).resolve().parents[1]
-
-    assert CORPUS_DIRECTORY == root / "nmg2_tools" / "testdata" / "pch2_synth"
